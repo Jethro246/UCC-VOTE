@@ -1,0 +1,6 @@
+{
+  "name": "UCC VOTE - University of Cape Coast Election Platform",
+  "description": "A modern, secure and responsive electronic voting and university election management platform for the University of Cape Coast, Ghana.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
