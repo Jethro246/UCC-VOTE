@@ -200,6 +200,107 @@ export interface ComplaintTicket {
   response?: string;
 }
 
+export type ResultsWorkflowStage =
+  | 'preliminary'
+  | 'verification'
+  | 'audit'
+  | 'approved'
+  | 'certified'
+  | 'published';
+
+export interface WorkflowAuditAction {
+  stage: ResultsWorkflowStage;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  timestamp: string;
+  notes: string;
+  signatureHash?: string;
+}
+
+export interface CandidateResultRow {
+  candidateId: string;
+  fullName: string;
+  nickname?: string;
+  studentId: string;
+  photoUrl: string;
+  department: string;
+  faculty: string;
+  hall: string;
+  votesReceived: number;
+  percentageOfValidVotes: number;
+  percentageOfTotalBallots: number;
+  rank: number;
+  isLeading: boolean;
+  isWinner: boolean;
+  isTied: boolean;
+}
+
+export interface PositionResultSummary {
+  positionId: string;
+  title: string;
+  description: string;
+  order: number;
+  totalValidVotes: number;
+  blankVotes: number;
+  invalidVotes: number;
+  totalBallotsProcessed: number;
+  isTie: boolean;
+  tiedCandidateIds: string[];
+  winnerCandidateIds: string[];
+  candidates: CandidateResultRow[];
+}
+
+export interface TurnoutBreakdownRow {
+  label: string;
+  eligibleVoters: number;
+  ballotsCast: number | null;
+  turnoutPercentage: number | null;
+  suppressed: boolean;
+  suppressionReason?: string;
+}
+
+export interface BallotAccountingSummary {
+  totalEligibleVoters: number;
+  totalBallotsCast: number;
+  validBallots: number;
+  invalidBallots: number;
+  blankBallots: number;
+  uncastBallots: number;
+  turnoutPercentage: number;
+  validBallotRate: number;
+  invalidBallotRate: number;
+  blankBallotRate: number;
+}
+
+export interface ElectionResultsPayload {
+  electionId: string;
+  electionTitle: string;
+  electionCode: string;
+  category: ElectionCategory;
+  status: ElectionStatus;
+  academicYear: string;
+  organizingBody: string;
+  startDate: string;
+  endDate: string;
+  publishedAt?: string;
+  workflowStage: ResultsWorkflowStage;
+  workflowHistory: WorkflowAuditAction[];
+  isPublished: boolean;
+  resultsCertified: boolean;
+  certificationHash?: string;
+  certifiedBy?: string;
+  ballotSummary: BallotAccountingSummary;
+  positions: PositionResultSummary[];
+  turnoutAnalytics: {
+    privacyThreshold: number;
+    byFaculty: TurnoutBreakdownRow[];
+    byDepartment: TurnoutBreakdownRow[];
+    byLevel: TurnoutBreakdownRow[];
+    byHall: TurnoutBreakdownRow[];
+  };
+}
+
 export interface AuditLogItem {
   id: string;
   timestamp: string;
