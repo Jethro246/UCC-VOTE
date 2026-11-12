@@ -6,7 +6,9 @@ import {
   Candidate,
   CandidateApplicationStatus,
   BallotSelectionMap,
-  VoteConfirmationReceipt
+  VoteConfirmationReceipt,
+  ElectionResultsPayload,
+  ResultsWorkflowStage
 } from '../types';
 import { authClient } from './authClient';
 
@@ -648,6 +650,111 @@ export const electionClient = {
       return await res.json();
     } catch (err: any) {
       return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Fetch authoritative election results for admin certification console
+   */
+  async getAdminElectionResults(electionId: string): Promise<{
+    success: boolean;
+    results?: ElectionResultsPayload;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/results/${encodeURIComponent(electionId)}/admin`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Advance election results through the 6-stage verification & publication workflow
+   */
+  async advanceResultsWorkflow(
+    electionId: string,
+    targetStage: ResultsWorkflowStage,
+    notes?: string,
+    actorName?: string
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    results?: ElectionResultsPayload;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/results/${encodeURIComponent(electionId)}/workflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ targetStage, notes, actorName })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Download official PDF or CSV election report
+   */
+  async downloadElectionReport(
+    electionId: string,
+    format: 'pdf' | 'csv',
+    reportType: 'full' | 'results' | 'turnout' | 'candidates' | 'positions'
+  ): Promise<{
+    success: boolean;
+    filename?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(
+        `/api/results/${encodeURIComponent(electionId)}/export?format=${encodeURIComponent(format)}&type=${encodeURIComponent(reportType)}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : ''
+          }
+        }
+      );
+
+      if (!res.ok) {
+        let errorMessage = `Export failed with status ${res.status}`;
+        try {
+          const errJson = await res.json();
+          if (errJson?.error) errorMessage = errJson.error;
+        } catch {
+          // ignore non-JSON error body
+        }
+        return { success: false, error: errorMessage };
+      }
+
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = filenameMatch?.[1] || `UCC_VOTE_${electionId}_${reportType}.${format}`;
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      return { success: true, filename };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Report export failed.' };
     }
   }
 };
