@@ -2,10 +2,11 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { authRouter } from './src/server/authRoutes';
-import { adminRouter } from './src/server/adminRoutes';
-import { studentDashboardRouter } from './src/server/studentDashboardRoutes';
-import { electionRouter } from './src/server/electionRoutes';
+import { authRouter } from './src/server/authRoutes.ts';
+import { adminRouter } from './src/server/adminRoutes.ts';
+import { studentDashboardRouter } from './src/server/studentDashboardRoutes.ts';
+import { electionRouter } from './src/server/electionRoutes.ts';
+import { candidateRouter } from './src/server/candidateRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,8 @@ async function startServer() {
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/student', studentDashboardRouter);
+  app.use('/api/candidates', candidateRouter);
+  app.use('/api/elections/candidates', candidateRouter);
   app.use('/api/elections', electionRouter);
 
   // Health check route

@@ -7,6 +7,8 @@ import {
   Election, 
   ElectionCategory, 
   ElectionStatus, 
+  Candidate,
+  CandidateApplicationStatus,
   NotificationItem, 
   ComplaintTicket 
 } from '../types';
@@ -15,9 +17,11 @@ import {
   DEMO_ADMIN, 
   MOCK_ELECTIONS, 
   MOCK_NOTIFICATIONS, 
-  MOCK_COMPLAINTS 
+  MOCK_COMPLAINTS,
+  MOCK_CANDIDATES
 } from '../data/mockData';
 import { authClient } from '../services/authClient';
+import { electionClient } from '../services/electionClient';
 
 interface AppContextType {
   activeView: ActiveView;
@@ -29,6 +33,8 @@ interface AppContextType {
   compareCandidateIds: [string, string] | null;
   ballotSelections: Record<string, string>; // positionId -> candidateId
   elections: Election[];
+  candidates: Candidate[];
+  myCandidateApplication: Candidate | null;
   notifications: NotificationItem[];
   complaints: ComplaintTicket[];
   categoryFilter: ElectionCategory | 'All';
@@ -40,8 +46,17 @@ interface AppContextType {
   // Actions
   navigateTo: (view: ActiveView, params?: { electionId?: string; candidateId?: string }) => void;
   refreshElections: () => Promise<void>;
+  refreshCandidates: () => Promise<void>;
   createElectionAction: (payload: any) => Promise<{ success: boolean; election?: Election; error?: string }>;
   updateElectionStatusAction: (id: string, newStatus: ElectionStatus, justification?: string) => Promise<{ success: boolean; election?: Election; error?: string }>;
+  registerCandidateAction: (payload: any) => Promise<{ success: boolean; candidate?: Candidate; error?: string; message?: string }>;
+  updateCandidateAction: (id: string, updates: any) => Promise<{ success: boolean; candidate?: Candidate; error?: string; message?: string }>;
+  approveCandidateAction: (id: string) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  rejectCandidateAction: (id: string, reason: string) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  requestCandidateCorrectionsAction: (id: string, notes: string) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  withdrawCandidateAction: (id: string, reason?: string) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  assignCandidatePositionAction: (id: string, electionId: string, positionId: string) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  verifyCandidateEligibilityAction: (id: string) => Promise<{ success: boolean; isEligible?: boolean; reason?: string; details?: any; error?: string }>;
   loginAsStudent: (studentData?: any) => void;
   loginAsAdmin: (adminData?: any) => void;
   loginWithUserPayload: (user: any, role: 'student' | 'admin') => void;
@@ -75,6 +90,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [ballotSelections, setBallotSelections] = useState<Record<string, string>>({});
   
   const [elections, setElections] = useState<Election[]>(MOCK_ELECTIONS);
+  const [candidates, setCandidates] = useState<Candidate[]>(Object.values(MOCK_CANDIDATES));
   const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
   const [complaints, setComplaints] = useState<ComplaintTicket[]>(MOCK_COMPLAINTS);
   
@@ -84,7 +100,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const [recentVoteReceipt, setRecentVoteReceipt] = useState<{ electionId: string; timestamp: string; receiptCode: string } | null>(null);
 
-  // Validate active session against server on mount and load initial elections
+  // Validate active session against server on mount and load initial elections & candidates
   const refreshElections = async () => {
     try {
       const res = await fetch('/api/elections');
@@ -97,8 +113,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const refreshCandidates = async () => {
+    try {
+      const res = await electionClient.getCandidates();
+      if (res.success && Array.isArray(res.candidates) && res.candidates.length > 0) {
+        setCandidates(res.candidates);
+      }
+    } catch {
+      // fallback to pre-loaded MOCK_CANDIDATES
+    }
+  };
+
   useEffect(() => {
     refreshElections();
+    refreshCandidates();
   }, []);
 
   const createElectionAction = async (payload: any) => {
@@ -140,6 +168,114 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { success: true, election: data.election };
       }
       return { success: false, error: data.error || 'Status update failed.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const registerCandidateAction = async (payload: any) => {
+    try {
+      const res = await electionClient.registerCandidate(payload);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to submit candidate application.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const updateCandidateAction = async (id: string, updates: any) => {
+    try {
+      const res = await electionClient.updateCandidate(id, updates);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to update candidate.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const approveCandidateAction = async (id: string) => {
+    try {
+      const res = await electionClient.approveCandidate(id);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        await refreshElections();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to approve candidate nomination.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const rejectCandidateAction = async (id: string, reason: string) => {
+    try {
+      const res = await electionClient.rejectCandidate(id, reason);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        await refreshElections();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to reject candidate nomination.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const requestCandidateCorrectionsAction = async (id: string, notes: string) => {
+    try {
+      const res = await electionClient.requestCandidateCorrections(id, notes);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to submit correction request.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const withdrawCandidateAction = async (id: string, reason?: string) => {
+    try {
+      const res = await electionClient.withdrawCandidate(id, reason);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        await refreshElections();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to withdraw candidate.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const assignCandidatePositionAction = async (id: string, electionId: string, positionId: string) => {
+    try {
+      const res = await electionClient.assignCandidatePosition(id, electionId, positionId);
+      if (res.success && res.candidate) {
+        await refreshCandidates();
+        await refreshElections();
+        return { success: true, candidate: res.candidate, message: res.message };
+      }
+      return { success: false, error: res.error || 'Failed to assign candidate position.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const verifyCandidateEligibilityAction = async (id: string) => {
+    try {
+      const res = await electionClient.verifyCandidateEligibility(id);
+      if (res.success) {
+        await refreshCandidates();
+        return { success: true, isEligible: res.isEligible, reason: res.reason, details: res.details };
+      }
+      return { success: false, error: res.error || 'Candidate eligibility verification failed.' };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -310,6 +446,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCompareCandidateIds([compareCandidateIds[0], candidateId]);
   };
 
+  const myCandidateApplication = student
+    ? candidates.find(c => c.studentId.toUpperCase() === student.studentId.toUpperCase()) || null
+    : null;
+
   return (
     <AppContext.Provider value={{
       activeView,
@@ -321,6 +461,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       compareCandidateIds,
       ballotSelections,
       elections,
+      candidates,
+      myCandidateApplication,
       notifications,
       complaints,
       categoryFilter,
@@ -330,8 +472,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       sessionChecked,
       navigateTo,
       refreshElections,
+      refreshCandidates,
       createElectionAction,
       updateElectionStatusAction,
+      registerCandidateAction,
+      updateCandidateAction,
+      approveCandidateAction,
+      rejectCandidateAction,
+      requestCandidateCorrectionsAction,
+      withdrawCandidateAction,
+      assignCandidatePositionAction,
+      verifyCandidateEligibilityAction,
       loginAsStudent,
       loginAsAdmin,
       loginWithUserPayload,

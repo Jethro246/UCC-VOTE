@@ -1,16 +1,19 @@
-import { Router, Request, Response } from 'express';
-import { authenticateToken } from './authRoutes';
-import { requireAdminRole } from './adminRoutes';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { authenticateToken } from './authRoutes.ts';
+import { requireAdminRole } from './adminRoutes.ts';
 import { 
   ELECTIONS_STORE, 
   POSITIONS_STORE, 
+  CANDIDATES_STORE,
   isValidTransition, 
   VALID_STATUS_TRANSITIONS,
   verifyStudentEligibility,
-  calculateEligibleVoterCount
-} from './electionStore';
-import { logAuditEvent, OFFICIAL_UCC_STUDENT_REGISTRY, STUDENT_ACCOUNTS } from './authStore';
-import { Election, ElectionCategory, ElectionStatus, Position } from '../types';
+  calculateEligibleVoterCount,
+  verifyCandidateCandidacyEligibility
+} from './electionStore.ts';
+import { logAuditEvent, OFFICIAL_UCC_STUDENT_REGISTRY, STUDENT_ACCOUNTS } from './authStore.ts';
+import type { Election, ElectionCategory, ElectionStatus, Position, Candidate, CandidateApplicationStatus } from '../types/index.ts';
 
 export const electionRouter = Router();
 
@@ -596,3 +599,4 @@ electionRouter.delete(
     });
   }
 );
+

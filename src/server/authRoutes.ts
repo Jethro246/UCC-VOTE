@@ -1,4 +1,5 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { 
   OFFICIAL_UCC_STUDENT_REGISTRY, 
   STUDENT_ACCOUNTS, 
@@ -9,11 +10,10 @@ import {
   recordFailedAttempt, 
   resetRateLimit, 
   logAuditEvent,
-  AUDIT_LOGS,
-  StoredStudentAccount,
-  SessionData
-} from './authStore';
-import { hashPassword, verifyPassword, generateToken } from './cryptoUtils';
+  AUDIT_LOGS
+} from './authStore.ts';
+import type { StoredStudentAccount, SessionData } from './authStore.ts';
+import { hashPassword, verifyPassword, generateToken } from './cryptoUtils.ts';
 
 export const authRouter = Router();
 

@@ -1,4 +1,4 @@
-import { hashPassword } from './cryptoUtils';
+import { hashPassword } from './cryptoUtils.ts';
 
 export interface OfficialRegistryStudent {
   studentId: string;
@@ -83,7 +83,14 @@ export interface AuditLogEntry {
     | 'UPDATE_ELECTION'
     | 'ELECTION_STATUS_CHANGE'
     | 'CREATE_POSITION'
-    | 'DELETE_POSITION';
+    | 'DELETE_POSITION'
+    | 'SUBMIT_CANDIDATE_APPLICATION'
+    | 'UPDATE_CANDIDATE_PROFILE'
+    | 'APPROVE_CANDIDATE_NOMINATION'
+    | 'REJECT_CANDIDATE_NOMINATION'
+    | 'REQUEST_CANDIDATE_CORRECTIONS'
+    | 'WITHDRAW_CANDIDATE_NOMINATION'
+    | 'ASSIGN_CANDIDATE_POSITION';
   userId?: string;
   identifier: string;
   role?: string;

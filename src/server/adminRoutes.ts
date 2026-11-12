@@ -1,13 +1,14 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { authenticateToken } from './authRoutes';
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { authenticateToken } from './authRoutes.ts';
 import { 
   STUDENT_ACCOUNTS, 
   ACTIVE_SESSIONS, 
   AUDIT_LOGS, 
   logAuditEvent,
-  OFFICIAL_UCC_STUDENT_REGISTRY,
-  StoredStudentAccount
-} from './authStore';
+  OFFICIAL_UCC_STUDENT_REGISTRY
+} from './authStore.ts';
+import type { StoredStudentAccount } from './authStore.ts';
 
 export const adminRouter = Router();
 

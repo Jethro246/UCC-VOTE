@@ -27,9 +27,12 @@ import {
   AlertTriangle,
   RefreshCw,
   LogOut,
-  UserCircle
+  UserCircle,
+  FileCheck,
+  Edit3
 } from 'lucide-react';
 import { Election } from '../../types';
+import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -38,7 +41,11 @@ export const StudentDashboard: React.FC = () => {
     navigateTo, 
     notifications, 
     loginWithUserPayload, 
-    logout 
+    logout,
+    myCandidateApplication,
+    candidates,
+    refreshCandidates,
+    withdrawCandidateAction
   } = useApp();
 
   const [activeSectionTab, setActiveSectionTab] = useState<'available' | 'active' | 'upcoming' | 'completed'>('available');
@@ -46,6 +53,7 @@ export const StudentDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showCandidateAppModal, setShowCandidateAppModal] = useState(false);
 
   // Fetch live dashboard data from backend API
   const fetchDashboard = async () => {
@@ -434,6 +442,167 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
       </div>
+
+      {/* MY CANDIDACY APPLICATION & ASPIRANT STATUS CARD */}
+      {myCandidateApplication ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider block">
+                Official Candidate Portal
+              </span>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2 mt-0.5">
+                <Users className="w-4 h-4 text-[#123B70]" />
+                <span>My Candidacy Application & Vetting Status</span>
+              </h2>
+            </div>
+
+            {/* Status Pill */}
+            <div>
+              {myCandidateApplication.applicationStatus === 'Approved' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold shadow-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Approved · Accredited on Ballot</span>
+                </span>
+              )}
+              {myCandidateApplication.applicationStatus === 'Under review' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-bold">
+                  <Clock className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Under Active Vetting Review</span>
+                </span>
+              )}
+              {myCandidateApplication.applicationStatus === 'Submitted' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Application Submitted</span>
+                </span>
+              )}
+              {myCandidateApplication.applicationStatus === 'Draft' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-800 text-xs font-bold">
+                  <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Draft (Not Yet Submitted)</span>
+                </span>
+              )}
+              {myCandidateApplication.applicationStatus === 'Rejected' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                  <span>Application Disqualified</span>
+                </span>
+              )}
+              {myCandidateApplication.applicationStatus === 'Withdrawn' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
+                  <span>Candidacy Withdrawn</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start gap-4">
+            <img
+              src={myCandidateApplication.photoUrl}
+              alt={myCandidateApplication.fullName}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover object-top border-2 border-slate-200 shrink-0"
+            />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-slate-900 text-sm sm:text-base">
+                  {myCandidateApplication.fullName}
+                </span>
+                {myCandidateApplication.nickname && (
+                  <span className="text-xs font-bold text-[#C62828]">
+                    "{myCandidateApplication.nickname}"
+                  </span>
+                )}
+                <span className="text-xs text-slate-400 font-mono">
+                  ({myCandidateApplication.studentId})
+                </span>
+              </div>
+
+              <p className="text-xs text-[#123B70] font-semibold">
+                Contesting for: <strong>{myCandidateApplication.positionId.replace('pos-', '').replace(/-/g, ' ').toUpperCase()}</strong>
+              </p>
+
+              <p className="text-xs text-slate-600 italic line-clamp-2">
+                "{myCandidateApplication.manifestoSummary}"
+              </p>
+
+              {/* Commission Notices */}
+              {myCandidateApplication.correctionNotes && (
+                <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 mt-2">
+                  <strong>Electoral Commission Revision Notes:</strong> {myCandidateApplication.correctionNotes}
+                </div>
+              )}
+              {myCandidateApplication.rejectionReason && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 mt-2">
+                  <strong>Disqualification Reason:</strong> {myCandidateApplication.rejectionReason}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigateTo('candidate_profile', { candidateId: myCandidateApplication.id })}
+                className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Inspect Public Profile →
+              </button>
+              <button
+                onClick={() => setShowCandidateAppModal(true)}
+                className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Application / Manifesto</span>
+              </button>
+            </div>
+
+            {myCandidateApplication.applicationStatus !== 'Withdrawn' && myCandidateApplication.applicationStatus !== 'Rejected' && (
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to withdraw your candidacy? This will remove your portfolio nomination from official ballots.')) {
+                    await withdrawCandidateAction(myCandidateApplication.id, 'Withdrawn by candidate request');
+                  }
+                }}
+                className="text-xs text-red-600 hover:underline font-semibold cursor-pointer"
+              >
+                Withdraw Candidacy
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-blue-900/5 via-[#123B70]/10 to-transparent rounded-2xl border border-blue-200/80 p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-[#123B70] text-[10px] font-bold uppercase tracking-wider">
+              <span>Nominations Open</span>
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">
+              Interested in Serving as a Student Leader at UCC?
+            </h3>
+            <p className="text-xs text-slate-600 max-w-xl">
+              File nomination for SRC Executive, Hall JCRC, or Faculty portfolios. Submit your 15-point dossier, campaign promises, and manifesto.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowCandidateAppModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs transition-all shadow-xs cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+            >
+              <UserCircle className="w-4 h-4 text-amber-400" />
+              <span>File Candidacy Nomination</span>
+            </button>
+            <button
+              onClick={() => navigateTo('candidate_directory')}
+              className="px-3 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap"
+            >
+              View Aspirants
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* STUDENT VOTING STATUS BREAKDOWN PANEL */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
@@ -859,6 +1028,13 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Candidate Application / Nomination Modal */}
+      <CandidateRegistrationModal
+        isOpen={showCandidateAppModal}
+        onClose={() => setShowCandidateAppModal(false)}
+        candidateToEdit={myCandidateApplication}
+      />
 
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_POSITIONS, MOCK_CANDIDATES } from '../../data/mockData';
+import { MOCK_POSITIONS } from '../../data/mockData';
+import { Candidate } from '../../types';
 import { 
   Vote, 
   CheckCircle2, 
@@ -25,7 +26,8 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     resetBallot,
     submitSimulatedVote,
     student,
-    recentVoteReceipt
+    recentVoteReceipt,
+    candidates
   } = useApp();
 
   const election = elections.find(e => e.id === selectedElectionId) || elections[0];
@@ -230,7 +232,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="space-y-4">
             {positions.map((pos) => {
               const selectedCandId = ballotSelections[pos.id];
-              const cand = selectedCandId ? MOCK_CANDIDATES[selectedCandId] : null;
+              const cand = selectedCandId ? candidates.find(c => c.id === selectedCandId) : null;
 
               return (
                 <div key={pos.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -320,9 +322,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     );
   }
 
-  // STEP 1: Portfolio and Candidate Selection
+  // STEP 1: Portfolio and Candidate Selection - ONLY Approved candidates appear on official ballots
   const positionCandidates = activePosition
-    ? activePosition.candidateIds.map(id => MOCK_CANDIDATES[id]).filter(Boolean)
+    ? (activePosition.candidateIds || [])
+        .map(id => candidates.find(c => c.id === id))
+        .filter((c): c is Candidate => Boolean(c && c.applicationStatus === 'Approved'))
     : [];
 
   return (

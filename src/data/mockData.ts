@@ -1,4 +1,4 @@
-import { 
+import type { 
   StudentProfile, 
   AdminProfile, 
   Election, 
@@ -8,11 +8,13 @@ import {
   CalendarEvent, 
   ComplaintTicket, 
   AuditLogItem 
-} from '../types';
+} from '../types/index.ts';
 
 export const UCC_HERO_IMAGE = '/src/assets/images/hero_ucc_campus_1794352938030.jpg';
 export const CANDIDATE_MALE_IMAGE = '/src/assets/images/candidate_male_1794352938747.jpg';
 export const CANDIDATE_FEMALE_IMAGE = '/src/assets/images/candidate_female_1794352938475.jpg';
+export const CANDIDATE_MALE_GLASSES_IMAGE = '/src/assets/images/candidate_male_glasses_1794364322323.jpg';
+export const CANDIDATE_FEMALE_SUIT_IMAGE = '/src/assets/images/candidate_female_suit_1794364322880.jpg';
 
 export const DEMO_STUDENT: StudentProfile = {
   id: 'stu-001',
@@ -281,11 +283,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Nana Akua Afriyie Osei',
     studentId: 'ED/EPS/21/0034',
     nickname: 'Iron Lady of Cape Coast',
+    email: 'nana.osei@st.ucc.edu.gh',
     department: 'Educational Foundations',
     faculty: 'Faculty of Educational Foundations',
+    programme: 'B.Ed. Psychology and Foundations',
     level: '400',
     hall: 'Adehye Hall',
-    photoUrl: CANDIDATE_FEMALE_IMAGE,
+    photoUrl: CANDIDATE_FEMALE_SUIT_IMAGE,
+    biography: 'Final-year student leader and passionate student advocate with three years of progressive student council experience at UCC. Known for negotiation firmness and grassroots student welfare focus.',
     manifestoSummary: 'Empowering UCC: Modernizing shuttle transit, campus-wide Wi-Fi stability, and student entrepreneurial seed funds.',
     fullManifesto: [
       'Comprehensive overhaul and expansion of the intra-campus shuttle network with real-time tracking.',
@@ -304,6 +309,20 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       'Adehye Hall Academic Secretary (2023/2024)',
       'UCC Debate Society Lead Delegate at Ghana Universities Debate Championship'
     ],
+    videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    eligibilityDetails: {
+      isEnrolled: true,
+      cgpaQualified: true,
+      levelMatch: true,
+      facultyMatch: true,
+      hallMatch: true,
+      summary: 'Accredited student in good standing. CGPA 3.82 exceeds 3.0 requirement.'
+    },
+    submittedAt: '2026-10-15T09:00:00Z',
+    reviewedAt: '2026-10-20T14:30:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     runningMate: {
       fullName: 'Richmond Kwabena Frimpong',
       studentId: 'SB/ACC/21/0112',
@@ -320,11 +339,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Kwesi Boateng Mensah',
     studentId: 'PS/CHE/21/0088',
     nickname: 'Action Kwesi',
+    email: 'kwesi.boateng@st.ucc.edu.gh',
     department: 'Chemistry',
     faculty: 'School of Physical Sciences',
+    programme: 'B.Sc. Chemistry',
     level: '400',
     hall: 'Casely Hayford Hall',
-    photoUrl: CANDIDATE_MALE_IMAGE,
+    photoUrl: CANDIDATE_MALE_GLASSES_IMAGE,
+    biography: 'Scientist, athlete, and seasoned Casfordian administrator committed to fiscal discipline, athletic development, and digital student support systems.',
     manifestoSummary: 'Accountability First: Transparent student dues management, sports facilities modernization, and digital medical card access.',
     fullManifesto: [
       'Publishing quarterly audited financial statements of SRC dues on the public portal.',
@@ -343,6 +365,20 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       'President, UCC Science Students Association (2024/2025)',
       'Executive Member, University Parliament Council'
     ],
+    videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    eligibilityDetails: {
+      isEnrolled: true,
+      cgpaQualified: true,
+      levelMatch: true,
+      facultyMatch: true,
+      hallMatch: true,
+      summary: 'Accredited student in good standing. CGPA 3.65 exceeds 3.0 requirement.'
+    },
+    submittedAt: '2026-10-16T11:20:00Z',
+    reviewedAt: '2026-10-20T15:00:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     runningMate: {
       fullName: 'Abena Serwaa Prempeh',
       studentId: 'AS/ENG/21/0091',
@@ -359,11 +395,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Emmanuel Kofi Annan',
     studentId: 'AS/COM/22/0104',
     nickname: 'The Diplomat',
+    email: 'emmanuel.annan@st.ucc.edu.gh',
     department: 'Communication Studies',
     faculty: 'Faculty of Arts',
+    programme: 'B.A. Communication Studies',
     level: '300',
     hall: 'Valco Hall',
     photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Prolific writer and campus communicator focused on clear institutional notices, fast student query turnaround, and modern public relations.',
     manifestoSummary: 'Digitizing the Secretariat: Instant circular dispatches, WhatsApp API notice broadcast, and searchable congress archives.',
     fullManifesto: [
       'Digitizing all official communique, congress minutes, and student policy documents into an accessible open portal.',
@@ -378,6 +417,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       'Editorial Lead, Cape Coast University Student Magazine',
       'Valco Hall JCR Assistant Secretary'
     ],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-18T10:00:00Z',
+    reviewedAt: '2026-10-21T09:15:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     votesReceived: 8140,
     votePercentage: 59.2
   },
@@ -388,11 +432,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Jennifer Efua Mensimah',
     studentId: 'ED/JHS/22/0063',
     nickname: 'Jenna',
+    email: 'jennifer.mensimah@st.ucc.edu.gh',
     department: 'Arts and Social Sciences Education',
     faculty: 'Faculty of Educational Foundations',
+    programme: 'B.Ed. Social Studies',
     level: '300',
     hall: 'Oguaa Hall',
     photoUrl: CANDIDATE_FEMALE_IMAGE,
+    biography: 'Education scholar dedicated to distance student inclusion, transparent records, and equal student participation across UCC campuses.',
     manifestoSummary: 'Speed, Precision, and Inclusion: Bridge the gap between distance learners, sandwich students, and regular campus students.',
     fullManifesto: [
       'Providing specialized liaison desks for distance and sandwich students during vacation sessions.',
@@ -406,6 +453,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       'Oguaa Hall Floor Representative',
       'Secretary, Education Students Association of Ghana (UCC Chapter)'
     ],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-17T14:45:00Z',
+    reviewedAt: '2026-10-21T10:00:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     votesReceived: 5610,
     votePercentage: 40.8
   },
@@ -416,11 +468,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Priscilla Baaba Eshun',
     studentId: 'SB/FIN/21/0019',
     nickname: 'Fiscal Guardian',
+    email: 'priscilla.eshun@st.ucc.edu.gh',
     department: 'Finance',
     faculty: 'School of Business',
+    programme: 'B.Com. Finance',
     level: '400',
     hall: 'Kwame Nkrumah Hall',
     photoUrl: CANDIDATE_FEMALE_IMAGE,
+    biography: 'Certified student accountant and former hall audit committee chair passionate about automated financial records and zero embezzlement.',
     manifestoSummary: 'Zero Financial Leakage: Transparent student dues management with multi-tier digital authorization and discount cards.',
     fullManifesto: [
       'Implementing electronic multi-signatory escrow protocols for all committee disbursements.',
@@ -434,6 +489,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       'Finance Committee Member, UCC SRC (2024/2025)',
       'Kwame Nkrumah Hall Audit Committee Chair'
     ],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-14T08:30:00Z',
+    reviewedAt: '2026-10-20T16:00:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     votesReceived: 12900,
     votePercentage: 92.4
   },
@@ -443,11 +503,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     positionId: 'pos-src-pro',
     fullName: 'Kojo Adomako Danquah',
     studentId: 'AS/HIS/22/0055',
+    email: 'kojo.danquah@st.ucc.edu.gh',
     department: 'History',
     faculty: 'Faculty of Arts',
+    programme: 'B.A. History and Political Studies',
     level: '300',
     hall: 'Casely Hayford Hall',
     photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Radio broadcaster and media lead with ATL FM. Champions modern multimedia press conferences and student governance podcasts.',
     manifestoSummary: 'Amplifying UCC Globally: Live streaming all major student assemblies and launching the UCC Student Spotlight initiative.',
     fullManifesto: [
       'Partnering with ATL FM 100.5 to produce dedicated weekly student governance airtime.',
@@ -455,6 +518,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     ],
     keyPromises: ['Weekly ATL FM radio segment', 'Fast-response crisis communication team'],
     leadershipExperience: ['ATL FM Student Presenter', 'Casford Hall Publicity Officer'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-19T13:00:00Z',
+    reviewedAt: '2026-10-22T11:00:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     votesReceived: 7120,
     votePercentage: 51.5
   },
@@ -464,17 +532,25 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     positionId: 'pos-src-pro',
     fullName: 'Derrick Opoku Ware',
     studentId: 'AS/COM/22/0210',
+    email: 'derrick.opoku@st.ucc.edu.gh',
     department: 'Communication Studies',
     faculty: 'Faculty of Arts',
+    programme: 'B.A. Communication and Public Relations',
     level: '300',
     hall: 'Atlantic Hall',
-    photoUrl: CANDIDATE_MALE_IMAGE,
+    photoUrl: CANDIDATE_MALE_GLASSES_IMAGE,
+    biography: 'Creative director and graphics lead for Marineland publications, advocating unified digital event management and social bulletins.',
     manifestoSummary: 'Interactive Media Excellence: Modernizing graphics, broadcast communications, and student grievance hotlines.',
     fullManifesto: [
       'Launching the official UCC Student App communication hub and podcast channel.'
     ],
     keyPromises: ['Podcast channel featuring campus trailblazers', 'Unified university event calendar'],
     leadershipExperience: ['Atlantic Hall Media Team Lead'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-19T15:30:00Z',
+    reviewedAt: '2026-10-22T11:30:00Z',
+    reviewedBy: 'UCC Electoral Commission',
     votesReceived: 6710,
     votePercentage: 48.5
   },
@@ -486,11 +562,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Yaw Boakye Yiadom',
     studentId: 'PS/CSC/22/0031',
     nickname: 'Commander Yaw',
-    department: 'Computer Science',
+    email: 'yaw.boakye@st.ucc.edu.gh',
+    department: 'Computer Science & Information Technology',
     faculty: 'School of Physical Sciences',
+    programme: 'B.Sc. Information Technology',
     level: '300',
     hall: 'Casely Hayford Hall',
     photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Casford resident and technology enthusiast dedicated to hall infrastructure, security, and the legendary brotherhood tradition.',
     manifestoSummary: 'Casford Reborn: Modernizing the gym, installing backup water tanks, and reinstating the Casford Annual Gala.',
     fullManifesto: [
       'Refurbishing the Casford Hall gym with new barbell sets, bench presses, and air conditioning.',
@@ -498,6 +577,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     ],
     keyPromises: ['Uninterrupted water flow project', 'Refurbished gym equipment'],
     leadershipExperience: ['Casford Hall Floor Prefect Block B'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-10T12:00:00Z',
+    reviewedAt: '2026-10-14T10:00:00Z',
+    reviewedBy: 'Casely Hayford Electoral Committee',
     votesReceived: 1240,
     votePercentage: 56.9
   },
@@ -508,17 +592,25 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     fullName: 'Michael Kwadwo Acheampong',
     studentId: 'SB/MGT/22/0047',
     nickname: 'Gentleman Mike',
+    email: 'michael.acheampong@st.ucc.edu.gh',
     department: 'Management',
     faculty: 'School of Business',
+    programme: 'B.Com. Human Resource Management',
     level: '300',
     hall: 'Casely Hayford Hall',
-    photoUrl: CANDIDATE_MALE_IMAGE,
+    photoUrl: CANDIDATE_MALE_GLASSES_IMAGE,
+    biography: 'Academic tutor and student entrepreneur focused on academic peer mentorship, reading room refurbishment, and career networks.',
     manifestoSummary: 'Academic Excellence & Brotherhood: Mentorship schemes, Wi-Fi mesh in common rooms, and library renovation.',
     fullManifesto: [
       'Revamping the Casford Hall Reading Room with ergonomic chairs and fiber connection.'
     ],
     keyPromises: ['24/7 quiet study air-conditioned library', 'Casford brotherhood alumni mentorship network'],
     leadershipExperience: ['Casford Academic Committee Member'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-11T09:30:00Z',
+    reviewedAt: '2026-10-14T10:30:00Z',
+    reviewedBy: 'Casely Hayford Electoral Committee',
     votesReceived: 940,
     votePercentage: 43.1
   },
@@ -528,15 +620,23 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     positionId: 'pos-cas-sec',
     fullName: 'David Senanu Klutse',
     studentId: 'AS/ENG/23/0014',
+    email: 'david.klutse@st.ucc.edu.gh',
     department: 'English',
     faculty: 'Faculty of Arts',
+    programme: 'B.A. English and Linguistics',
     level: '200',
     hall: 'Casely Hayford Hall',
     photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Level 200 Casfordian with strong record keeping and prompt correspondence skills.',
     manifestoSummary: 'Speed and Discipline in Hall Correspondence.',
     fullManifesto: ['Transparent notice board updates and digital bulletin.'],
     keyPromises: ['Notice boards updated every Monday morning'],
     leadershipExperience: ['Casford Editorial Board'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2026-10-12T11:00:00Z',
+    reviewedAt: '2026-10-14T11:00:00Z',
+    reviewedBy: 'Casely Hayford Electoral Committee',
     votesReceived: 1890,
     votePercentage: 91.2
   },
@@ -547,11 +647,14 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     positionId: 'pos-gra-pres',
     fullName: 'Dr. (cand.) Bright Kwabena Amoah',
     studentId: 'PG/PHD/EDU/23/0002',
+    email: 'bright.amoah@st.ucc.edu.gh',
     department: 'Educational Leadership',
     faculty: 'Faculty of Educational Foundations',
+    programme: 'Ph.D. Educational Administration',
     level: 'Postgraduate',
     hall: 'Superannuation Hostel',
-    photoUrl: CANDIDATE_MALE_IMAGE,
+    photoUrl: CANDIDATE_MALE_GLASSES_IMAGE,
+    biography: 'Doctoral fellow advocating for postgraduate student research funding, thesis speed, and travel conference grants.',
     manifestoSummary: 'Empowering Postgraduate Research: Thesis grant advocacy, conference travel grants, and postgraduate study lounge.',
     fullManifesto: [
       'Liaised with SGS for timely thesis defense schedules.',
@@ -559,6 +662,11 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     ],
     keyPromises: ['Thesis completion emergency fund', 'Dedicated graduate quiet research center'],
     leadershipExperience: ['Former GRASAG Research Secretary'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2025-09-10T10:00:00Z',
+    reviewedAt: '2025-09-15T14:00:00Z',
+    reviewedBy: 'GRASAG Electoral Commission',
     votesReceived: 2450,
     votePercentage: 59.5
   },
@@ -568,17 +676,200 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     positionId: 'pos-gra-pres',
     fullName: 'Grace Naa Korkoi Tetteh',
     studentId: 'PG/MPHIL/FNS/23/0011',
+    email: 'grace.tetteh@st.ucc.edu.gh',
     department: 'Fisheries & Aquatic Sciences',
     faculty: 'School of Biological Sciences',
+    programme: 'M.Phil. Fisheries Science',
     level: 'Postgraduate',
     hall: 'Kwame Nkrumah Hall',
-    photoUrl: CANDIDATE_FEMALE_IMAGE,
+    photoUrl: CANDIDATE_FEMALE_SUIT_IMAGE,
+    biography: 'Marine researcher and women in STEM advocate championing graduate work-study stipends and lab safety standards.',
     manifestoSummary: 'Collaborative Research & Career Pathways: Industry internships and stipend increment advocacy.',
     fullManifesto: ['Expanded corporate internship tie-ups with maritime and agricultural institutions.'],
     keyPromises: ['Research publishing grant awards', 'Postgraduate healthcare package'],
     leadershipExperience: ['GRASAG Women\'s Commission Lead'],
+    applicationStatus: 'Approved',
+    eligibilityVerified: true,
+    submittedAt: '2025-09-11T12:00:00Z',
+    reviewedAt: '2025-09-15T14:30:00Z',
+    reviewedBy: 'GRASAG Electoral Commission',
     votesReceived: 1670,
     votePercentage: 40.5
+  },
+
+  // NEW APPLICATIONS UNDERGOING REVIEW & LIFECYCLE (PHASE 5)
+  'cand-app-01': {
+    id: 'cand-app-01',
+    electionId: 'UCC-SRC-2026',
+    positionId: 'pos-src-pro',
+    fullName: 'Dennis Kumi Boateng',
+    studentId: 'PS/CSC/22/0089',
+    nickname: 'DevDennis',
+    email: 'dennis.kumi@st.ucc.edu.gh',
+    department: 'Computer Science & Information Technology',
+    faculty: 'School of Physical Sciences',
+    programme: 'B.Sc. Computer Science',
+    level: '300',
+    hall: 'Casely Hayford Hall',
+    photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Full-stack software developer and president of the UCC Google Developer Student Club. Focused on tech labs modernizations, coding bootcamps, and industrial software internships for science undergraduates.',
+    manifestoSummary: 'Modern Science Labs, Gigabit Connectivity, and Direct Industry Tech Placements.',
+    fullManifesto: [
+      'Upgrading all computer laboratories in the Science Faculty with dual monitors and high-speed fiber internet.',
+      'Establishing an official partnership with Cape Coast tech hubs and Accra software companies for student vacation attachments.',
+      'Revamping departmental study pavilions with solar power outlets.'
+    ],
+    keyPromises: [
+      '24/7 dedicated programming laboratory for final year project students',
+      'Science Faculty Annual Hackathon with GH₵50,000 in project awards',
+      'Free certification vouchers for AWS and Google Cloud certifications'
+    ],
+    leadershipExperience: [
+      'Lead, Google Developer Student Club (GDSC UCC, 2024/2025)',
+      'Organizing Secretary, UCC Computer Science Association (2023/2024)'
+    ],
+    videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    applicationStatus: 'Submitted',
+    eligibilityVerified: true,
+    eligibilityDetails: {
+      isEnrolled: true,
+      cgpaQualified: true,
+      levelMatch: true,
+      facultyMatch: true,
+      hallMatch: true,
+      summary: 'Student registry confirmed: Enrolled, CGPA 3.78, Level 300 in School of Physical Sciences. Ready for commission approval.'
+    },
+    submittedAt: '2026-11-08T14:22:00Z'
+  },
+  'cand-app-02': {
+    id: 'cand-app-02',
+    electionId: 'UCC-SRC-2026',
+    positionId: 'pos-src-treas',
+    fullName: 'Benedicta Arthur',
+    studentId: 'SB/ACC/22/0091',
+    nickname: 'Bennie',
+    email: 'benedicta.arthur@st.ucc.edu.gh',
+    department: 'Accounting & Finance',
+    faculty: 'School of Business',
+    programme: 'B.Com. Accounting',
+    level: '300',
+    hall: 'Valco Hall',
+    photoUrl: CANDIDATE_FEMALE_SUIT_IMAGE,
+    biography: 'Student financial consultant and former Valco Hall treasury auditor. Dedicated to micro-grants for vulnerable students and prompt club subventions.',
+    manifestoSummary: 'Prudent Fiscal Stewardship: Automated receipts, emergency welfare loan kitty, and transparent committee allowances.',
+    fullManifesto: [
+      'Publishing a weekly digital balance sheet of all SRC expenditures.',
+      'Creating the UCC Emergency Student Micro-Loan Facility for urgent exam fee support.'
+    ],
+    keyPromises: [
+      'Digital payment receipts sent directly to student email within 1 hour',
+      'Direct disbursement tracking dashboard'
+    ],
+    leadershipExperience: [
+      'Valco Hall Financial Secretary Assistant',
+      'Finance Lead, Business Students Association (UCC Chapter)'
+    ],
+    applicationStatus: 'Under review',
+    correctionNotes: 'Please upload certified clearance slip from the Directorate of Academic Affairs and confirm Hall bursar statement.',
+    eligibilityVerified: false,
+    eligibilityDetails: {
+      isEnrolled: true,
+      cgpaQualified: true,
+      levelMatch: true,
+      facultyMatch: true,
+      hallMatch: true,
+      summary: 'Academic check passed. Awaiting second vetting panel clearance.'
+    },
+    submittedAt: '2026-11-06T10:15:00Z'
+  },
+  'cand-app-03': {
+    id: 'cand-app-03',
+    electionId: 'UCC-CAS-2026',
+    positionId: 'pos-cas-sec',
+    fullName: 'Michael Kwabena Sarpong',
+    studentId: 'PS/PHY/23/0045',
+    nickname: 'Sarpee',
+    email: 'michael.sarpong@st.ucc.edu.gh',
+    department: 'Physics',
+    faculty: 'School of Physical Sciences',
+    programme: 'B.Sc. Physics',
+    level: '200',
+    hall: 'Casely Hayford Hall',
+    photoUrl: CANDIDATE_MALE_IMAGE,
+    biography: 'Energetic Level 200 Casfordian striving to enhance communications, notice boards, and sports bulletins across the Casford brotherhood.',
+    manifestoSummary: 'Digital Casford Notice Bulletin and Instant Hall Sports Dispatches.',
+    fullManifesto: [
+      'Digital Telegram and WhatsApp channels for all JCR official circulars and notices.'
+    ],
+    keyPromises: [
+      'All sports fixtures and hall match results published within 30 minutes of final whistle'
+    ],
+    leadershipExperience: [
+      'Casford Hall Floor Representative Block C'
+    ],
+    applicationStatus: 'Draft',
+    eligibilityVerified: false,
+    submittedAt: undefined
+  },
+  'cand-app-04': {
+    id: 'cand-app-04',
+    electionId: 'UCC-SRC-2026',
+    positionId: 'pos-src-pro',
+    fullName: 'Foster Okyere',
+    studentId: 'AS/COM/22/0312',
+    nickname: 'Fosty',
+    email: 'foster.okyere@st.ucc.edu.gh',
+    department: 'Communication Studies',
+    faculty: 'Faculty of Arts',
+    programme: 'B.A. Communication',
+    level: '300',
+    hall: 'Atlantic Hall',
+    photoUrl: CANDIDATE_MALE_GLASSES_IMAGE,
+    biography: 'Campus events hype-man and student MC.',
+    manifestoSummary: 'Entertainment overload: Big campus concerts, street carnivals, and celebrity artist visits.',
+    fullManifesto: ['Hosting 3 major campus artist bashes each semester.'],
+    keyPromises: ['Artist festival on UCC Sports grounds'],
+    leadershipExperience: ['Event Lead, Marine Carnival Committee'],
+    applicationStatus: 'Rejected',
+    rejectionReason: 'Academic Ineligibility: Registered CGPA of 2.38 fails the constitutional minimum 3.0 required by UCC Electoral Regulations (Article 14, Section 2b).',
+    reviewedAt: '2026-11-05T16:00:00Z',
+    reviewedBy: 'UCC Electoral Commission Vetting Panel',
+    eligibilityVerified: false,
+    eligibilityDetails: {
+      isEnrolled: true,
+      cgpaQualified: false,
+      levelMatch: true,
+      facultyMatch: true,
+      hallMatch: true,
+      summary: 'CGPA 2.38 below minimum constitutional requirement 3.0.'
+    },
+    submittedAt: '2026-11-03T11:00:00Z'
+  },
+  'cand-app-05': {
+    id: 'cand-app-05',
+    electionId: 'UCC-SRC-2026',
+    positionId: 'pos-src-sec',
+    fullName: 'Gifty Afram',
+    studentId: 'ED/EPS/22/0118',
+    nickname: 'Lady Gifty',
+    email: 'gifty.afram@st.ucc.edu.gh',
+    department: 'Educational Foundations',
+    faculty: 'Faculty of Educational Foundations',
+    programme: 'B.Ed. Psychology',
+    level: '300',
+    hall: 'Adehye Hall',
+    photoUrl: CANDIDATE_FEMALE_IMAGE,
+    biography: 'Education student advocate with extensive committee volunteer experience.',
+    manifestoSummary: 'Compassionate Student Representation and Quick Complaint Dispatch.',
+    fullManifesto: ['Prompt responses to all hall academic inquiries.'],
+    keyPromises: ['Adehye hall study group facilitation'],
+    leadershipExperience: ['Adehye Hall Volunteer'],
+    applicationStatus: 'Withdrawn',
+    rejectionReason: 'Formally withdrawn at candidate\'s written request on 7th November 2026 due to semester teaching practice placement.',
+    reviewedAt: '2026-11-07T09:00:00Z',
+    reviewedBy: 'UCC Electoral Commission Secretariat',
+    eligibilityVerified: true,
+    submittedAt: '2026-11-02T13:00:00Z'
   }
 };
 

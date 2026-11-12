@@ -50,6 +50,14 @@ export type ElectionStatus =
   | 'results_published'
   | 'archived';
 
+export type CandidateApplicationStatus = 
+  | 'Draft' 
+  | 'Submitted' 
+  | 'Under review' 
+  | 'Approved' 
+  | 'Rejected' 
+  | 'Withdrawn';
+
 export interface Candidate {
   id: string;
   electionId: string;
@@ -57,15 +65,34 @@ export interface Candidate {
   fullName: string;
   studentId: string;
   nickname?: string;
+  email?: string;
   department: string;
   faculty: string;
+  programme?: string;
   level: string;
   hall: string;
   photoUrl: string;
+  biography?: string;
   manifestoSummary: string;
   fullManifesto: string[];
   keyPromises: string[];
   leadershipExperience: string[];
+  videoUrl?: string;
+  applicationStatus: CandidateApplicationStatus;
+  rejectionReason?: string;
+  correctionNotes?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  eligibilityVerified?: boolean;
+  eligibilityDetails?: {
+    isEnrolled: boolean;
+    cgpaQualified: boolean;
+    levelMatch: boolean;
+    facultyMatch: boolean;
+    hallMatch: boolean;
+    summary?: string;
+  };
   runningMate?: {
     fullName: string;
     studentId: string;
@@ -176,6 +203,7 @@ export type ActiveView =
   | 'election_details'
   | 'candidate_directory'
   | 'candidate_profile'
+  | 'candidate_register'
   | 'digital_ballot'
   | 'election_results'
   | 'notifications'

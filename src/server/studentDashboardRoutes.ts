@@ -1,13 +1,14 @@
-import { Router, Request, Response } from 'express';
-import { authenticateToken } from './authRoutes';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { authenticateToken } from './authRoutes.ts';
 import { 
   STUDENT_ACCOUNTS, 
-  OFFICIAL_UCC_STUDENT_REGISTRY, 
-  SessionData 
-} from './authStore';
-import { MOCK_NOTIFICATIONS } from '../data/mockData';
-import { ELECTIONS_STORE, POSITIONS_STORE, verifyStudentEligibility } from './electionStore';
-import { Election } from '../types';
+  OFFICIAL_UCC_STUDENT_REGISTRY
+} from './authStore.ts';
+import type { SessionData } from './authStore.ts';
+import { MOCK_NOTIFICATIONS } from '../data/mockData.ts';
+import { ELECTIONS_STORE, POSITIONS_STORE, verifyStudentEligibility } from './electionStore.ts';
+import type { Election } from '../types/index.ts';
 
 export const studentDashboardRouter = Router();
 

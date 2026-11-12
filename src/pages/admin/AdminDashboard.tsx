@@ -18,16 +18,21 @@ import {
   AlertTriangle,
   FileText,
   Building,
-  RefreshCw
+  RefreshCw,
+  UserCheck,
+  UserPlus,
+  Filter
 } from 'lucide-react';
-import { Election, ElectionStatus } from '../../types';
+import { Election, ElectionStatus, Candidate } from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
 import { StatusTransitionModal } from '../../components/admin/StatusTransitionModal';
 import { PositionManagerModal } from '../../components/admin/PositionManagerModal';
 import { EligibilityTesterModal } from '../../components/admin/EligibilityTesterModal';
+import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
+import { CandidateReviewModal } from '../../components/admin/CandidateReviewModal';
 
 export const AdminDashboard: React.FC = () => {
-  const { admin, elections, complaints, navigateTo, refreshElections } = useApp();
+  const { admin, elections, complaints, navigateTo, refreshElections, candidates, refreshCandidates } = useApp();
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'elections' | 'candidates' | 'voters' | 'results' | 'audit'
@@ -38,6 +43,15 @@ export const AdminDashboard: React.FC = () => {
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
+
+  // Candidate Management State
+  const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<Candidate | null>(null);
+  const [selectedCandidateForEdit, setSelectedCandidateForEdit] = useState<Candidate | null>(null);
+  const [showCandidateRegisterModal, setShowCandidateRegisterModal] = useState(false);
+  const [candidateFilterStatus, setCandidateFilterStatus] = useState<string>('all');
+  const [candidateFilterElection, setCandidateFilterElection] = useState<string>('all');
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
+
   const [certifiedSuccessMsg, setCertifiedSuccessMsg] = useState('');
   const [statusActionMsg, setStatusActionMsg] = useState('');
 
@@ -374,57 +388,316 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: CANDIDATE NOMINATIONS */}
-      {activeTab === 'candidates' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Aspirant Nominations & Vetting Approvals
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review academic standing, vetting committee recommendations, and manifesto clearance.
-              </p>
+      {/* TAB 3: CANDIDATE NOMINATIONS & VETTING */}
+      {activeTab === 'candidates' && (() => {
+        // Filter logic for candidates
+        const filteredCandidates = candidates.filter((cand) => {
+          const matchesStatus =
+            candidateFilterStatus === 'all' ||
+            cand.applicationStatus.toLowerCase() === candidateFilterStatus.toLowerCase();
+
+          const matchesElection =
+            candidateFilterElection === 'all' || cand.electionId === candidateFilterElection;
+
+          const matchesSearch =
+            !candidateSearchQuery ||
+            cand.fullName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+            cand.studentId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+            cand.department.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+            cand.positionId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+            (cand.nickname && cand.nickname.toLowerCase().includes(candidateSearchQuery.toLowerCase()));
+
+          return matchesStatus && matchesElection && matchesSearch;
+        });
+
+        const pendingCount = candidates.filter(
+          c => c.applicationStatus === 'Submitted' || c.applicationStatus === 'Under review'
+        ).length;
+        const approvedCount = candidates.filter(c => c.applicationStatus === 'Approved').length;
+        const rejectedCount = candidates.filter(
+          c => c.applicationStatus === 'Rejected' || c.applicationStatus === 'Withdrawn'
+        ).length;
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            
+            {/* Header & New Candidate Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#123B70]" />
+                  <span>Candidate Applications & Vetting Desk</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Review aspirant applications, verify academic eligibility against SIS records, approve nominations, and assign official portfolios.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={async () => {
+                    await refreshCandidates();
+                    setStatusActionMsg('Candidate registry refreshed from commission server.');
+                    setTimeout(() => setStatusActionMsg(''), 3000);
+                  }}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+                  title="Refresh Candidate Applications"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedCandidateForEdit(null);
+                    setShowCandidateRegisterModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4 text-amber-400" />
+                  <span>Register New Candidate</span>
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.values(MOCK_CANDIDATES).map((cand) => (
-              <div key={cand.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-3">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={cand.photoUrl}
-                    alt={cand.fullName}
-                    className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 truncate">{cand.fullName}</h4>
-                    <p className="text-[11px] text-slate-500 font-mono">{cand.studentId}</p>
-                    <p className="text-[10px] text-[#123B70]">{cand.department}</p>
-                  </div>
-                </div>
+            {/* Candidate Nomination KPI Counters */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Applications</span>
+                <span className="text-xl font-bold font-mono text-slate-900 mt-0.5 block">{candidates.length}</span>
+                <span className="text-[10px] text-slate-500">All elections & portfolios</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200">
+                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Pending Vetting</span>
+                <span className="text-xl font-bold font-mono text-purple-900 mt-0.5 block">{pendingCount}</span>
+                <span className="text-[10px] text-purple-700 font-semibold">Requires commission determination</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Approved on Ballot</span>
+                <span className="text-xl font-bold font-mono text-emerald-900 mt-0.5 block">{approvedCount}</span>
+                <span className="text-[10px] text-emerald-700 font-semibold">Live on official digital ballots</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-red-50/70 border border-red-200">
+                <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">Disqualified / Withdrawn</span>
+                <span className="text-xl font-bold font-mono text-red-900 mt-0.5 block">{rejectedCount}</span>
+                <span className="text-[10px] text-red-700">Excluded from voting</span>
+              </div>
+            </div>
 
-                <div className="p-2.5 rounded bg-white border border-slate-200 text-[11px] text-slate-600 line-clamp-2 italic">
-                  "{cand.manifestoSummary}"
-                </div>
-
-                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                  <span className="text-emerald-700 font-bold text-[10px] uppercase flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Vetting Cleared
-                  </span>
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
+              {/* Status Segmented Tabs */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  { id: 'all', label: 'All Aspirants', count: candidates.length },
+                  { id: 'submitted', label: 'Submitted', count: candidates.filter(c => c.applicationStatus === 'Submitted').length },
+                  { id: 'under review', label: 'Under Review', count: candidates.filter(c => c.applicationStatus === 'Under review').length },
+                  { id: 'approved', label: 'Approved', count: approvedCount },
+                  { id: 'rejected', label: 'Rejected', count: candidates.filter(c => c.applicationStatus === 'Rejected').length },
+                  { id: 'draft', label: 'Draft', count: candidates.filter(c => c.applicationStatus === 'Draft').length },
+                  { id: 'withdrawn', label: 'Withdrawn', count: candidates.filter(c => c.applicationStatus === 'Withdrawn').length },
+                ].map((s) => (
                   <button
-                    onClick={() => navigateTo('candidate_profile', { candidateId: cand.id })}
-                    className="text-xs font-semibold text-[#123B70] hover:underline"
+                    key={s.id}
+                    onClick={() => setCandidateFilterStatus(s.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      candidateFilterStatus === s.id
+                        ? 'bg-[#123B70] text-white font-bold'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
                   >
-                    View Record →
+                    <span>{s.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${candidateFilterStatus === s.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      {s.count}
+                    </span>
                   </button>
+                ))}
+              </div>
+
+              {/* Search & Election Filter */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={candidateFilterElection}
+                  onChange={(e) => setCandidateFilterElection(e.target.value)}
+                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
+                >
+                  <option value="all">All Contested Elections</option>
+                  {elections.map((el) => (
+                    <option key={el.id} value={el.id}>{el.title}</option>
+                  ))}
+                </select>
+
+                <div className="relative w-52">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={candidateSearchQuery}
+                    onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                    placeholder="Search candidate name, ID..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
+                  />
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Candidate Applications Table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-4">Candidate & Student ID</th>
+                    <th className="py-3 px-4">Contested Portfolio & Election</th>
+                    <th className="py-3 px-4">Programme & Hall</th>
+                    <th className="py-3 px-4">Application Status</th>
+                    <th className="py-3 px-4">SIS Eligibility Check</th>
+                    <th className="py-3 px-4 text-right">Commission Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCandidates.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                        No candidate applications found matching the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCandidates.map((cand) => {
+                      const el = elections.find(e => e.id === cand.electionId);
+                      const elPositions = MOCK_POSITIONS[cand.electionId] || [];
+                      const pos = elPositions.find(p => p.id === cand.positionId);
+                      const posTitle = pos ? pos.title : cand.positionId.replace('pos-', '').replace(/-/g, ' ').toUpperCase();
+
+                      return (
+                        <tr key={cand.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={cand.photoUrl}
+                                alt={cand.fullName}
+                                className="w-11 h-11 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 truncate">
+                                  {cand.fullName}
+                                </div>
+                                {cand.nickname && (
+                                  <div className="text-[11px] font-semibold text-[#C62828]">
+                                    "{cand.nickname}"
+                                  </div>
+                                )}
+                                <div className="font-mono text-[10px] text-slate-500">
+                                  {cand.studentId}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-slate-900 text-xs">
+                              {posTitle}
+                            </div>
+                            <div className="text-[11px] text-[#123B70] truncate max-w-[200px]">
+                              {el?.title || cand.electionId}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4 text-slate-700">
+                            <div className="truncate max-w-[180px] font-medium">
+                              {cand.programme || cand.department}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Level {cand.level} · {cand.hall || 'Off Campus'}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            {cand.applicationStatus === 'Approved' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Approved
+                              </span>
+                            )}
+                            {cand.applicationStatus === 'Under review' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">
+                                <Clock className="w-3 h-3" />
+                                Under Review
+                              </span>
+                            )}
+                            {cand.applicationStatus === 'Submitted' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                Submitted
+                              </span>
+                            )}
+                            {cand.applicationStatus === 'Draft' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
+                                Draft
+                              </span>
+                            )}
+                            {cand.applicationStatus === 'Rejected' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-bold" title={cand.rejectionReason}>
+                                <XCircle className="w-3 h-3" />
+                                Rejected
+                              </span>
+                            )}
+                            {cand.applicationStatus === 'Withdrawn' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
+                                Withdrawn
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4">
+                            {cand.eligibilityVerified ? (
+                              <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[11px]">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>CGPA & Standing OK</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-amber-600 font-semibold text-[11px]">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span>Pending Verification</span>
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedCandidateForReview(cand)}
+                              className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
+                              title="Review Dossier, Run SIS Eligibility Check & Vet"
+                            >
+                              Review & Vet
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSelectedCandidateForEdit(cand);
+                                setShowCandidateRegisterModal(true);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
+                              title="Edit Candidate Dossier & Photo"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() => navigateTo('candidate_profile', { candidateId: cand.id })}
+                              className="px-2 py-1 rounded-lg text-slate-600 hover:text-[#123B70] font-semibold text-[11px] transition-colors cursor-pointer"
+                              title="View Public Profile & Manifesto"
+                            >
+                              Profile →
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB 4: VOTER ROLL & ELIGIBILITY */}
       {activeTab === 'voters' && (
@@ -647,6 +920,32 @@ export const AdminDashboard: React.FC = () => {
         isOpen={!!selectedElectionForEligibility}
         election={selectedElectionForEligibility}
         onClose={() => setSelectedElectionForEligibility(null)}
+      />
+
+      {/* Candidate Dossier & Vetting Review Modal */}
+      {selectedCandidateForReview && (
+        <CandidateReviewModal
+          isOpen={!!selectedCandidateForReview}
+          candidate={selectedCandidateForReview}
+          position={(MOCK_POSITIONS[selectedCandidateForReview.electionId] || []).find(p => p.id === selectedCandidateForReview.positionId)}
+          electionTitle={elections.find(e => e.id === selectedCandidateForReview.electionId)?.title}
+          onClose={() => setSelectedCandidateForReview(null)}
+          onEditCandidate={(cand) => {
+            setSelectedCandidateForReview(null);
+            setSelectedCandidateForEdit(cand);
+            setShowCandidateRegisterModal(true);
+          }}
+        />
+      )}
+
+      {/* Candidate Registration / Edit Modal */}
+      <CandidateRegistrationModal
+        isOpen={showCandidateRegisterModal}
+        candidateToEdit={selectedCandidateForEdit}
+        onClose={() => {
+          setShowCandidateRegisterModal(false);
+          setSelectedCandidateForEdit(null);
+        }}
       />
 
       {/* Global Status / Alert Toast */}

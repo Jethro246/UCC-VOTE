@@ -1,4 +1,4 @@
-import { Election, ElectionCategory, ElectionStatus, Position } from '../types';
+import { Election, ElectionCategory, ElectionStatus, Position, Candidate, CandidateApplicationStatus } from '../types';
 import { authClient } from './authClient';
 
 export interface CreateElectionPayload {
@@ -227,6 +227,250 @@ export const electionClient = {
         headers: {
           Authorization: token ? `Bearer ${token}` : ''
         }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Fetch candidates with optional filters
+   */
+  async getCandidates(params?: {
+    electionId?: string;
+    positionId?: string;
+    status?: string;
+    approvedOnly?: boolean;
+    department?: string;
+    faculty?: string;
+    search?: string;
+  }): Promise<{
+    success: boolean;
+    total: number;
+    candidates: Candidate[];
+    error?: string;
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.electionId) query.append('electionId', params.electionId);
+      if (params?.positionId) query.append('positionId', params.positionId);
+      if (params?.status) query.append('status', params.status);
+      if (params?.approvedOnly) query.append('approvedOnly', 'true');
+      if (params?.department) query.append('department', params.department);
+      if (params?.faculty) query.append('faculty', params.faculty);
+      if (params?.search) query.append('search', params.search);
+
+      const res = await fetch(`/api/candidates?${query.toString()}`);
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, total: 0, candidates: [], error: err.message };
+    }
+  },
+
+  /**
+   * Fetch single candidate by ID
+   */
+  async getCandidateById(id: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}`);
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Submit / Register Candidate Application
+   */
+  async registerCandidate(payload: Partial<Candidate> & { isDraft?: boolean }): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch('/api/candidates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Update candidate profile / details
+   */
+  async updateCandidate(id: string, updates: Partial<Candidate> & { resubmit?: boolean }): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(updates)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Automated Student Registry & Eligibility Verification
+   */
+  async verifyCandidateEligibility(id: string): Promise<{
+    success: boolean;
+    isEligible?: boolean;
+    reason?: string;
+    details?: any;
+    candidate?: Candidate;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/verify-eligibility`, {
+        method: 'POST'
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin approves candidate nomination
+   */
+  async approveCandidate(id: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/approve`, {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin rejects candidate nomination with stated reason
+   */
+  async rejectCandidate(id: string, reason: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ reason })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin requests corrections from candidate
+   */
+  async requestCandidateCorrections(id: string, notes: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/request-corrections`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ notes })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Candidate or Admin voluntary withdrawal
+   */
+  async withdrawCandidate(id: string, reason?: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ reason })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin assigns candidate to position
+   */
+  async assignCandidatePosition(id: string, electionId: string, positionId: string): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}/assign-position`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ electionId, positionId })
       });
       return await res.json();
     } catch (err: any) {
