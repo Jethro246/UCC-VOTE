@@ -53,7 +53,7 @@ export const MOCK_ELECTIONS: Election[] = [
     academicYear: '2026/2027',
     status: 'live',
     startDate: '2026-11-10T08:00:00Z',
-    endDate: '2026-11-11T17:00:00Z',
+    endDate: '2026-11-25T17:00:00Z',
     totalEligibleVoters: 24850,
     totalVotesCast: 14620,
     turnoutPercentage: 58.8,
@@ -63,11 +63,12 @@ export const MOCK_ELECTIONS: Election[] = [
     },
     rules: [
       'Each eligible student has exactly one vote per contested portfolio.',
-      'Ballot selections are encrypted and decoupled from voter identification to ensure complete voter secrecy.',
-      'Voting closes strictly at 17:00 GMT on election day.',
+      'Ballot selections are separated from voter identification records to preserve ballot secrecy.',
+      'Voting closes strictly at 17:00 GMT on the scheduled closing date.',
       'Unofficial results will not be recognized; only results signed by the Electoral Commissioner are certified.'
     ],
     positionsCount: 4,
+    allowsEmptyBallot: false,
     resultsCertified: false,
     provisionalResultsReady: false
   },
@@ -80,7 +81,7 @@ export const MOCK_ELECTIONS: Election[] = [
     academicYear: '2026/2027',
     status: 'live',
     startDate: '2026-11-10T09:00:00Z',
-    endDate: '2026-11-11T16:00:00Z',
+    endDate: '2026-11-25T16:00:00Z',
     totalEligibleVoters: 3200,
     totalVotesCast: 2180,
     turnoutPercentage: 68.1,
@@ -93,7 +94,8 @@ export const MOCK_ELECTIONS: Election[] = [
       'One ballot submission per student.',
       'Hall identification verified against the Dean of Students residential registry.'
     ],
-    positionsCount: 3,
+    positionsCount: 2,
+    allowsEmptyBallot: false,
     resultsCertified: false,
     provisionalResultsReady: false
   },

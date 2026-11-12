@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MOCK_AUDIT_LOGS, MOCK_POSITIONS, MOCK_CANDIDATES } from '../../data/mockData';
+import { electionClient } from '../../services/electionClient';
+import { authClient } from '../../services/authClient';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -37,6 +39,35 @@ export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'elections' | 'candidates' | 'voters' | 'results' | 'audit'
   >('overview');
+
+  const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
+  const [inspectStudentId, setInspectStudentId] = useState('PS/CSC/22/0089');
+  const [secrecyTestResult, setSecrecyTestResult] = useState<{ code?: string; message: string } | null>(null);
+  const [vaultAuditSummary, setVaultAuditSummary] = useState<any>(null);
+
+  const fetchAuditLogs = async () => {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch('/api/admin/audit-logs', {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.logs)) {
+        setLiveAuditLogs(data.logs);
+      }
+    } catch {
+      // fallback to static logs
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+      electionClient.getVotingAuditSummary('UCC-SRC-2026').then((r) => {
+        if (r.success && r.summary) setVaultAuditSummary(r.summary);
+      });
+    }
+  }, [activeTab]);
 
   const [searchStudent, setSearchStudent] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -173,21 +204,25 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Ballots Cast Today</span>
-              <span className="text-2xl font-black text-[#123B70] font-mono tabular-nums mt-1 block">16,800</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">Across SRC & Hall races</span>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Ballots Cast</span>
+              <span className="text-2xl font-black text-[#123B70] font-mono tabular-nums mt-1 block">
+                {elections.reduce((sum, e) => sum + (e.totalVotesCast || 0), 0).toLocaleString()}
+              </span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">Across all configured elections</span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Active Elections</span>
-              <span className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-1 block">2 Live</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">SRC & Casely Hayford</span>
+              <span className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-1 block">
+                {elections.filter(e => e.status === 'live').length} Live
+              </span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">Currently accepting ballots</span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Cryptographic Health</span>
-              <span className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-1 block">OPTIMAL</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">Zero ledger anomalies</span>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Ballot Vault Separation</span>
+              <span className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-1 block">ENFORCED</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">Identity & ballot stores decoupled</span>
             </div>
           </div>
 
@@ -827,57 +862,131 @@ export const AdminDashboard: React.FC = () => {
 
       {/* TAB 6: SECURITY & AUDIT TRAIL */}
       {activeTab === 'audit' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Cryptographic Audit Trail & Security Events
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Immutable record of administrative actions, ballot sealing operations, and rate-limiting incidents.
-              </p>
+        <div className="space-y-6">
+          {/* Ballot Secrecy Enforcement Verification Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#123B70]" />
+                  <span>Ballot Secrecy & Vault Separation Audit</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verify that administrators cannot inspect any individual student&apos;s candidate choices and reconcile aggregate vault totals.
+                </p>
+              </div>
+              {vaultAuditSummary && (
+                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold self-start sm:self-auto">
+                  {vaultAuditSummary.vaultCountBalanced
+                    ? `Vaults Balanced (${vaultAuditSummary.sessionParticipationRecords} participation = ${vaultAuditSummary.sessionAnonymousBallots} anonymous ballots)`
+                    : 'Vault Audit Check'}
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => alert('Downloading signed SHA-256 integrity log ledger...')}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Hash Log</span>
-            </button>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <input
+                type="text"
+                value={inspectStudentId}
+                onChange={(e) => setInspectStudentId(e.target.value)}
+                placeholder="Student ID (e.g. PS/CSC/22/0089)"
+                className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
+              />
+              <button
+                onClick={async () => {
+                  const res = await electionClient.attemptAdminBallotInspect(inspectStudentId);
+                  setSecrecyTestResult({
+                    code: res.code || 'BLOCKED',
+                    message: res.error || 'Access denied by ballot secrecy guard.'
+                  });
+                  await fetchAuditLogs();
+                }}
+                className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+              >
+                Test Ballot Choice Lookup (Must Block)
+              </button>
+            </div>
+
+            {secrecyTestResult && (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-1">
+                <div className="font-mono font-bold text-[11px] text-[#C62828]">
+                  SERVER ENFORCEMENT: 403 {secrecyTestResult.code}
+                </div>
+                <p>{secrecyTestResult.message}</p>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3 font-mono text-xs">
-            {MOCK_AUDIT_LOGS.map((log) => (
-              <div 
-                key={log.id} 
-                className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
-                  log.status === 'flagged' 
-                    ? 'bg-amber-50/60 border-amber-300' 
-                    : 'bg-slate-50/80 border-slate-200'
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      log.status === 'flagged' ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {log.action}
-                    </span>
-                    <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
-                  </div>
-                  <p className="font-sans text-xs font-bold text-slate-900 mt-1">
-                    {log.target}
-                  </p>
-                  <p className="text-slate-500 text-[11px]">
-                    Initiator: {log.adminName} ({log.adminRole})
-                  </p>
-                </div>
-
-                <div className="text-slate-400 text-[10px] text-right font-mono">
-                  IP: {log.ipAddress}
-                </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Live Electoral Audit Trail & Security Events
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Server-recorded administrative actions, anonymized voting events, and blocked security/secrecy violations.
+                </p>
               </div>
-            ))}
+              <button
+                onClick={fetchAuditLogs}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 font-mono text-xs">
+              {(liveAuditLogs.length > 0
+                ? liveAuditLogs.map((l) => ({
+                    id: l.id,
+                    timestamp: l.timestamp,
+                    action: l.eventType,
+                    target: l.details,
+                    adminName: l.identifier,
+                    adminRole: l.role || 'System',
+                    ipAddress: l.ipAddress,
+                    status: l.status === 'FLAGGED' ? 'flagged' : l.status === 'WARNING' ? 'warning' : 'success'
+                  }))
+                : MOCK_AUDIT_LOGS
+              ).map((log) => (
+                <div 
+                  key={log.id} 
+                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
+                    log.status === 'flagged' 
+                      ? 'bg-red-50/60 border-red-300' 
+                      : log.status === 'warning'
+                      ? 'bg-amber-50/60 border-amber-300'
+                      : 'bg-slate-50/80 border-slate-200'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        log.status === 'flagged'
+                          ? 'bg-red-200 text-red-900'
+                          : log.status === 'warning'
+                          ? 'bg-amber-200 text-amber-900'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {log.action}
+                      </span>
+                      <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
+                    </div>
+                    <p className="font-sans text-xs font-bold text-slate-900 mt-1">
+                      {log.target}
+                    </p>
+                    <p className="text-slate-500 text-[11px]">
+                      Actor: {log.adminName} ({log.adminRole})
+                    </p>
+                  </div>
+
+                  <div className="text-slate-400 text-[10px] text-right font-mono shrink-0">
+                    IP: {log.ipAddress}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import { adminRouter } from './src/server/adminRoutes.ts';
 import { studentDashboardRouter } from './src/server/studentDashboardRoutes.ts';
 import { electionRouter } from './src/server/electionRoutes.ts';
 import { candidateRouter } from './src/server/candidateRoutes.ts';
+import { votingRouter } from './src/server/votingRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,7 @@ async function startServer() {
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/student', studentDashboardRouter);
+  app.use('/api/voting', votingRouter);
   app.use('/api/candidates', candidateRouter);
   app.use('/api/elections/candidates', candidateRouter);
   app.use('/api/elections', electionRouter);

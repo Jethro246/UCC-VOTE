@@ -107,7 +107,9 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
   // Categorize sections
   const electionsAvailableToMe = processedElections.filter(e => e.studentEligibility.isEligible);
   const activeElections = processedElections.filter(e => e.status === 'live');
-  const upcomingElections = processedElections.filter(e => e.status === 'upcoming');
+  const upcomingElections = processedElections.filter(
+    e => e.status === 'upcoming' || e.status === 'scheduled'
+  );
   const completedElections = processedElections.filter(e => e.status === 'results_published' || e.status === 'closed');
 
   // Compute student voting status summary

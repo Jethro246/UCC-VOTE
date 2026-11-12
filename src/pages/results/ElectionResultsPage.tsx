@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_POSITIONS, MOCK_CANDIDATES } from '../../data/mockData';
+import { electionClient } from '../../services/electionClient';
+import { Position } from '../../types';
 import { 
   Award, 
   CheckCircle2, 
@@ -11,23 +12,35 @@ import {
   FileText, 
   TrendingUp, 
   Clock, 
-  Users 
+  Users,
+  Lock
 } from 'lucide-react';
 
 export const ElectionResultsPage: React.FC = () => {
-  const { elections, selectedElectionId, setSelectedElectionId } = useApp();
+  const { elections, candidates, selectedElectionId, userRole } = useApp();
 
   const [activeElectionId, setActiveElectionId] = useState<string>(
     selectedElectionId || 'UCC-GRA-2025'
   );
+  const [positions, setPositions] = useState<Position[]>([]);
 
   const election = elections.find(e => e.id === activeElectionId) || elections[0];
-  const positions = MOCK_POSITIONS[election.id] || MOCK_POSITIONS['UCC-SRC-2026'] || [];
+
+  useEffect(() => {
+    let active = true;
+    electionClient.getElectionById(election.id).then((res) => {
+      if (active && res.success && res.positions) {
+        setPositions(res.positions);
+      }
+    });
+    return () => { active = false; };
+  }, [election.id]);
 
   const isCertified = election.resultsCertified || election.status === 'results_published';
-  const totalVotes = election.totalVotesCast || 14620;
-  const totalEligible = election.totalEligibleVoters || 24850;
-  const turnout = election.turnoutPercentage || 58.8;
+  const canViewCandidateTallies = isCertified || userRole === 'admin';
+  const totalVotes = election.totalVotesCast ?? 0;
+  const totalEligible = election.totalEligibleVoters ?? 0;
+  const turnout = election.turnoutPercentage ?? 0;
 
   return (
     <div className="space-y-6">
@@ -143,33 +156,48 @@ export const ElectionResultsPage: React.FC = () => {
       </div>
 
       {/* Results by Portfolio */}
-      <div className="space-y-6">
-        {positions.map((pos) => {
-          const cands = pos.candidateIds.map(id => MOCK_CANDIDATES[id]).filter(Boolean);
-          const highestVotes = Math.max(...cands.map(c => c.votesReceived || 0));
+      {!canViewCandidateTallies ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-full bg-[#EAF2FA] text-[#123B70] flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-extrabold text-slate-900">
+            Candidate Vote Totals Withheld During Active Polling
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+            Per UCC Electoral Commission regulations, individual candidate vote counts are not published while polling is still underway or awaiting certification. Real-time aggregate voter turnout above remains publicly visible.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {positions.map((pos) => {
+            const cands = candidates.filter(
+              c => c.electionId === election.id && c.positionId === pos.id && c.applicationStatus === 'Approved'
+            );
+            const highestVotes = cands.length > 0 ? Math.max(...cands.map(c => c.votesReceived || 0)) : 0;
 
-          return (
-            <div key={pos.id} className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
-                <div>
-                  <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-                    Contested Portfolio {pos.order}
+            return (
+              <div key={pos.id} className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+                      Contested Portfolio {pos.order}
+                    </span>
+                    <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">
+                      {pos.title}
+                    </h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {cands.length} Approved Aspirant{cands.length === 1 ? '' : 's'}
                   </span>
-                  <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">
-                    {pos.title}
-                  </h3>
                 </div>
-                <span className="text-xs font-semibold text-slate-500">
-                  {cands.length} Aspirant{cands.length > 1 ? 's' : ''} Contesting
-                </span>
-              </div>
 
-              {/* Candidates Results Bars */}
-              <div className="space-y-5">
-                {cands.map((cand) => {
-                  const votes = cand.votesReceived || 0;
-                  const pct = cand.votePercentage || 0;
-                  const isWinner = isCertified && votes === highestVotes && votes > 0;
+                {/* Candidates Results Bars */}
+                <div className="space-y-5">
+                  {cands.map((cand) => {
+                    const votes = cand.votesReceived || 0;
+                    const pct = cand.votePercentage || 0;
+                    const isWinner = isCertified && votes === highestVotes && votes > 0;
 
                   return (
                     <div 
@@ -232,7 +260,8 @@ export const ElectionResultsPage: React.FC = () => {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Official Sign-off & Audit Notice */}
       <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">

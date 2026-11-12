@@ -10,7 +10,9 @@ import {
   Candidate,
   CandidateApplicationStatus,
   NotificationItem, 
-  ComplaintTicket 
+  ComplaintTicket,
+  BallotSelectionMap,
+  VoteConfirmationReceipt
 } from '../types';
 import { 
   DEMO_STUDENT, 
@@ -31,7 +33,7 @@ interface AppContextType {
   selectedElectionId: string;
   selectedCandidateId: string;
   compareCandidateIds: [string, string] | null;
-  ballotSelections: Record<string, string>; // positionId -> candidateId
+  ballotSelections: BallotSelectionMap; // positionId -> candidateIds[]
   elections: Election[];
   candidates: Candidate[];
   myCandidateApplication: Candidate | null;
@@ -40,7 +42,7 @@ interface AppContextType {
   categoryFilter: ElectionCategory | 'All';
   statusFilter: ElectionStatus | 'All';
   searchQuery: string;
-  recentVoteReceipt: { electionId: string; timestamp: string; receiptCode: string } | null;
+  recentVoteReceipt: VoteConfirmationReceipt | null;
   sessionChecked: boolean;
   
   // Actions
@@ -67,9 +69,20 @@ interface AppContextType {
   setSearchQuery: (query: string) => void;
   setSelectedElectionId: (id: string) => void;
   setSelectedCandidateId: (id: string) => void;
-  setBallotSelection: (positionId: string, candidateId: string) => void;
+  setBallotSelection: (positionId: string, candidateId: string, maxSelections?: number) => void;
+  clearPositionSelection: (positionId: string) => void;
   resetBallot: () => void;
-  submitSimulatedVote: (electionId: string) => string;
+  submitBallotAction: (
+    electionId: string,
+    selectionsOverride?: BallotSelectionMap,
+    idempotencyKey?: string
+  ) => Promise<{
+    success: boolean;
+    code?: string;
+    message?: string;
+    error?: string;
+    receipt?: VoteConfirmationReceipt;
+  }>;
   markNotificationAsRead: (id: string) => void;
   submitComplaint: (data: { category: ComplaintTicket['category']; subject: string; description: string }) => string;
   toggleCompareCandidate: (candidateId: string) => void;
@@ -87,7 +100,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedElectionId, setSelectedElectionId] = useState<string>('UCC-SRC-2026');
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('cand-01');
   const [compareCandidateIds, setCompareCandidateIds] = useState<[string, string] | null>(['cand-01', 'cand-02']);
-  const [ballotSelections, setBallotSelections] = useState<Record<string, string>>({});
+  const [ballotSelections, setBallotSelections] = useState<BallotSelectionMap>({});
   
   const [elections, setElections] = useState<Election[]>(MOCK_ELECTIONS);
   const [candidates, setCandidates] = useState<Candidate[]>(Object.values(MOCK_CANDIDATES));
@@ -98,7 +111,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [statusFilter, setStatusFilter] = useState<ElectionStatus | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  const [recentVoteReceipt, setRecentVoteReceipt] = useState<{ electionId: string; timestamp: string; receiptCode: string } | null>(null);
+  const [recentVoteReceipt, setRecentVoteReceipt] = useState<VoteConfirmationReceipt | null>(null);
 
   // Validate active session against server on mount and load initial elections & candidates
   const refreshElections = async () => {
@@ -370,48 +383,85 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return true;
   };
 
-  const setBallotSelection = (positionId: string, candidateId: string) => {
-    setBallotSelections(prev => ({
-      ...prev,
-      [positionId]: candidateId
-    }));
+  const setBallotSelection = (positionId: string, candidateId: string, maxSelections = 1) => {
+    setBallotSelections(prev => {
+      const current = prev[positionId] || [];
+      if (maxSelections <= 1) {
+        // Single-choice toggle/replace: clicking already-selected keeps or toggles? Replace cleanly; clicking same deselects only if already selected
+        const next = current.includes(candidateId) ? [] : [candidateId];
+        return { ...prev, [positionId]: next };
+      }
+      // Multi-choice up to maxSelections
+      if (current.includes(candidateId)) {
+        return { ...prev, [positionId]: current.filter(id => id !== candidateId) };
+      }
+      if (current.length >= maxSelections) {
+        return prev;
+      }
+      return { ...prev, [positionId]: [...current, candidateId] };
+    });
+  };
+
+  const clearPositionSelection = (positionId: string) => {
+    setBallotSelections(prev => {
+      const copy = { ...prev };
+      delete copy[positionId];
+      return copy;
+    });
   };
 
   const resetBallot = () => {
     setBallotSelections({});
   };
 
-  const submitSimulatedVote = (electionId: string): string => {
-    const receiptCode = 'UCC-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString().slice(-4);
-    const receipt = {
-      electionId,
-      timestamp: new Date().toISOString(),
-      receiptCode
-    };
-    setRecentVoteReceipt(receipt);
+  const submitBallotAction = async (
+    electionId: string,
+    selectionsOverride?: BallotSelectionMap,
+    idempotencyKey?: string
+  ) => {
+    const payloadSelections = selectionsOverride ?? ballotSelections;
+    const res = await electionClient.submitBallot(electionId, payloadSelections, idempotencyKey);
 
-    // Update student's hasVotedElections
-    if (student) {
-      setStudent({
-        ...student,
-        hasVotedElections: [...student.hasVotedElections, electionId]
-      });
+    if (res.success && res.receipt) {
+      setRecentVoteReceipt(res.receipt);
+      setBallotSelections({});
+
+      if (student) {
+        const updatedVoted = student.hasVotedElections.includes(electionId)
+          ? student.hasVotedElections
+          : [...student.hasVotedElections, electionId];
+        setStudent({
+          ...student,
+          hasVotedElections: updatedVoted
+        });
+      }
+
+      if (res.updatedTurnout) {
+        setElections(prev =>
+          prev.map(el =>
+            el.id === electionId
+              ? {
+                  ...el,
+                  totalVotesCast: res.updatedTurnout!.totalVotesCast,
+                  turnoutPercentage: res.updatedTurnout!.turnoutPercentage
+                }
+              : el
+          )
+        );
+      }
+
+      // Sync authoritative elections & candidate records from server
+      refreshElections();
+      refreshCandidates();
     }
 
-    // Increment total votes cast in the election mock
-    setElections(prev => prev.map(el => {
-      if (el.id === electionId) {
-        const newCast = el.totalVotesCast + 1;
-        return {
-          ...el,
-          totalVotesCast: newCast,
-          turnoutPercentage: Number(((newCast / el.totalEligibleVoters) * 100).toFixed(1))
-        };
-      }
-      return el;
-    }));
-
-    return receiptCode;
+    return {
+      success: res.success,
+      code: res.code,
+      message: res.message,
+      error: res.error,
+      receipt: res.receipt
+    };
   };
 
   const markNotificationAsRead = (id: string) => {
@@ -494,8 +544,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setSelectedElectionId,
       setSelectedCandidateId,
       setBallotSelection,
+      clearPositionSelection,
       resetBallot,
-      submitSimulatedVote,
+      submitBallotAction,
       markNotificationAsRead,
       submitComplaint,
       toggleCompareCandidate

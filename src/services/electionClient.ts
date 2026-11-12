@@ -1,4 +1,13 @@
-import { Election, ElectionCategory, ElectionStatus, Position, Candidate, CandidateApplicationStatus } from '../types';
+import {
+  Election,
+  ElectionCategory,
+  ElectionStatus,
+  Position,
+  Candidate,
+  CandidateApplicationStatus,
+  BallotSelectionMap,
+  VoteConfirmationReceipt
+} from '../types';
 import { authClient } from './authClient';
 
 export interface CreateElectionPayload {
@@ -471,6 +480,170 @@ export const electionClient = {
           Authorization: token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({ electionId, positionId })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  // ==========================================
+  // PHASE 6: SECURE DIGITAL VOTING ENGINE
+  // ==========================================
+
+  /**
+   * Load dynamic authorized digital ballot for an election
+   */
+  async getBallot(electionId: string): Promise<{
+    success: boolean;
+    code?: string;
+    error?: string;
+    alreadyVoted?: boolean;
+    receipt?: VoteConfirmationReceipt;
+    election?: Election;
+    eligibility?: EligibilityResult;
+    positions?: Array<{
+      position: Position;
+      candidates: Candidate[];
+    }>;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/voting/ballot/${encodeURIComponent(electionId)}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return {
+        success: false,
+        code: 'NETWORK_ERROR',
+        error: err.message || 'Network connection lost while loading ballot.'
+      };
+    }
+  },
+
+  /**
+   * Submit digital ballot atomically to the server
+   */
+  async submitBallot(
+    electionId: string,
+    selections: BallotSelectionMap,
+    idempotencyKey?: string
+  ): Promise<{
+    success: boolean;
+    code?: string;
+    message?: string;
+    error?: string;
+    receipt?: VoteConfirmationReceipt;
+    updatedTurnout?: {
+      totalVotesCast: number;
+      totalEligibleVoters: number;
+      turnoutPercentage: number;
+    };
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch('/api/voting/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ electionId, selections, idempotencyKey })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return {
+        success: false,
+        code: 'NETWORK_ERROR',
+        error:
+          err.message ||
+          'Network error during ballot transmission. Your vote has NOT been confirmed — please check status or retry.'
+      };
+    }
+  },
+
+  /**
+   * Retrieve student's vote confirmation receipt (no candidate choices exposed)
+   */
+  async getVoteConfirmation(electionId: string): Promise<{
+    success: boolean;
+    receipt?: VoteConfirmationReceipt;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/voting/confirmation/${encodeURIComponent(electionId)}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Retrieve all participation confirmations for authenticated student
+   */
+  async getMyConfirmations(): Promise<{
+    success: boolean;
+    receipts?: VoteConfirmationReceipt[];
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch('/api/voting/my-confirmations', {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin Ballot Secrecy Verification Check (Expected 403 BALLOT_SECRECY_VIOLATION_BLOCKED)
+   */
+  async attemptAdminBallotInspect(studentId: string): Promise<{
+    success: boolean;
+    code?: string;
+    error?: string;
+    targetStudentId?: string;
+    audited?: boolean;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/voting/admin/inspect-ballot/${encodeURIComponent(studentId)}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Admin aggregate vault balance summary
+   */
+  async getVotingAuditSummary(electionId: string): Promise<{
+    success: boolean;
+    summary?: any;
+    error?: string;
+  }> {
+    try {
+      const token = authClient.getToken();
+      const res = await fetch(`/api/voting/audit-summary/${encodeURIComponent(electionId)}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
       });
       return await res.json();
     } catch (err: any) {

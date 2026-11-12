@@ -141,11 +141,29 @@ export interface Election {
   };
   rules: string[];
   positionsCount: number;
+  allowsEmptyBallot?: boolean;
   resultsCertified: boolean;
   provisionalResultsReady: boolean;
   createdAt?: string;
   updatedAt?: string;
   approvedBy?: string;
+}
+
+export type BallotSelectionMap = Record<string, string[]>;
+
+export interface VoteConfirmationReceipt {
+  confirmationRef: string;
+  receiptHash: string;
+  electionId: string;
+  electionTitle: string;
+  electionCategory: ElectionCategory;
+  submittedAt: string;
+  positionsCompleted: {
+    id: string;
+    title: string;
+    status: 'VOTED' | 'ABSTAINED';
+  }[];
+  message: string;
 }
 
 export interface NotificationItem {

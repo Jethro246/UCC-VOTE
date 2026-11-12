@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_POSITIONS, MOCK_CANDIDATES } from '../../data/mockData';
+import { electionClient } from '../../services/electionClient';
+import { Position } from '../../types';
 import { 
   ArrowLeft, 
   Vote, 
@@ -16,10 +17,21 @@ import {
 } from 'lucide-react';
 
 export const ElectionDetailsPage: React.FC = () => {
-  const { selectedElectionId, elections, navigateTo, student } = useApp();
+  const { selectedElectionId, elections, candidates, navigateTo, student } = useApp();
 
   const election = elections.find(e => e.id === selectedElectionId) || elections[0];
-  const positions = MOCK_POSITIONS[election.id] || [];
+  const [positions, setPositions] = useState<Position[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    electionClient.getElectionById(election.id).then((res) => {
+      if (active && res.success && res.positions) {
+        setPositions(res.positions);
+      }
+    });
+    return () => { active = false; };
+  }, [election.id]);
+
   const hasVoted = student?.hasVotedElections.includes(election.id);
 
   // Check eligibility for student against multi-tier criteria
@@ -166,8 +178,16 @@ export const ElectionDetailsPage: React.FC = () => {
             )}
 
             {election.status === 'live' && hasVoted && (
-              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 text-center font-medium">
-                ✓ Your ballot has been recorded securely.
+              <div className="space-y-2">
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 text-center font-medium">
+                  ✓ Your ballot has been recorded securely.
+                </div>
+                <button
+                  onClick={() => navigateTo('digital_ballot', { electionId: election.id })}
+                  className="w-full py-2 px-4 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  View Submission Confirmation
+                </button>
               </div>
             )}
 
@@ -202,9 +222,9 @@ export const ElectionDetailsPage: React.FC = () => {
             ) : (
               <div className="space-y-6">
                 {positions.map((pos) => {
-                  const positionCandidates = pos.candidateIds
-                    .map(id => MOCK_CANDIDATES[id])
-                    .filter(Boolean);
+                  const positionCandidates = candidates.filter(
+                    c => c.electionId === election.id && c.positionId === pos.id && c.applicationStatus === 'Approved'
+                  );
 
                   return (
                     <div key={pos.id} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
@@ -218,7 +238,7 @@ export const ElectionDetailsPage: React.FC = () => {
                           </h3>
                         </div>
                         <span className="text-[11px] text-slate-500 font-medium">
-                          {pos.candidateIds.length} Aspirant{pos.candidateIds.length > 1 ? 's' : ''}
+                          {positionCandidates.length} Approved Aspirant{positionCandidates.length === 1 ? '' : 's'}
                         </span>
                       </div>
                       
