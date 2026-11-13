@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { Logo } from '../common/Logo';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -47,13 +48,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
 
     return (
       <aside className="w-64 shrink-0 bg-[#0B1F3A] text-slate-200 border-r border-slate-800 min-h-[calc(100vh-4rem)] flex flex-col justify-between hidden md:flex">
-        <div className="p-4 space-y-6">
+        <div className="p-4 space-y-5">
+          {/* Institutional Sidebar Header */}
+          <div className="px-1 pb-3 border-b border-slate-800">
+            <Logo variant="default" theme="dark" subtitle="Electoral Commission" />
+          </div>
+
           {/* Admin Identity Card */}
           <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#C62828] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                EC
-              </div>
+              <Logo variant="compact" theme="dark" showWordmark={false} />
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-white truncate">
                   {admin?.fullName || 'Dr. J. Tetteh'}
@@ -140,7 +144,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
 
   return (
     <aside className="w-64 shrink-0 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] flex flex-col justify-between hidden md:flex">
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-5">
+        {/* Institutional Sidebar Header */}
+        <div className="px-1 pb-3 border-b border-slate-100">
+          <Logo variant="compact" subtitle="Student Voter Portal" />
+        </div>
+
         {/* Student Profile Quick Capsule */}
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
           <div className="flex items-center gap-3">

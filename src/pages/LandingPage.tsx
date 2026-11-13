@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { UCC_HERO_IMAGE } from '../data/mockData';
+import { Logo } from '../components/common/Logo';
 import { 
   Vote, 
   ShieldCheck, 
@@ -11,15 +11,11 @@ import {
   ArrowRight, 
   ChevronDown, 
   ChevronUp, 
-  Clock, 
-  Sparkles,
-  Smartphone,
-  Eye,
   FileText
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { navigateTo, loginAsStudent, elections } = useApp();
+  const { navigateTo, elections, userRole } = useApp();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const activeElectionCount = elections.filter(e => e.status === 'live').length;
@@ -50,105 +46,78 @@ export const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F4F6F9]">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#0B1F3A] to-[#123B70] text-white pt-12 pb-20 lg:pt-16 lg:pb-28">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Hero Left Column */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-sky-200 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>64th UCC SRC & Hall General Elections Now Live</span>
-              </div>
+      <section
+        aria-label="UCC VOTE Hero"
+        className="relative w-full min-h-[540px] sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[720px] flex items-center overflow-hidden bg-[#0B1F3A] bg-[url('/assets/aistudio/image_6f5614c6.png')] bg-cover bg-center bg-no-repeat text-white"
+      >
+        {/* Mobile dark navy overlay for full readability while preserving subject visibility */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 md:hidden pointer-events-none bg-[linear-gradient(180deg,rgba(11,31,58,0.76)_0%,rgba(18,59,112,0.82)_55%,rgba(11,31,58,0.94)_100%)]"
+        />
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-[1.15] text-balance">
-                Your Voice. Your Vote. <span className="text-[#C62828] block sm:inline">Your UCC.</span>
-              </h1>
+        {/* Tablet/Desktop directional dark navy overlay: keeps left text high-contrast while students & ballot box remain bright and unobstructed */}
+        <div
+          aria-hidden="true"
+          className="hidden md:block absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgba(11,31,58,0.92)_0%,rgba(18,59,112,0.80)_36%,rgba(18,59,112,0.34)_62%,rgba(11,31,58,0.12)_100%)]"
+        />
 
-              <p className="text-base sm:text-lg text-slate-200 leading-relaxed max-w-2xl">
-                The official electronic election management platform for the University of Cape Coast, Ghana. 
-                Cast your ballot securely from any device with institutional verification and verified ballot secrecy.
-              </p>
+        {/* Subtle bottom contrast edge */}
+        <div
+          aria-hidden="true"
+          className="hidden md:block absolute inset-x-0 bottom-0 h-28 pointer-events-none bg-[linear-gradient(to_top,rgba(11,31,58,0.45)_0%,transparent_100%)]"
+        />
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={() => navigateTo('student_login')}
-                  className="px-6 py-3.5 text-sm font-bold text-[#0B1F3A] bg-white hover:bg-slate-100 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Student Portal Login</span>
-                  <ArrowRight className="w-4 h-4 text-[#C62828]" />
-                </button>
-
-                <button
-                  onClick={() => navigateTo('elections_directory')}
-                  className="px-6 py-3.5 text-sm font-bold text-white bg-white/10 hover:bg-white/20 border border-white/25 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <Vote className="w-4 h-4 text-sky-300" />
-                  <span>View All Elections</span>
-                </button>
-              </div>
-
-              {/* Key Trust Signals */}
-              <div className="pt-4 border-t border-white/15 grid grid-cols-3 gap-4 text-xs">
-                <div>
-                  <p className="text-xl sm:text-2xl font-extrabold text-white font-mono tabular-nums">24,850+</p>
-                  <p className="text-slate-300 text-[11px] mt-0.5">Eligible Student Voters</p>
-                </div>
-                <div>
-                  <p className="text-xl sm:text-2xl font-extrabold text-amber-300 font-mono tabular-nums">{activeElectionCount} Live</p>
-                  <p className="text-slate-300 text-[11px] mt-0.5">Active Polling Portals</p>
-                </div>
-                <div>
-                  <p className="text-xl sm:text-2xl font-extrabold text-emerald-300 font-mono tabular-nums">100%</p>
-                  <p className="text-slate-300 text-[11px] mt-0.5">Secret Ballot Secrecy</p>
-                </div>
-              </div>
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16 lg:py-20">
+          <div className="max-w-xl lg:max-w-[540px] space-y-5 sm:space-y-6">
+            <div className="flex items-center gap-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-[0.16em] text-sky-200">
+              <span className="inline-block w-7 h-0.5 bg-[#C62828] shrink-0" aria-hidden="true" />
+              <span>University of Cape Coast · Official E-Voting</span>
             </div>
 
-            {/* Hero Right Column: High Quality Campus Visual */}
-            <div className="lg:col-span-5">
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-slate-900 group">
-                <img
-                  src={UCC_HERO_IMAGE}
-                  alt="University of Cape Coast Campus Landmark"
-                  className="w-full h-80 sm:h-96 object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F3A]/90 via-[#0B1F3A]/30 to-transparent" />
-                
-                {/* Floating overlay card */}
-                <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-white/95 backdrop-blur-md text-slate-900 border border-white/40 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#123B70]">
-                        Official Polling Station
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900 mt-0.5">
-                        64th SRC General Elections
-                      </h4>
-                    </div>
-                    <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-md flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      POLLS OPEN
-                    </span>
-                  </div>
-                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      Closes: Tomorrow, 17:00 GMT
-                    </span>
-                    <button
-                      onClick={() => navigateTo('digital_ballot', { electionId: 'UCC-SRC-2026' })}
-                      className="text-xs font-bold text-[#123B70] hover:text-[#0B1F3A] flex items-center gap-1 cursor-pointer"
-                    >
-                      Cast Ballot →
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <h1 className="text-3xl sm:text-5xl lg:text-[3.35rem] font-black tracking-tight text-white leading-[1.08] text-balance drop-shadow-sm">
+              YOUR VOICE. YOUR VOTE. YOUR UCC.
+            </h1>
+
+            <p className="text-base sm:text-lg text-slate-100 leading-relaxed max-w-lg drop-shadow-xs">
+              Make your voice count. Participate in student elections, choose your leaders, and help shape the future of our university.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+              <button
+                type="button"
+                onClick={() => navigateTo(userRole === 'student' ? 'student_dashboard' : 'student_register')}
+                className="group min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-bold text-white bg-[#C62828] hover:bg-[#A61E1E] rounded-xl transition-all duration-200 shadow-lg shadow-black/30 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Get Started</span>
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo('elections_directory')}
+                className="min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-bold text-white bg-white/10 hover:bg-white hover:text-[#123B70] border-2 border-white backdrop-blur-xs rounded-xl transition-all duration-200 shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Vote className="w-4 h-4" />
+                <span>Explore Elections</span>
+              </button>
             </div>
 
+            {/* Key Institutional Trust Metrics */}
+            <div className="pt-5 mt-2 border-t border-white/20 grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">24,850+</p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Eligible Student Voters</p>
+              </div>
+              <div>
+                <p className="text-lg sm:text-2xl font-extrabold text-amber-300 font-mono tabular-nums">{activeElectionCount} Live</p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Active Polling Portals</p>
+              </div>
+              <div>
+                <p className="text-lg sm:text-2xl font-extrabold text-emerald-300 font-mono tabular-nums">100%</p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Secret Ballot Secrecy</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -361,11 +330,14 @@ export const LandingPage: React.FC = () => {
             <div className="lg:col-span-6">
               <div className="p-6 rounded-2xl bg-[#0B1F3A] text-white border border-slate-700 shadow-xl space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-700">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                      Security Protocol
-                    </span>
+                  <div className="flex items-center gap-2.5">
+                    <Logo variant="compact" theme="dark" showWordmark={false} />
+                    <div className="flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                        About UCC VOTE · Security Protocol
+                      </span>
+                    </div>
                   </div>
                   <span className="text-[11px] font-mono text-emerald-400">ENCRYPTED</span>
                 </div>

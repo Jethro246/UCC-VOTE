@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
 import { ElectionResultsPayload, ResultsWorkflowStage } from '../../types';
+import { Logo, BrandedLoadingScreen } from '../common/Logo';
 import {
   BallotDoughnutChart,
   CandidateBarChart,
@@ -177,16 +178,19 @@ export const AdminResultsPanel: React.FC = () => {
     <div className="space-y-6">
       {/* Top Controls & Election Selector */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <span className="text-[11px] font-bold text-[#123B70] uppercase tracking-wider">
-            Results Management · Certification & Reporting
-          </span>
-          <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">
-            Official Election Tally & Certification Console
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Verify ballot accounting, advance the 6-stage commission approval workflow, and generate audited PDF/CSV reports.
-          </p>
+        <div className="flex items-start sm:items-center gap-3.5">
+          <Logo variant="default" showWordmark={false} />
+          <div>
+            <span className="text-[11px] font-bold text-[#123B70] uppercase tracking-wider">
+              Results Management · Certification & Reporting
+            </span>
+            <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">
+              Official Election Tally & Certification Console
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Verify ballot accounting, advance the 6-stage commission approval workflow, and generate audited PDF/CSV reports.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -243,10 +247,10 @@ export const AdminResultsPanel: React.FC = () => {
       )}
 
       {loading && (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center space-y-2">
-          <Loader2 className="w-6 h-6 animate-spin text-[#123B70] mx-auto" />
-          <p className="text-xs font-semibold text-slate-500">Computing authoritative election tallies...</p>
-        </div>
+        <BrandedLoadingScreen
+          title="Computing Authoritative Election Tallies"
+          subtitle="Reconciling encrypted ballot vaults and small-cohort privacy thresholds..."
+        />
       )}
 
       {!loading && errorMsg && (
@@ -466,16 +470,25 @@ export const AdminResultsPanel: React.FC = () => {
 
           {/* 3. REPORT GENERATION CENTER */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-4">
-            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-              <FileText className="w-4 h-4 text-[#123B70]" />
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  Official Report Generation & Exports
-                </h4>
-                <p className="text-xs text-slate-500">
-                  All exports include server-calculated tallies, rounding rules, and small-cohort privacy suppressions.
-                </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Logo variant="compact" showWordmark={false} />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Official Report Generation & Exports
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    All exports include server-calculated tallies, rounding rules, and small-cohort privacy suppressions.
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer no-print"
+              >
+                Print Report
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

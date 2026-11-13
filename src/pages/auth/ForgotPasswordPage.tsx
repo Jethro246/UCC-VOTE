@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { BrandHeader } from '../../components/common/BrandHeader';
+import { Logo } from '../../components/common/Logo';
 import { authClient } from '../../services/authClient';
 import { 
   Mail, 
@@ -106,8 +106,8 @@ export const ForgotPasswordPage: React.FC = () => {
       <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
         
         <div className="bg-[#0B1F3A] p-6 text-white text-center">
-          <div className="inline-block mb-2">
-            <BrandHeader size="md" white />
+          <div className="flex justify-center mb-3">
+            <Logo variant="large" theme="dark" layout="stacked" showTagline />
           </div>
           <h2 className="text-xl font-bold tracking-tight text-white">
             Voter Account Recovery

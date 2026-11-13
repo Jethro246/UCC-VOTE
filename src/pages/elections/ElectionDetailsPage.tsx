@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
+import { Logo } from '../../components/common/Logo';
 import { Position } from '../../types';
 import { 
   ArrowLeft, 
@@ -79,24 +80,26 @@ export const ElectionDetailsPage: React.FC = () => {
       {/* Main Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-          <div className="space-y-2 max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-xs font-bold uppercase tracking-wider">
-                {election.category}
-              </span>
-              <span className="text-slate-400">·</span>
-              <span className="text-xs font-mono text-slate-500 font-semibold">
-                CODE: {election.code}
-              </span>
-              <span className="text-slate-400">·</span>
-              <span className="text-xs text-slate-600">
-                Academic Year {election.academicYear}
-              </span>
-            </div>
+          <div className="flex items-start gap-4 max-w-3xl">
+            <Logo variant="default" showWordmark={false} className="mt-1 hidden sm:inline-flex" />
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-xs font-bold uppercase tracking-wider">
+                  {election.category}
+                </span>
+                <span className="text-slate-400">·</span>
+                <span className="text-xs font-mono text-slate-500 font-semibold">
+                  CODE: {election.code}
+                </span>
+                <span className="text-slate-400">·</span>
+                <span className="text-xs text-slate-600">
+                  Academic Year {election.academicYear}
+                </span>
+              </div>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {election.title}
-            </h1>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                {election.title}
+              </h1>
 
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-1">
               {election.description}
@@ -105,6 +108,7 @@ export const ElectionDetailsPage: React.FC = () => {
             <div className="pt-2 flex items-center gap-2 text-xs text-slate-500">
               <Building className="w-4 h-4 text-slate-400" />
               <span>Organizing Secretariat: <strong>{election.organizingBody}</strong></span>
+            </div>
             </div>
           </div>
 

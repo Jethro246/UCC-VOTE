@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { BrandHeader } from '../common/BrandHeader';
+import { Logo } from '../common/Logo';
 import { 
   Bell, 
   Menu, 
@@ -39,12 +39,13 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-8 h-16">
-          {/* Zone 1: Brand Wordmark (Single clean element) */}
+          {/* Zone 1: Official UCC Crest & Brand Wordmark */}
           <button 
             onClick={() => handleNav('landing')} 
             className="text-left shrink-0 cursor-pointer focus:outline-none"
           >
-            <BrandHeader size="md" />
+            <Logo variant="compact" className="sm:hidden" />
+            <Logo variant="default" className="hidden sm:inline-flex" />
           </button>
 
           {/* Zone 2: 4-5 Concise Single-Line Nav Links */}

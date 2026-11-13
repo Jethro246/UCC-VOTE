@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { MOCK_AUDIT_LOGS, MOCK_POSITIONS, MOCK_CANDIDATES } from '../../data/mockData';
 import { electionClient } from '../../services/electionClient';
 import { authClient } from '../../services/authClient';
+import { Logo } from '../../components/common/Logo';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -137,19 +138,22 @@ export const AdminDashboard: React.FC = () => {
       
       {/* Admin Commission Header */}
       <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/30 border border-red-500/40 text-xs text-red-200">
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Authenticated as {admin?.role || 'Electoral Commissioner'}</span>
+        <div className="flex items-start sm:items-center gap-4">
+          <Logo variant="default" theme="dark" showWordmark={false} className="hidden sm:inline-flex" />
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/30 border border-red-500/40 text-xs text-red-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>Authenticated as {admin?.role || 'Electoral Commissioner'}</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Electoral Commission Administration Console
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-300">
+              Master oversight for University of Cape Coast student elections, candidate accreditation, and audit trails.
+            </p>
           </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Electoral Commission Administration Console
-          </h1>
-
-          <p className="text-xs sm:text-sm text-slate-300">
-            Master oversight for University of Cape Coast student elections, candidate accreditation, and audit trails.
-          </p>
         </div>
 
         <div className="flex items-center gap-3">

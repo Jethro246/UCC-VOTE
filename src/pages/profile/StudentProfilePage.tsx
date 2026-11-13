@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
+import { Logo } from '../../components/common/Logo';
 import { 
   User, 
   ShieldCheck, 
@@ -166,6 +167,13 @@ export const StudentProfilePage: React.FC = () => {
             <span>·</span>
             <span>INDEX: {currentStudent.indexNumber}</span>
           </div>
+        </div>
+
+        <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
+          <Logo variant="default" showWordmark={false} />
+          <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider">
+            UCC Registry
+          </span>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
-import { BrandHeader } from '../../components/common/BrandHeader';
+import { Logo } from '../../components/common/Logo';
 import { 
   Vote, 
   CheckCircle2, 
@@ -287,11 +287,14 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-1.5 min-w-0">
-              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[11px] text-sky-200">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>
-                  {isSuspended ? 'Account Suspended' : 'Verified UCC Voter · 2026/2027'}
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Logo variant="compact" theme="dark" showWordmark={false} />
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[11px] text-sky-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>
+                    {isSuspended ? 'Account Suspended' : 'Verified UCC Voter · 2026/2027'}
+                  </span>
+                </div>
               </div>
 
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white">

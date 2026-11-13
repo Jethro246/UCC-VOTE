@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { Logo } from '../../components/common/Logo';
 import { 
   Search, 
   Filter, 
@@ -62,16 +63,19 @@ export const ElectionsDirectoryPage: React.FC = () => {
       
       {/* Header & Description */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-            Institutional Registry
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Elections Directory
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Browse active, scheduled, and past University of Cape Coast elections.
-          </p>
+        <div className="flex items-start sm:items-center gap-3.5">
+          <Logo variant="default" showWordmark={false} />
+          <div>
+            <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+              Institutional Registry
+            </span>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+              Elections Directory
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              Browse active, scheduled, and past University of Cape Coast elections.
+            </p>
+          </div>
         </div>
 
         {/* Search input */}

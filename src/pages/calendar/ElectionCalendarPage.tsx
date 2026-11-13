@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MOCK_CALENDAR_EVENTS } from '../../data/mockData';
+import { Logo } from '../../components/common/Logo';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -49,16 +50,19 @@ export const ElectionCalendarPage: React.FC = () => {
       
       {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-            Academic Year 2026/2027
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Official Electoral Calendar
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Important dates for candidate nominations, vetting sessions, voting days, and certified declarations.
-          </p>
+        <div className="flex items-start sm:items-center gap-3.5">
+          <Logo variant="default" showWordmark={false} />
+          <div>
+            <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+              Academic Year 2026/2027
+            </span>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+              Official Electoral Calendar
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              Important dates for candidate nominations, vetting sessions, voting days, and certified declarations.
+            </p>
+          </div>
         </div>
 
         {/* Category Filter buttons */}

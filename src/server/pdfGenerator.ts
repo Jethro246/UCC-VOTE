@@ -1,6 +1,134 @@
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
 import type { ElectionResultsPayload } from '../types/index.ts';
 
 export type ReportType = 'full' | 'results' | 'turnout' | 'candidates' | 'positions';
+
+interface CrestPdfImage {
+  width: number;
+  height: number;
+  compressedRgb: Buffer;
+}
+
+let cachedCrestImage: CrestPdfImage | null | undefined;
+
+function paethPredictor(a: number, b: number, c: number): number {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+
+function loadUccCrestForPdf(): CrestPdfImage | null {
+  if (cachedCrestImage !== undefined) return cachedCrestImage;
+
+  try {
+    const crestPath = path.resolve(process.cwd(), 'public/assets/aistudio/image_b7db00c2.png');
+    if (!fs.existsSync(crestPath)) {
+      cachedCrestImage = null;
+      return null;
+    }
+
+    const png = fs.readFileSync(crestPath);
+    const pngSig = '89504e470d0a1a0a';
+    if (png.subarray(0, 8).toString('hex') !== pngSig) {
+      cachedCrestImage = null;
+      return null;
+    }
+
+    let offset = 8;
+    let width = 0;
+    let height = 0;
+    let bitDepth = 0;
+    let colorType = 0;
+    const idatChunks: Buffer[] = [];
+
+    while (offset + 8 <= png.length) {
+      const length = png.readUInt32BE(offset);
+      const type = png.subarray(offset + 4, offset + 8).toString('ascii');
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + length;
+      if (dataEnd > png.length) break;
+
+      if (type === 'IHDR') {
+        width = png.readUInt32BE(dataStart);
+        height = png.readUInt32BE(dataStart + 4);
+        bitDepth = png[dataStart + 8];
+        colorType = png[dataStart + 9];
+      } else if (type === 'IDAT') {
+        idatChunks.push(png.subarray(dataStart, dataEnd));
+      } else if (type === 'IEND') {
+        break;
+      }
+
+      offset = dataEnd + 4; // skip CRC
+    }
+
+    // Support 8-bit RGB (colorType 2) and RGBA (colorType 6, composited onto white)
+    if (!width || !height || bitDepth !== 8 || (colorType !== 2 && colorType !== 6)) {
+      cachedCrestImage = null;
+      return null;
+    }
+
+    const srcBpp = colorType === 6 ? 4 : 3;
+    const stride = width * srcBpp;
+    const inflated = zlib.inflateSync(Buffer.concat(idatChunks));
+    const unfiltered = Buffer.alloc(height * stride);
+
+    for (let y = 0; y < height; y++) {
+      const filterType = inflated[y * (stride + 1)];
+      const rowInStart = y * (stride + 1) + 1;
+      const rowOutStart = y * stride;
+      const prevRowStart = (y - 1) * stride;
+
+      for (let x = 0; x < stride; x++) {
+        const rawByte = inflated[rowInStart + x];
+        const left = x >= srcBpp ? unfiltered[rowOutStart + x - srcBpp] : 0;
+        const up = y > 0 ? unfiltered[prevRowStart + x] : 0;
+        const upLeft = y > 0 && x >= srcBpp ? unfiltered[prevRowStart + x - srcBpp] : 0;
+
+        let recon = rawByte;
+        if (filterType === 1) {
+          recon = (rawByte + left) & 0xff;
+        } else if (filterType === 2) {
+          recon = (rawByte + up) & 0xff;
+        } else if (filterType === 3) {
+          recon = (rawByte + ((left + up) >> 1)) & 0xff;
+        } else if (filterType === 4) {
+          recon = (rawByte + paethPredictor(left, up, upLeft)) & 0xff;
+        }
+        unfiltered[rowOutStart + x] = recon;
+      }
+    }
+
+    let rgbBuffer: Buffer;
+    if (colorType === 2) {
+      rgbBuffer = unfiltered;
+    } else {
+      rgbBuffer = Buffer.alloc(width * height * 3);
+      for (let i = 0, j = 0; i < unfiltered.length; i += 4, j += 3) {
+        const a = unfiltered[i + 3] / 255;
+        rgbBuffer[j] = Math.round(unfiltered[i] * a + 255 * (1 - a));
+        rgbBuffer[j + 1] = Math.round(unfiltered[i + 1] * a + 255 * (1 - a));
+        rgbBuffer[j + 2] = Math.round(unfiltered[i + 2] * a + 255 * (1 - a));
+      }
+    }
+
+    cachedCrestImage = {
+      width,
+      height,
+      compressedRgb: zlib.deflateSync(rgbBuffer)
+    };
+    return cachedCrestImage;
+  } catch {
+    cachedCrestImage = null;
+    return null;
+  }
+}
 
 function sanitizePdfText(str: string): string {
   // Replace non-ASCII characters (like cedi symbol or smart quotes) with clean ASCII equivalents
@@ -36,34 +164,48 @@ interface PdfLine {
   bold?: boolean;
   size?: number;
   colorRgb?: [number, number, number];
+  indentX?: number;
 }
 
 /**
  * Generates a valid multi-page A4 PDF 1.4 binary Buffer containing official UCC VOTE election reports
+ * with the embedded official University of Cape Coast crest.
  */
 export function generateElectionReportPdf(
   results: ElectionResultsPayload,
   reportType: ReportType = 'full'
 ): Buffer {
+  const crestImage = loadUccCrestForPdf();
   const lines: PdfLine[] = [];
 
+  const headerIndent = crestImage ? 92 : 42;
+
   const addTitle = (text: string) => {
-    lines.push({ text, bold: true, size: 14, colorRgb: [0.043, 0.122, 0.227] });
+    lines.push({ text, bold: true, size: 13.5, colorRgb: [0.043, 0.122, 0.227], indentX: headerIndent });
   };
   const addSection = (text: string) => {
     lines.push({ text: '' });
     lines.push({ text, bold: true, size: 11, colorRgb: [0.071, 0.231, 0.439] });
     lines.push({ text: '------------------------------------------------------------------------------------', size: 8, colorRgb: [0.6, 0.6, 0.65] });
   };
-  const addLine = (text: string, bold = false, size = 9, colorRgb: [number, number, number] = [0.15, 0.18, 0.22]) => {
-    const wrapped = wrapText(text, 88);
-    wrapped.forEach((w) => lines.push({ text: w, bold, size, colorRgb }));
+  const addLine = (
+    text: string,
+    bold = false,
+    size = 9,
+    colorRgb: [number, number, number] = [0.15, 0.18, 0.22],
+    indentX = 42
+  ) => {
+    const maxChars = indentX > 60 ? 76 : 88;
+    const wrapped = wrapText(text, maxChars);
+    wrapped.forEach((w) => lines.push({ text: w, bold, size, colorRgb, indentX }));
   };
 
-  // Report Header
-  addTitle('UNIVERSITY OF CAPE COAST - UCC VOTE ELECTORAL COMMISSION');
-  addLine(`Report Classification: Official ${reportType.toUpperCase()} Election Report`, true, 10, [0.776, 0.157, 0.157]);
-  addLine(`Election Title: ${results.electionTitle}`);
+  // Report Header beside official UCC crest
+  addTitle('UNIVERSITY OF CAPE COAST - UCC VOTE');
+  addLine(`Official ${reportType.toUpperCase()} Election Report | Electoral Commission`, true, 10, [0.776, 0.157, 0.157], headerIndent);
+  addLine('YOUR VOICE. YOUR VOTE. YOUR UCC.', true, 8, [0.071, 0.231, 0.439], headerIndent);
+  lines.push({ text: '' });
+  addLine(`Election Title: ${results.electionTitle}`, true, 9.5);
   addLine(`Code: ${results.electionCode}  |  Category: ${results.category}  |  Academic Year: ${results.academicYear}`);
   addLine(`Organizing Body: ${results.organizingBody}`);
   addLine(`Workflow Stage: ${results.workflowStage.toUpperCase()}  |  Status: ${results.isPublished ? 'OFFICIALLY PUBLISHED' : 'UNPUBLISHED / INTERNAL'}`);
@@ -141,7 +283,7 @@ export function generateElectionReportPdf(
     addLine(`  [${h.stage.toUpperCase()}] ${h.timestamp} - ${h.actorName} (${h.actorRole}): ${h.notes}`, false, 8);
   });
 
-  // Paginate lines across A4 pages (top Y = 790, bottom Y = 55, line height = 13.5)
+  // Paginate lines across A4 pages
   const linesPerPage = 52;
   const pages: PdfLine[][] = [];
   for (let i = 0; i < lines.length; i += linesPerPage) {
@@ -149,18 +291,12 @@ export function generateElectionReportPdf(
   }
   if (pages.length === 0) pages.push([{ text: 'Empty Report' }]);
 
-  // Build PDF Objects
-  const objects: string[] = [];
-  // Obj 1: Catalog
-  // Obj 2: Pages
-  // Obj 3: Font Regular (Helvetica)
-  // Obj 4: Font Bold (Helvetica-Bold)
-  // Followed by Page + Content pairs
-
+  const objectBuffers: Buffer[] = [];
   const pageObjNumbers: number[] = [];
-  let nextObjNum = 5;
+  const imageObjNum = crestImage ? 5 : 0;
+  let nextObjNum = crestImage ? 6 : 5;
 
-  const pagePairs: { pageObj: number; contentObj: number; stream: string }[] = pages.map((pageLines, pageIdx) => {
+  const pagePairs: { pageObj: number; contentObj: number; stream: string; hasImage: boolean }[] = pages.map((pageLines, pageIdx) => {
     const pageObj = nextObjNum++;
     const contentObj = nextObjNum++;
     pageObjNumbers.push(pageObj);
@@ -170,14 +306,21 @@ export function generateElectionReportPdf(
     streamParts.push('0.071 0.231 0.439 rg 40 818 515 6 re f');
     streamParts.push('0.776 0.157 0.157 rg 40 814 140 3 re f');
 
-    let y = 790;
+    // Embed Official UCC Crest on Page 1 top-left
+    const hasImage = Boolean(crestImage && pageIdx === 0);
+    if (hasImage) {
+      streamParts.push('q 42 0 0 42 42 762 cm /Im1 Do Q');
+    }
+
+    let y = 792;
     pageLines.forEach((line) => {
       const size = line.size || 9;
       const font = line.bold ? '/F2' : '/F1';
       const [r, g, b] = line.colorRgb || [0.15, 0.18, 0.22];
       const safeText = sanitizePdfText(line.text);
-      streamParts.push(`BT ${font} ${size} Tf ${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg 42 ${y.toFixed(1)} Td (${safeText}) Tj ET`);
-      y -= size > 11 ? 18 : 13.5;
+      const x = line.indentX ?? 42;
+      streamParts.push(`BT ${font} ${size} Tf ${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg ${x} ${y.toFixed(1)} Td (${safeText}) Tj ET`);
+      y -= size > 11 ? 17 : 13.5;
     });
 
     // Footer
@@ -186,37 +329,61 @@ export function generateElectionReportPdf(
     return {
       pageObj,
       contentObj,
-      stream: streamParts.join('\n')
+      stream: streamParts.join('\n'),
+      hasImage
     };
   });
 
-  objects[1] = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
-  objects[2] = `2 0 obj\n<< /Type /Pages /Kids [${pageObjNumbers.map((n) => `${n} 0 R`).join(' ')}] /Count ${pageObjNumbers.length} >>\nendobj\n`;
-  objects[3] = '3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n';
-  objects[4] = '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n';
+  objectBuffers[1] = Buffer.from('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n', 'utf8');
+  objectBuffers[2] = Buffer.from(
+    `2 0 obj\n<< /Type /Pages /Kids [${pageObjNumbers.map((n) => `${n} 0 R`).join(' ')}] /Count ${pageObjNumbers.length} >>\nendobj\n`,
+    'utf8'
+  );
+  objectBuffers[3] = Buffer.from('3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n', 'utf8');
+  objectBuffers[4] = Buffer.from('4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n', 'utf8');
+
+  if (crestImage) {
+    const imgHeader = Buffer.from(
+      `${imageObjNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${crestImage.width} /Height ${crestImage.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ${crestImage.compressedRgb.length} >>\nstream\n`,
+      'utf8'
+    );
+    const imgFooter = Buffer.from('\nendstream\nendobj\n', 'utf8');
+    objectBuffers[imageObjNum] = Buffer.concat([imgHeader, crestImage.compressedRgb, imgFooter]);
+  }
 
   pagePairs.forEach((pair) => {
-    objects[pair.pageObj] = `${pair.pageObj} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pair.contentObj} 0 R >>\nendobj\n`;
-    const byteLen = Buffer.byteLength(pair.stream, 'utf8');
-    objects[pair.contentObj] = `${pair.contentObj} 0 obj\n<< /Length ${byteLen} >>\nstream\n${pair.stream}\nendstream\nendobj\n`;
+    const xObjectRef = pair.hasImage ? ` /XObject << /Im1 ${imageObjNum} 0 R >>` : '';
+    objectBuffers[pair.pageObj] = Buffer.from(
+      `${pair.pageObj} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xObjectRef} >> /Contents ${pair.contentObj} 0 R >>\nendobj\n`,
+      'utf8'
+    );
+    const streamBuf = Buffer.from(pair.stream, 'utf8');
+    objectBuffers[pair.contentObj] = Buffer.from(
+      `${pair.contentObj} 0 obj\n<< /Length ${streamBuf.length} >>\nstream\n${pair.stream}\nendstream\nendobj\n`,
+      'utf8'
+    );
   });
 
-  let pdfStr = '%PDF-1.4\n';
+  const chunks: Buffer[] = [Buffer.from('%PDF-1.4\n', 'utf8')];
+  let byteOffset = chunks[0].length;
   const offsets: number[] = [0];
 
   for (let i = 1; i < nextObjNum; i++) {
-    offsets[i] = Buffer.byteLength(pdfStr, 'utf8');
-    pdfStr += objects[i];
+    offsets[i] = byteOffset;
+    const buf = objectBuffers[i];
+    chunks.push(buf);
+    byteOffset += buf.length;
   }
 
-  const xrefStart = Buffer.byteLength(pdfStr, 'utf8');
-  pdfStr += `xref\n0 ${nextObjNum}\n0000000000 65535 f \n`;
+  const xrefStart = byteOffset;
+  let xrefStr = `xref\n0 ${nextObjNum}\n0000000000 65535 f \n`;
   for (let i = 1; i < nextObjNum; i++) {
-    pdfStr += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+    xrefStr += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
   }
-  pdfStr += `trailer\n<< /Size ${nextObjNum} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  xrefStr += `trailer\n<< /Size ${nextObjNum} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  chunks.push(Buffer.from(xrefStr, 'utf8'));
 
-  return Buffer.from(pdfStr, 'utf8');
+  return Buffer.concat(chunks);
 }
 
 /**

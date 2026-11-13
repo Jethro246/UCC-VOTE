@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MOCK_POSITIONS } from '../../data/mockData';
+import { Logo } from '../../components/common/Logo';
 import { 
   ArrowLeft, 
   Vote, 
@@ -133,6 +134,7 @@ export const CandidateProfilePage: React.FC = () => {
           {/* Profile Header Details */}
           <div className="space-y-3 min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              <Logo variant="compact" showWordmark={false} />
               <span className="px-3 py-1 rounded-full bg-[#123B70] text-white text-xs font-bold uppercase tracking-wider">
                 Contesting: {positionTitle}
               </span>

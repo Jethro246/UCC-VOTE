@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { BrandHeader } from '../../components/common/BrandHeader';
+import { Logo } from '../../components/common/Logo';
 import { authClient } from '../../services/authClient';
 import { 
   Lock, 
@@ -70,8 +70,8 @@ export const StudentLoginPage: React.FC = () => {
         
         {/* Card Header */}
         <div className="bg-[#0B1F3A] p-6 text-white text-center relative">
-          <div className="inline-block mb-3">
-            <BrandHeader size="md" white />
+          <div className="flex justify-center mb-3">
+            <Logo variant="large" theme="dark" layout="stacked" showTagline />
           </div>
           <h2 className="text-xl font-bold tracking-tight text-white">
             Student Voter Login

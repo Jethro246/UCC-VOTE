@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { Logo } from '../../components/common/Logo';
 import { 
   Bell, 
   Check, 
@@ -33,16 +34,19 @@ export const NotificationsPage: React.FC = () => {
       
       {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-            Electoral Broadcasts
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Notifications & Official Bulletins
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Timely security notices, polling window alerts, and certified declarations from the Electoral Commission.
-          </p>
+        <div className="flex items-start sm:items-center gap-3.5">
+          <Logo variant="default" showWordmark={false} />
+          <div>
+            <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+              Electoral Broadcasts
+            </span>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+              Notifications & Official Bulletins
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              Timely security notices, polling window alerts, and certified declarations from the Electoral Commission.
+            </p>
+          </div>
         </div>
 
         <button

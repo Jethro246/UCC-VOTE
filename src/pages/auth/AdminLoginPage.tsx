@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { BrandHeader } from '../../components/common/BrandHeader';
+import { Logo } from '../../components/common/Logo';
 import { 
   ShieldCheck, 
   Lock, 
@@ -51,8 +51,8 @@ export const AdminLoginPage: React.FC = () => {
         
         {/* Header */}
         <div className="bg-[#0B1F3A] p-6 text-white text-center border-b border-slate-800">
-          <div className="inline-block mb-2">
-            <BrandHeader size="md" white />
+          <div className="flex justify-center mb-3">
+            <Logo variant="large" theme="dark" layout="stacked" showTagline subtitle="Electoral Commission" />
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#C62828] text-[10px] font-bold uppercase tracking-wider text-white mt-1">
             <ShieldCheck className="w-3 h-3" />

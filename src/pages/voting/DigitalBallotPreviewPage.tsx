@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient, EligibilityResult } from '../../services/electionClient';
 import { Candidate, Election, Position, VoteConfirmationReceipt } from '../../types';
+import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import {
   Vote,
   CheckCircle2,
@@ -255,19 +256,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   // =========================================================================
   if (isLoadingBallot) {
     return (
-      <div className="max-w-3xl mx-auto py-14 px-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-xs text-center space-y-4">
-          <div className="w-12 h-12 rounded-full bg-[#EAF2FA] text-[#123B70] flex items-center justify-center mx-auto animate-spin">
-            <RefreshCw className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-bold text-slate-900">
-            Verifying Voter Eligibility & Loading Official Ballot
-          </h2>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Checking student standing, polling window, and approved candidate roster with the UCC Electoral Commission server...
-          </p>
-        </div>
-      </div>
+      <BrandedLoadingScreen
+        title="Verifying Voter Eligibility & Loading Official Ballot"
+        subtitle="Checking student standing, polling window, and approved candidate roster with the UCC Electoral Commission server..."
+      />
     );
   }
 
@@ -285,13 +277,14 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       <div className="max-w-2xl mx-auto py-6 px-4 space-y-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xl space-y-6">
           <div className="text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
-              <CheckCircle2 className="w-10 h-10" />
+            <div className="flex justify-center pb-1">
+              <Logo variant="default" layout="stacked" showTagline subtitle="Electoral Commission" />
             </div>
 
-            <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider">
-              {alreadyVotedReceipt ? 'Official Participation Record' : 'Submission Verified'}
-            </span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{alreadyVotedReceipt ? 'Official Participation Record' : 'Submission Verified'}</span>
+            </div>
 
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               YOUR VOTE HAS BEEN SUCCESSFULLY SUBMITTED.
@@ -380,18 +373,24 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 no-print">
+            <button
+              onClick={() => window.print()}
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Print Official Receipt
+            </button>
             <button
               onClick={() => navigateTo('student_dashboard')}
               className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
             >
-              Return to Student Dashboard
+              Return to Dashboard
             </button>
             <button
               onClick={() => navigateTo('election_results', { electionId: activeReceipt.electionId })}
               className="w-full py-2.5 px-4 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold transition-colors cursor-pointer"
             >
-              View Election Status & Turnout
+              View Turnout & Results
             </button>
           </div>
         </div>
@@ -430,9 +429,12 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5 flex-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                {election?.title || 'Digital Ballot Access'} · {ballotError.code || 'NOTICE'}
-              </span>
+              <div className="flex items-center gap-2">
+                <Logo variant="compact" showWordmark={false} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  {election?.title || 'Digital Ballot Access'} · {ballotError.code || 'NOTICE'}
+                </span>
+              </div>
               <h1 className="text-xl font-extrabold text-slate-900">
                 {isAuthIssue
                   ? 'Student Authentication Required'
@@ -552,16 +554,19 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
-            <div>
-              <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-                Ballot Review · {election.category}
-              </span>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-                Review Your Selections
-              </h1>
-              <p className="text-xs text-slate-500 mt-1">
-                Verify your selections for <strong>{election.title}</strong> before confirming final submission.
-              </p>
+            <div className="flex items-start sm:items-center gap-3.5">
+              <Logo variant="default" showWordmark={false} />
+              <div>
+                <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+                  Ballot Review · {election.category}
+                </span>
+                <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                  Review Your Selections
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Verify your selections for <strong>{election.title}</strong> before confirming final submission.
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setCurrentStep(1)}
@@ -800,24 +805,27 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       {/* Election Metadata Header */}
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-[10px] font-bold uppercase tracking-wider">
-                {election.category}
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                {election.status === 'live' ? 'Polling Live' : election.status}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">{election.code}</span>
-            </div>
+          <div className="flex items-start gap-3.5">
+            <Logo variant="default" showWordmark={false} className="mt-0.5 hidden sm:inline-flex" />
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-[10px] font-bold uppercase tracking-wider">
+                  {election.category}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  {election.status === 'live' ? 'Polling Live' : election.status}
+                </span>
+                <span className="text-[11px] font-mono text-slate-500">{election.code}</span>
+              </div>
 
-            <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              {election.title}
-            </h1>
-            <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-              {election.description}
-            </p>
+              <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                {election.title}
+              </h1>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                {election.description}
+              </p>
+            </div>
           </div>
 
           <div className="shrink-0 p-3.5 rounded-xl bg-[#F4F6F9] border border-slate-200 text-xs space-y-1 min-w-[210px]">
