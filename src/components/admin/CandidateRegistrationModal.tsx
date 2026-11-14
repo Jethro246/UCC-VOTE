@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { electionClient } from '../../services/electionClient';
 import { 
   X, 
   UserPlus, 
@@ -175,7 +174,8 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
     }
     async function loadPositions() {
       try {
-        const data = await electionClient.getElectionById(selectedElectionId);
+        const res = await fetch(`/api/elections/${encodeURIComponent(selectedElectionId)}/positions`);
+        const data = await res.json();
         if (data.success && Array.isArray(data.positions)) {
           setAvailablePositions(data.positions);
           if (!candidateToEdit && !defaultPositionId && data.positions.length > 0) {

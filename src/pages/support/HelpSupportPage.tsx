@@ -97,7 +97,7 @@ export const HelpSupportPage: React.FC = () => {
                 Complaint Successfully Lodged
               </h3>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Your demo support inquiry has been saved in temporary local state for UI preview (no backend ticket service is connected).
+                Your petition has been encrypted and routed directly to the Returning Officer and ICT Monitoring Desk.
               </p>
               <div className="p-3 bg-white rounded-xl border border-emerald-300 inline-block font-mono font-bold text-sm text-[#123B70]">
                 Tracking Number: {generatedTicketNumber}

@@ -37,7 +37,6 @@
 @media print {
   header,
   aside,
-  footer,
   .no-print {
     display: none !important;
   }

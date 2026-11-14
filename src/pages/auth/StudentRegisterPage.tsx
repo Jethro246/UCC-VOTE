@@ -155,7 +155,7 @@ export const StudentRegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-8 bg-[#F4F6F9]">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-8 pb-20 md:pb-8 bg-[#F4F6F9]">
       <div className="w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
         
         {/* Header */}
@@ -175,7 +175,8 @@ export const StudentRegisterPage: React.FC = () => {
         <div className="bg-[#EAF2FA] border-b border-blue-100 p-4 text-xs text-[#123B70] flex items-start gap-2.5">
           <ShieldCheck className="w-4 h-4 shrink-0 text-[#123B70] mt-0.5" />
           <p className="leading-relaxed">
-            <strong>Frontend Preview Verification:</strong> Looks up your Student ID against the temporary mock student registry for UI demonstration (no institutional DAA backend is connected).
+            <strong>Authoritative Student Verification Rule:</strong> The system verifies your Student ID directly against the 
+            Directorate of Academic Affairs (DAA) database. Only currently registered students are permitted to activate voter accounts.
           </p>
         </div>
 

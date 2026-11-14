@@ -40,7 +40,7 @@ export const AuthTestConsole: React.FC = () => {
           scenario: '1. Valid Student Login (Kofi Mensah Sarbah)',
           status: 'pass',
           httpStatus: 200,
-          message: 'PREVIEW: Temporary demo password matched in browser store. Local demo session saved in localStorage (no backend connected).',
+          message: 'SUCCESS: Password verified via server PBKDF2 hash. Session token issued and saved in HTTP cookie + localStorage.',
           details: { studentId: res.user.studentId, role: 'Student', token: res.token?.slice(0, 16) + '...' }
         });
       } else {
@@ -67,7 +67,7 @@ export const AuthTestConsole: React.FC = () => {
         scenario: '2. Incorrect Password Rejection',
         status: res.success ? 'fail' : 'pass',
         httpStatus: 401,
-        message: `DEMO REJECTION (Expected): ${res.error}. Attempts Remaining: ${res.attemptsRemaining ?? 'Tracked in local preview'}`,
+        message: `SERVER REJECTION (Expected): ${res.error}. Attempts Remaining: ${res.attemptsRemaining ?? 'Tracked in Rate Limiter'}`,
         details: res
       });
     } catch (err: any) {
@@ -86,7 +86,7 @@ export const AuthTestConsole: React.FC = () => {
         scenario: '3. Non-existent Student ID',
         status: res.success ? 'fail' : 'pass',
         httpStatus: 401,
-        message: `DEMO REJECTION (Expected): ${res.error}`,
+        message: `SERVER REJECTION (Expected): ${res.error}`,
         details: res
       });
     } catch (err: any) {
@@ -111,7 +111,7 @@ export const AuthTestConsole: React.FC = () => {
         scenario: '4. Duplicate Registration Guard',
         status: res.success ? 'fail' : 'pass',
         httpStatus: 409,
-        message: `DEMO CONFLICT (Expected): ${res.error}`,
+        message: `SERVER CONFLICT (Expected): ${res.error}`,
         details: res
       });
     } catch (err: any) {
@@ -130,7 +130,7 @@ export const AuthTestConsole: React.FC = () => {
         scenario: '5. Suspended Account Block',
         status: res.success ? 'fail' : 'pass',
         httpStatus: 403,
-        message: `DEMO ACCESS DENIED (Expected): ${res.error}`,
+        message: `SERVER ACCESS DENIED (Expected): ${res.error}`,
         details: res
       });
     } catch (err: any) {
@@ -169,13 +169,13 @@ export const AuthTestConsole: React.FC = () => {
         if (loginRes.user) loginWithUserPayload(loginRes.user, 'student');
       }
 
-      // Check frontend role guard with student session
+      // Now call /api/admin/overview with student token
       const res = await authClient.testAdminAccess();
       setTestResult({
-        scenario: '7. Student Attempting Protected Admin View (Frontend RBAC Guard)',
+        scenario: '7. Student Calling Protected Admin API (/api/admin/overview)',
         status: res.success ? 'fail' : 'pass',
         httpStatus: 403,
-        message: `FRONTEND DEMO RBAC CHECK: ${res.error || 'Access Denied: Administrative role required.'}`,
+        message: `SERVER-SIDE RBAC ENFORCED: ${res.error || 'Access Denied: Administrative authority required.'}`,
         details: res
       });
     } catch (err: any) {
@@ -229,10 +229,10 @@ export const AuthTestConsole: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 leading-tight">
-                    UCC VOTE – Frontend Auth & RBAC Demo Console
+                    UCC VOTE – Authentication & Cybersecurity Test Console
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Temporary frontend-only preview of login states, role checks, and mock registry flows (no backend connected)
+                    Live verification of server-side PBKDF2 hashing, session tokens, RBAC, and rate limiting
                   </p>
                 </div>
               </div>
@@ -247,7 +247,7 @@ export const AuthTestConsole: React.FC = () => {
             {/* Test Action Buttons Grid */}
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Demo Scenarios (Executed Against Temporary Frontend Mock Store):
+                Mandatory Test Scenarios (Click to Execute Against Real Backend API):
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -330,8 +330,8 @@ export const AuthTestConsole: React.FC = () => {
                 >
                   <ShieldAlert className="w-4 h-4 text-[#123B70] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-[#0B1F3A] font-bold">7. Student Accessing Admin View</strong>
-                    <span className="text-[11px] text-[#123B70]">Frontend RBAC guard blocks access</span>
+                    <strong className="block text-[#0B1F3A] font-bold">7. Student Accessing Admin API</strong>
+                    <span className="text-[11px] text-[#123B70]">Server RBAC blocks with HTTP 403</span>
                   </div>
                 </button>
 

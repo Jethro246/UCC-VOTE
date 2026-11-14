@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
+import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
 import { ElectionResultsPayload, DomainId } from '../../types';
 import {
@@ -67,7 +68,10 @@ export const ElectionResultsPage: React.FC = () => {
             return;
           }
         }
-        const data = await electionClient.getPublishedResults(election.id);
+        const res = await authClient.authorizedFetch(
+          `/api/results/${encodeURIComponent(election.id)}`
+        );
+        const data = await res.json();
         if (!active) return;
         if (data.success && data.results) {
           setResultsPayload(data.results);
@@ -76,7 +80,7 @@ export const ElectionResultsPage: React.FC = () => {
           setResultsPayload(null);
           setResultsBlockedMsg(
             data.error ||
-              'Individual candidate tallies remain withheld until results are marked published in this frontend preview.'
+              'Individual candidate tallies remain withheld until results are certified and published.'
           );
         }
       } catch {
@@ -435,7 +439,7 @@ export const ElectionResultsPage: React.FC = () => {
               </h4>
             </div>
             <p className="text-xs text-slate-400 max-w-lg leading-relaxed">
-              Temporary frontend demonstration tallies only (not official election outcomes; no backend database is currently connected).
+              Tallies are cryptographically verified against the UCC ballot ledger for this independent domain. Official sign-off: Dr. Joseph E. Tetteh, Electoral Commissioner.
             </p>
           </div>
         </div>

@@ -145,7 +145,7 @@ export const AdminLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-[#0B1F3A]">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 pb-20 md:pb-4 bg-[#0B1F3A]">
       <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 bg-white rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
 
         {/* Left Column: Credential Login Form */}

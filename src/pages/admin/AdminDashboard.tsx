@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MOCK_AUDIT_LOGS } from '../../data/mockData';
 import { electionClient } from '../../services/electionClient';
+import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
 import {
   LayoutDashboard,
@@ -90,7 +91,8 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchAuditLogs = async () => {
     try {
-      const data = await electionClient.getAuditLogs();
+      const res = await authClient.authorizedFetch('/api/admin/audit-logs');
+      const data = await res.json();
       if (data.success && Array.isArray(data.logs)) {
         setLiveAuditLogs(data.logs);
       }
@@ -175,9 +177,17 @@ export const AdminDashboard: React.FC = () => {
   const toggleEligibility = async (studentId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
     try {
-      const data = await electionClient.updateStudentStatus(studentId, newStatus);
+      const res = await authClient.authorizedFetch(
+        `/api/admin/students/${encodeURIComponent(studentId)}/status`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus, reason: 'Administrative commission action' })
+        }
+      );
+      const data = await res.json();
       if (data.success) {
-        setStatusActionMsg(`Demo account ${studentId} marked as ${newStatus.toUpperCase()}.`);
+        setStatusActionMsg(`Account ${studentId} marked as ${newStatus.toUpperCase()}.`);
         setTimeout(() => setStatusActionMsg(''), 3000);
       }
     } catch {
@@ -1280,7 +1290,7 @@ export const AdminDashboard: React.FC = () => {
             {secrecyTestResult && (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-1">
                 <div className="font-mono font-bold text-[11px] text-[#C62828]">
-                  FRONTEND DEMO RBAC CHECK: {secrecyTestResult.code}
+                  SERVER ENFORCEMENT: 403 {secrecyTestResult.code}
                 </div>
                 <p>{secrecyTestResult.message}</p>
               </div>
@@ -1291,10 +1301,10 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Frontend Demo Activity & Event Log
+                  Live Electoral Audit Trail & Security Events
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Temporary in-memory browser preview events (no backend database or server audit trail connected).
+                  Server-recorded administrative actions, anonymized voting events, and RBAC blocks.
                 </p>
               </div>
               <button

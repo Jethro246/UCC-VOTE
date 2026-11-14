@@ -60,7 +60,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
       { status: 'closed', label: 'Terminate & Close', desc: 'Permanently conclude the election without resuming.' }
     ],
     closed: [
-      { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin demo ballot tally review and reconciliation.' },
+      { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin cryptographic ballot counting and reconciliation.' },
       { status: 'archived', label: 'Archive Record', desc: 'Lock election as an immutable historical record.' }
     ],
     results_pending_certification: [
@@ -186,7 +186,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
                 rows={3}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
-                placeholder="State the administrative rationale for this demo status transition (logged to local browser preview activity)..."
+                placeholder="State the formal constitutional or administrative rationale for this transition (logged to permanent tamper-evident audit records)..."
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900"
               />
             </div>

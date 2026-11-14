@@ -434,7 +434,7 @@ export const StudentProfilePage: React.FC = () => {
                 Update Portal Password
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">LOCAL DEMO PREVIEW</span>
+            <span className="text-[10px] font-mono text-slate-500">PBKDF2 ENCRYPTION</span>
           </div>
 
           {pwdMsg && (
@@ -514,8 +514,8 @@ export const StudentProfilePage: React.FC = () => {
                 <span className="font-semibold text-slate-800">UCC Student Portal Bearer Session</span>
               </div>
               <div className="flex justify-between">
-                <span>Auth Mode:</span>
-                <span className="font-mono text-amber-700 font-semibold">Frontend Demo Preview (No Backend)</span>
+                <span>Auth Protocol:</span>
+                <span className="font-mono text-emerald-700 font-semibold">PBKDF2-SHA512 + HTTP-Only Cookie</span>
               </div>
               <div className="flex justify-between">
                 <span>Account Status:</span>

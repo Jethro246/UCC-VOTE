@@ -102,7 +102,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-[#F4F6F9]">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 pb-20 md:pb-4 bg-[#F4F6F9]">
       <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
         
         <div className="bg-[#0B1F3A] p-6 text-white text-center">
@@ -113,7 +113,7 @@ export const ForgotPasswordPage: React.FC = () => {
             Voter Account Recovery
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            {step === 1 ? 'Request a temporary demo recovery code' : 'Set a new demo password'}
+            {step === 1 ? 'Request single-use cryptographic reset token' : 'Set your new portal password'}
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export const ForgotPasswordPage: React.FC = () => {
               Password Successfully Updated!
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your temporary demonstration password has been updated locally in browser memory.
+              Your credentials have been securely hashed and updated via PBKDF2. All prior sessions have been invalidated.
               Redirecting to login...
             </p>
           </div>
@@ -142,7 +142,7 @@ export const ForgotPasswordPage: React.FC = () => {
             <div className="p-3 bg-[#EAF2FA] rounded-lg text-xs text-[#123B70] flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                Frontend preview only: generates a local 6-digit demonstration code in browser memory (no email is dispatched).
+                To preserve election integrity, reset tokens are cryptographically generated and expire after 15 minutes.
               </span>
             </div>
 

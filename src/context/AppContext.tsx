@@ -304,13 +304,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshElections = async () => {
     try {
-      const data = await electionClient.getElections();
+      const res = await fetch('/api/elections', { credentials: 'include' });
+      const data = await res.json();
       if (data.success && Array.isArray(data.elections) && data.elections.length > 0) {
         setElections(data.elections);
       }
       await refreshDomains();
     } catch {
-      // keep existing elections list on transient error
+      // keep existing elections list on transient fetch error
     }
   };
 

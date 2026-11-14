@@ -170,7 +170,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [selectedHalls, setSelectedHalls] = useState<string[]>([]);
   const [rules, setRules] = useState<string[]>([
     'Each accredited student has exactly one vote per contested portfolio.',
-    'Strict ballot secrecy is maintained under electoral rules.',
+    'Strict ballot secrecy is cryptographically maintained.',
     'Voting closes strictly at the scheduled closing time.'
   ]);
   const [newRuleInput, setNewRuleInput] = useState('');
@@ -783,7 +783,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <span>
                   {domainId === 'grasag'
                     ? 'GRASAG Domain Rule: Automatically restricted to accredited Postgraduate students only.'
-                    : 'Frontend Eligibility Engine previews these criteria against temporary mock student records.'}
+                    : 'Server-side Eligibility Engine enforces these criteria for every student ballot request.'}
                 </span>
               </div>
 

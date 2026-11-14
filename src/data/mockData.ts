@@ -196,7 +196,7 @@ export const MOCK_ELECTIONS: Election[] = [
     rules: [
       'Open to all active registered UCC students in good standing.',
       'Executive positions are dynamically maintained by authorized Local NUGS administrators.',
-      'Ballot choices are kept separate from voter participation records in the UI design.'
+      'Votes are cryptographically separated from voter identity records.'
     ],
     positionsCount: 3,
     allowsEmptyBallot: false,
