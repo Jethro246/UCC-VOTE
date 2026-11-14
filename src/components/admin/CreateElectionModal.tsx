@@ -11,7 +11,7 @@ import {
   X,
   Edit3
 } from 'lucide-react';
-import { DomainId, Election, ElectionCategory } from '../../types';
+import { DomainId, ElectionCategory } from '../../types';
 import { CreateElectionPayload, electionClient } from '../../services/electionClient';
 import { useApp } from '../../context/AppContext';
 
@@ -20,7 +20,6 @@ interface CreateElectionModalProps {
   onClose: () => void;
   onSuccess: (newElection: any) => void;
   defaultDomainId?: DomainId;
-  electionToEdit?: Election | null;
 }
 
 const UCC_LEVELS = ['100', '200', '300', '400', 'Postgraduate'];
@@ -127,10 +126,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  defaultDomainId,
-  electionToEdit
+  defaultDomainId
 }) => {
-  const { domains, halls, faculties, departments, admin, refreshDomains, refreshElections, positionsByElection } = useApp();
+  const { domains, halls, faculties, departments, admin, refreshDomains } = useApp();
 
   const allowedDomains = admin?.managedDomainIds?.length
     ? domains.filter((d) => admin.managedDomainIds!.includes(d.id))
@@ -157,7 +155,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [academicYear, setAcademicYear] = useState('2026/2027');
   const [organizingBody, setOrganizingBody] = useState('UCC Electoral Commission (EC-UCC)');
   const [description, setDescription] = useState('');
-  const [publishImmediately, setPublishImmediately] = useState<boolean>(true);
 
   // Step 2: Schedule & Timeline
   const [startDate, setStartDate] = useState('2026-11-12');
@@ -173,7 +170,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [selectedHalls, setSelectedHalls] = useState<string[]>([]);
   const [rules, setRules] = useState<string[]>([
     'Each accredited student has exactly one vote per contested portfolio.',
-    'Strict ballot secrecy is cryptographically maintained.',
+    'Strict ballot secrecy is maintained under electoral rules.',
     'Voting closes strictly at the scheduled closing time.'
   ]);
   const [newRuleInput, setNewRuleInput] = useState('');
@@ -283,77 +280,12 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   };
 
   useEffect(() => {
-    if (!isOpen) return;
-    setActiveStep(1);
-    setErrorMsg('');
-
-    if (electionToEdit) {
-      const targetDomain = (electionToEdit.domainId || initialDomain) as DomainId;
-      setDomainId(targetDomain);
-      setCategory(electionToEdit.category);
-      setSelectedHallId(electionToEdit.hallId || '');
-      setSelectedFacultyId(electionToEdit.facultyId || '');
-      setSelectedDepartmentId(electionToEdit.departmentId || '');
-      setSubdomainLabel(electionToEdit.subdomainLabel || '');
-      setTitle(electionToEdit.title || '');
-      setCode(electionToEdit.code || '');
-      setAcademicYear(electionToEdit.academicYear || '2026/2027');
-      setOrganizingBody(electionToEdit.organizingBody || 'UCC Electoral Commission (EC-UCC)');
-      setDescription(electionToEdit.description || '');
-      setPublishImmediately(
-        electionToEdit.isPublished !== false &&
-          electionToEdit.status !== 'draft' &&
-          electionToEdit.status !== 'pending_approval'
-      );
-
-      const startIso = electionToEdit.startDate || '2026-11-12T08:00:00Z';
-      const endIso = electionToEdit.endDate || '2026-11-12T17:00:00Z';
-      setStartDate(startIso.slice(0, 10));
-      setStartTime(electionToEdit.startTime || startIso.slice(11, 16) || '08:00');
-      setEndDate(endIso.slice(0, 10));
-      setEndTime(electionToEdit.endTime || endIso.slice(11, 16) || '17:00');
-
-      setSelectedFaculties(electionToEdit.eligibilityCriteria?.faculties || []);
-      setSelectedDepartments(electionToEdit.eligibilityCriteria?.departments || []);
-      setSelectedProgrammes(electionToEdit.eligibilityCriteria?.programmes || []);
-      setSelectedLevels(
-        electionToEdit.eligibilityCriteria?.levels?.length
-          ? electionToEdit.eligibilityCriteria.levels
-          : ['100', '200', '300', '400']
-      );
-      setSelectedHalls(electionToEdit.eligibilityCriteria?.halls || []);
-      setRules(
-        electionToEdit.rules?.length
-          ? electionToEdit.rules
-          : [
-              'Each accredited student has exactly one vote per contested portfolio.',
-              'Strict ballot secrecy is cryptographically maintained.'
-            ]
-      );
-
-      const existingPos = positionsByElection[electionToEdit.id] || [];
-      setPositions(
-        existingPos.map((p) => ({
-          title: p.title,
-          description: p.description || '',
-          maxSelections: p.maxSelections || 1,
-          allowsSkip: Boolean(p.allowsSkip),
-          candidateEligibilityRules: p.candidateEligibilityRules || '',
-          votingRules: p.votingRules || ''
-        }))
-      );
-    } else {
-      setTitle('');
-      setCode('');
-      setDescription('');
-      setPublishImmediately(true);
-      setStartDate('2026-11-12');
-      setStartTime('08:00');
-      setEndDate('2026-11-12');
-      setEndTime('17:00');
+    if (isOpen) {
+      setActiveStep(1);
+      setErrorMsg('');
       applyDomainDefaults(initialDomain);
     }
-  }, [isOpen, defaultDomainId, electionToEdit?.id]);
+  }, [isOpen, defaultDomainId]);
 
   if (!isOpen) return null;
 
@@ -480,64 +412,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
       return;
     }
 
-    if (!electionToEdit && positions.length === 0) {
+    if (positions.length === 0) {
       setErrorMsg('At least one contested position/portfolio is required.');
       setActiveStep(4);
       return;
     }
 
     setSubmitting(true);
-
-    if (electionToEdit) {
-      const updates: Partial<Election> = {
-        title: title.trim(),
-        code: code.trim().toUpperCase() || electionToEdit.code,
-        description:
-          description.trim() || `Official ${category} election for academic year ${academicYear}.`,
-        category,
-        domainId,
-        hallId: domainId === 'jcrc_hall' ? selectedHallId : undefined,
-        facultyId:
-          domainId === 'faculty_school' || domainId === 'departmental'
-            ? selectedFacultyId
-            : undefined,
-        departmentId: domainId === 'departmental' ? selectedDepartmentId : undefined,
-        subdomainLabel: subdomainLabel.trim() || undefined,
-        academicYear,
-        startDate: `${startDate}T${startTime}:00Z`,
-        endDate: `${endDate}T${endTime}:00Z`,
-        startTime,
-        endTime,
-        organizingBody: organizingBody.trim() || 'UCC Electoral Commission (EC-UCC)',
-        rules,
-        isPublished: publishImmediately,
-        status: publishImmediately
-          ? electionToEdit.status === 'draft' || electionToEdit.status === 'pending_approval'
-            ? 'scheduled'
-            : electionToEdit.status
-          : 'draft',
-        eligibilityCriteria: {
-          faculties: selectedFaculties,
-          departments: selectedDepartments,
-          programmes: selectedProgrammes,
-          levels: domainId === 'grasag' ? ['Postgraduate'] : selectedLevels,
-          halls: selectedHalls
-        }
-      };
-
-      const res = await electionClient.updateElection(electionToEdit.id, updates);
-      setSubmitting(false);
-
-      if (res.success && res.election) {
-        await refreshElections();
-        await refreshDomains();
-        onSuccess(res.election);
-        onClose();
-      } else {
-        setErrorMsg(res.error || 'Failed to update election.');
-      }
-      return;
-    }
 
     const payload: CreateElectionPayload = {
       title: title.trim(),
@@ -560,8 +441,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
       endTime,
       organizingBody: organizingBody.trim() || 'UCC Electoral Commission (EC-UCC)',
       rules,
-      isDraft: !publishImmediately,
-      isPublished: publishImmediately,
       eligibilityCriteria: {
         faculties: selectedFaculties,
         departments: selectedDepartments,
@@ -576,7 +455,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setSubmitting(false);
 
     if (res.success && res.election) {
-      await refreshElections();
       await refreshDomains();
       onSuccess(res.election);
       onClose();
@@ -597,10 +475,10 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               <span>EC-UCC Multi-Domain Election Provisioning</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {electionToEdit ? `Edit Election: ${electionToEdit.title}` : 'Create New University Election'}
+              Create New University Election
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Assign election domain, subdomain scope, eligibility criteria, timelines, and visibility.
+              Assign election domain, subdomain scope, eligibility criteria, timelines, and configurable portfolios.
             </p>
           </div>
           <button
@@ -826,42 +704,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                 />
               </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <label className="block font-bold text-slate-800">
-                  Student Portal Visibility & Publication
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setPublishImmediately(true)}
-                    className={`p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                      publishImmediately
-                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="text-xs">Publish to Student Portal</div>
-                    <div className="text-[10px] font-normal text-slate-600 mt-0.5">
-                      Eligible students immediately see this election.
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPublishImmediately(false)}
-                    className={`p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                      !publishImmediately
-                        ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="text-xs">Save as Admin Draft</div>
-                    <div className="text-[10px] font-normal text-slate-600 mt-0.5">
-                      Hidden from all students until officially published.
-                    </div>
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -941,7 +783,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <span>
                   {domainId === 'grasag'
                     ? 'GRASAG Domain Rule: Automatically restricted to accredited Postgraduate students only.'
-                    : 'Server-side Eligibility Engine enforces these criteria for every student ballot request.'}
+                    : 'Frontend Eligibility Engine previews these criteria against temporary mock student records.'}
                 </span>
               </div>
 
@@ -1095,9 +937,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>
-                  {electionToEdit
-                    ? 'Existing portfolios are previewed below. Use the Portfolios button in the Elections table to add, edit, or remove positions on an existing election.'
-                    : domainId === 'local_nugs'
+                  {domainId === 'local_nugs'
                     ? 'Local NUGS portfolios are fully admin-configurable—edit, rename, remove, or add positions freely.'
                     : domainId === 'jcrc_hall'
                     ? 'Customize portfolios to match this hall constitution—different halls need not use identical offices.'
@@ -1108,7 +948,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {positions.map((pos, idx) => (
                   <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
-                    {!electionToEdit && editingIdx === idx ? (
+                    {editingIdx === idx ? (
                       <div className="space-y-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <input
@@ -1177,26 +1017,24 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                             <span>Allows skip: {pos.allowsSkip ? 'YES' : 'NO'}</span>
                           </div>
                         </div>
-                        {!electionToEdit && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setEditingIdx(idx)}
-                              className="text-[#123B70] hover:bg-blue-50 p-1 rounded cursor-pointer"
-                              title="Edit Position"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePosition(idx)}
-                              className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
-                              title="Remove Position"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingIdx(idx)}
+                            className="text-[#123B70] hover:bg-blue-50 p-1 rounded cursor-pointer"
+                            title="Edit Position"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePosition(idx)}
+                            className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                            title="Remove Position"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1204,67 +1042,65 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               </div>
 
               {/* Add Position Form */}
-              {!electionToEdit && (
-                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-3">
-                  <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5 text-[#123B70]" />
-                    <span>Add Custom Contested Position</span>
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-slate-600 mb-1">Portfolio Title</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Women's Commissioner or Hall Organizer"
-                        value={newPosTitle}
-                        onChange={(e) => setNewPosTitle(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-600 mb-1">Max Selections</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        value={newPosMax}
-                        onChange={(e) => setNewPosMax(parseInt(e.target.value, 10) || 1)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
-                      />
-                    </div>
-                  </div>
-
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-3">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-[#123B70]" />
+                  <span>Add Custom Contested Position</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Position Summary</label>
+                    <label className="block text-[11px] text-slate-600 mb-1">Portfolio Title</label>
                     <input
                       type="text"
-                      placeholder="Brief description of executive responsibilities..."
-                      value={newPosDesc}
-                      onChange={(e) => setNewPosDesc(e.target.value)}
+                      placeholder="e.g. Women's Commissioner or Hall Organizer"
+                      value={newPosTitle}
+                      onChange={(e) => setNewPosTitle(e.target.value)}
                       className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
                     />
                   </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={newPosSkip}
-                        onChange={(e) => setNewPosSkip(e.target.checked)}
-                        className="rounded text-[#123B70]"
-                      />
-                      <span>Allow voters to abstain/skip this portfolio</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleAddPosition}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] cursor-pointer whitespace-nowrap"
-                    >
-                      Add Portfolio
-                    </button>
+                  <div>
+                    <label className="block text-[11px] text-slate-600 mb-1">Max Selections</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={newPosMax}
+                      onChange={(e) => setNewPosMax(parseInt(e.target.value, 10) || 1)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                    />
                   </div>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-[11px] text-slate-600 mb-1">Position Summary</label>
+                  <input
+                    type="text"
+                    placeholder="Brief description of executive responsibilities..."
+                    value={newPosDesc}
+                    onChange={(e) => setNewPosDesc(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={newPosSkip}
+                      onChange={(e) => setNewPosSkip(e.target.checked)}
+                      className="rounded text-[#123B70]"
+                    />
+                    <span>Allow voters to abstain/skip this portfolio</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddPosition}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] cursor-pointer whitespace-nowrap"
+                  >
+                    Add Portfolio
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1296,13 +1132,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   disabled={submitting}
                   className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white font-bold hover:bg-red-800 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {submitting
-                    ? electionToEdit
-                      ? 'Saving Changes...'
-                      : 'Provisioning Election...'
-                    : electionToEdit
-                    ? 'Save Election Changes'
-                    : 'Provision & Save Election'}
+                  {submitting ? 'Provisioning Election...' : 'Provision & Save Election'}
                 </button>
               )}
             </div>

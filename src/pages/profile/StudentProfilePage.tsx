@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
-import { VoteConfirmationReceipt } from '../../types';
 import { 
   User, 
   ShieldCheck, 
@@ -31,12 +30,10 @@ export const StudentProfilePage: React.FC = () => {
     setPostLoginView,
     navigateTo,
     elections,
-    updateStudentProfile,
-    syncVersion
+    updateStudentProfile
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'history'>('profile');
-  const [confirmations, setConfirmations] = useState<VoteConfirmationReceipt[]>([]);
 
   // Editable personal fields (hooks declared unconditionally at top)
   const [phone, setPhone] = useState(student?.phone || '');
@@ -75,28 +72,6 @@ export const StudentProfilePage: React.FC = () => {
       );
     }
   }, [student?.id, student?.phone, student?.emergencyContact]);
-
-  useEffect(() => {
-    if (!student || userRole !== 'student') {
-      setConfirmations([]);
-      return;
-    }
-    let active = true;
-    authClient
-      .authorizedFetch('/api/voting/my-confirmations')
-      .then((res) => res.json())
-      .then((data) => {
-        if (active && data.success && Array.isArray(data.receipts)) {
-          setConfirmations(data.receipts);
-        }
-      })
-      .catch(() => {
-        // ignore transient error
-      });
-    return () => {
-      active = false;
-    };
-  }, [student?.id, userRole, activeTab, syncVersion]);
 
   if (!sessionChecked) {
     return (
@@ -459,7 +434,7 @@ export const StudentProfilePage: React.FC = () => {
                 Update Portal Password
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">PBKDF2 ENCRYPTION</span>
+            <span className="text-[10px] font-mono text-slate-500">LOCAL DEMO PREVIEW</span>
           </div>
 
           {pwdMsg && (
@@ -539,8 +514,8 @@ export const StudentProfilePage: React.FC = () => {
                 <span className="font-semibold text-slate-800">UCC Student Portal Bearer Session</span>
               </div>
               <div className="flex justify-between">
-                <span>Auth Protocol:</span>
-                <span className="font-mono text-emerald-700 font-semibold">PBKDF2-SHA512 + HTTP-Only Cookie</span>
+                <span>Auth Mode:</span>
+                <span className="font-mono text-amber-700 font-semibold">Frontend Demo Preview (No Backend)</span>
               </div>
               <div className="flex justify-between">
                 <span>Account Status:</span>
@@ -566,42 +541,25 @@ export const StudentProfilePage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {votedElections.length === 0 ? (
-              <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                <p className="text-xs font-bold text-slate-700">No voting participation recorded yet.</p>
-                <p className="text-[11px] text-slate-500">
-                  Once you submit a verified ballot in an eligible election, your non-identifiable confirmation reference will appear here.
-                </p>
-              </div>
-            ) : (
-              votedElections.map((el) => {
-                const receipt = confirmations.find((r) => r.electionId === el.id);
-                return (
-                  <div key={el.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-[#123B70] uppercase">{el.category}</span>
-                      <h4 className="text-sm font-bold text-slate-900">{el.title}</h4>
-                      <p className="text-xs text-slate-500 font-mono">Academic Year: {el.academicYear}</p>
-                      {receipt?.submittedAt && (
-                        <p className="text-[11px] text-slate-500">
-                          Submitted: {new Date(receipt.submittedAt).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
+            {votedElections.map((el) => (
+              <div key={el.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-[#123B70] uppercase">{el.category}</span>
+                  <h4 className="text-sm font-bold text-slate-900">{el.title}</h4>
+                  <p className="text-xs text-slate-500 font-mono">Academic Year: {el.academicYear}</p>
+                </div>
 
-                    <div className="sm:text-right shrink-0">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Ballot Recorded</span>
-                      </span>
-                      <p className="text-[10px] text-slate-500 font-mono mt-1">
-                        Receipt Ref: {receipt?.confirmationRef || 'VERIFIED_PARTICIPATION'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                <div className="sm:text-right shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Ballot Recorded</span>
+                  </span>
+                  <p className="text-[10px] text-slate-400 font-mono mt-1">
+                    Receipt Token: UCC-{el.id.slice(-4)}-{Math.floor(1000 + Math.random() * 9000)}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

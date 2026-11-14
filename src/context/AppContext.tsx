@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   ActiveView,
   UserRole,
@@ -16,10 +16,15 @@ import {
   DomainId,
   HallUnit,
   FacultyUnit,
-  DepartmentUnit,
-  PublicPlatformStats
+  DepartmentUnit
 } from '../types';
-import { MOCK_COMPLAINTS } from '../data/mockData';
+import {
+  MOCK_ELECTIONS,
+  MOCK_NOTIFICATIONS,
+  MOCK_COMPLAINTS,
+  MOCK_CANDIDATES,
+  MOCK_POSITIONS
+} from '../data/mockData';
 import { authClient } from '../services/authClient';
 import { electionClient, DomainWithStats } from '../services/electionClient';
 
@@ -140,13 +145,11 @@ interface AppContextType {
   sessionChecked: boolean;
   sessionExpiredReason: string | null;
   postLoginView: ActiveView | null;
-  publicStats: PublicPlatformStats | null;
-  syncVersion: number;
 
   // Actions
   navigateTo: (
     view: ActiveView,
-    params?: { electionId?: string; candidateId?: string; domainId?: DomainId }
+    params?: { electionId?: string; candidateId?: string; domainId?: DomainId; positionId?: string }
   ) => void;
   setSelectedDomainId: (id: DomainId) => void;
   setPostLoginView: (view: ActiveView | null) => void;
@@ -155,13 +158,7 @@ interface AppContextType {
   refreshDomains: () => Promise<void>;
   refreshElections: () => Promise<void>;
   refreshCandidates: () => Promise<void>;
-  refreshNotifications: () => Promise<void>;
   createElectionAction: (payload: any) => Promise<{ success: boolean; election?: Election; error?: string }>;
-  updateElectionAction: (
-    id: string,
-    updates: Partial<Election>
-  ) => Promise<{ success: boolean; election?: Election; error?: string }>;
-  deleteElectionAction: (id: string) => Promise<{ success: boolean; error?: string }>;
   updateElectionStatusAction: (
     id: string,
     newStatus: ElectionStatus,
@@ -222,7 +219,6 @@ interface AppContextType {
     receipt?: VoteConfirmationReceipt;
   }>;
   markNotificationAsRead: (id: string) => void;
-  markAllNotificationsAsRead: () => Promise<void>;
   submitComplaint: (data: {
     category: ComplaintTicket['category'];
     subject: string;
@@ -254,15 +250,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   ]);
   const [ballotSelections, setBallotSelections] = useState<BallotSelectionMap>({});
 
-  const [elections, setElections] = useState<Election[]>([]);
+  const [elections, setElections] = useState<Election[]>(MOCK_ELECTIONS);
   const [domains, setDomains] = useState<DomainWithStats[]>([]);
   const [halls, setHalls] = useState<HallUnit[]>([]);
   const [faculties, setFaculties] = useState<FacultyUnit[]>([]);
   const [departments, setDepartments] = useState<DepartmentUnit[]>([]);
   const [positionsByElection, setPositionsByElection] =
-    useState<Record<string, Position[]>>({});
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    useState<Record<string, Position[]>>(MOCK_POSITIONS);
+  const [candidates, setCandidates] = useState<Candidate[]>(Object.values(MOCK_CANDIDATES));
+  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
   const [complaints, setComplaints] = useState<ComplaintTicket[]>(MOCK_COMPLAINTS);
 
   const [categoryFilter, setCategoryFilter] = useState<ElectionCategory | 'All'>('All');
@@ -270,9 +266,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [recentVoteReceipt, setRecentVoteReceipt] = useState<VoteConfirmationReceipt | null>(null);
-  const [publicStats, setPublicStats] = useState<PublicPlatformStats | null>(null);
-  const [syncVersion, setSyncVersion] = useState<number>(0);
-  const syncTimerRef = useRef<number | null>(null);
 
   const setSelectedElectionId = (id: string) => {
     setSelectedElectionIdState(id);
@@ -292,7 +285,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const refreshDomains = useCallback(async () => {
+  const refreshDomains = async () => {
     try {
       const res = await electionClient.getDomains();
       if (res.success) {
@@ -307,118 +300,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {
       // keep existing domain registry on transient error
     }
-  }, []);
+  };
 
-  const refreshElections = useCallback(async () => {
+  const refreshElections = async () => {
     try {
       const data = await electionClient.getElections();
-      if (data.success && Array.isArray(data.elections)) {
+      if (data.success && Array.isArray(data.elections) && data.elections.length > 0) {
         setElections(data.elections);
       }
       await refreshDomains();
     } catch {
-      // keep existing elections list on transient fetch error
+      // keep existing elections list on transient error
     }
-  }, [refreshDomains]);
+  };
 
-  const refreshCandidates = useCallback(async () => {
+  const refreshCandidates = async () => {
     try {
       const res = await electionClient.getCandidates();
-      if (res.success && Array.isArray(res.candidates)) {
+      if (res.success && Array.isArray(res.candidates) && res.candidates.length > 0) {
         setCandidates(res.candidates);
       }
     } catch {
       // keep existing candidates list on transient fetch error
     }
-  }, []);
+  };
 
-  const refreshNotifications = useCallback(async () => {
-    try {
-      const res = await electionClient.getNotifications();
-      if (res.success && Array.isArray(res.notifications)) {
-        setNotifications(res.notifications);
-      }
-    } catch {
-      // ignore transient notification errors
-    }
-  }, []);
-
-  const refreshPublicStats = useCallback(async () => {
-    try {
-      const res = await electionClient.getPublicStats();
-      if (res.success && res.stats) {
-        setPublicStats(res.stats);
-      }
-    } catch {
-      // ignore transient stats error
-    }
-  }, []);
-
-  const refreshAllPlatformData = useCallback(async () => {
-    await Promise.all([
-      refreshElections(),
-      refreshCandidates(),
-      refreshNotifications(),
-      refreshPublicStats()
-    ]);
-    setSyncVersion((v) => v + 1);
-  }, [refreshElections, refreshCandidates, refreshNotifications, refreshPublicStats]);
-
-  // Refetch on initial mount and whenever authenticated role/user changes so visibility rules update immediately
   useEffect(() => {
-    if (!sessionChecked && !student && !admin) return;
-    refreshAllPlatformData();
-  }, [sessionChecked, userRole, student?.id, admin?.id, refreshAllPlatformData]);
-
-  // Real-time Server-Sent Events push subscription + focus/visibility fallback
-  useEffect(() => {
-    const scheduleSync = () => {
-      if (syncTimerRef.current !== null) {
-        window.clearTimeout(syncTimerRef.current);
-      }
-      syncTimerRef.current = window.setTimeout(() => {
-        syncTimerRef.current = null;
-        refreshAllPlatformData();
-      }, 120);
-    };
-
-    let eventSource: EventSource | null = null;
-    if (typeof EventSource !== 'undefined') {
-      eventSource = new EventSource('/api/events');
-      eventSource.addEventListener('sync', (evt: MessageEvent) => {
-        try {
-          const parsed = JSON.parse(evt.data);
-          if (parsed?.type === 'connected') return;
-        } catch {
-          // ignore parse error
-        }
-        scheduleSync();
-      });
-    }
-
-    const handleFocus = () => {
-      scheduleSync();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleSync();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-      if (syncTimerRef.current !== null) {
-        window.clearTimeout(syncTimerRef.current);
-      }
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [refreshAllPlatformData]);
+    refreshDomains();
+    refreshElections();
+    refreshCandidates();
+  }, []);
 
   // Listen to browser hash navigation so back/forward/hash changes update active view cleanly
   useEffect(() => {
@@ -546,7 +457,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const navigateTo = (
     view: ActiveView,
-    params?: { electionId?: string; candidateId?: string; domainId?: DomainId }
+    params?: { electionId?: string; candidateId?: string; domainId?: DomainId; positionId?: string }
   ) => {
     const nextElectionId = params?.electionId || selectedElectionId;
     const nextDomainId = params?.domainId || selectedDomainId;
@@ -556,9 +467,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setActiveView(view);
     syncRouteToHashAndStorage(view, nextElectionId, nextDomainId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    refreshElections();
-    refreshCandidates();
-    refreshNotifications();
   };
 
   const loginWithUserPayload = (user: any, role: 'student' | 'admin') => {
@@ -625,36 +533,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await electionClient.createElection(payload);
       if (res.success && res.election) {
-        await refreshAllPlatformData();
+        await refreshElections();
         return { success: true, election: res.election };
       }
       return { success: false, error: res.error || 'Failed to create election.' };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  };
-
-  const updateElectionAction = async (id: string, updates: Partial<Election>) => {
-    try {
-      const res = await electionClient.updateElection(id, updates);
-      if (res.success && res.election) {
-        await refreshAllPlatformData();
-        return { success: true, election: res.election };
-      }
-      return { success: false, error: res.error || 'Failed to update election.' };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  };
-
-  const deleteElectionAction = async (id: string) => {
-    try {
-      const res = await electionClient.deleteElection(id);
-      if (res.success) {
-        await refreshAllPlatformData();
-        return { success: true };
-      }
-      return { success: false, error: res.error || 'Failed to delete election.' };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -668,7 +550,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await electionClient.changeStatus(id, newStatus, justification);
       if (res.success && res.election) {
-        await refreshAllPlatformData();
+        await refreshElections();
         return { success: true, election: res.election };
       }
       return { success: false, error: res.error || 'Status update failed.' };
@@ -888,12 +770,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const markNotificationAsRead = (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    electionClient.markNotificationRead(id).catch(() => {});
-  };
-
-  const markAllNotificationsAsRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    await electionClient.markAllNotificationsRead();
   };
 
   const submitComplaint = (data: {
@@ -964,8 +840,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         sessionChecked,
         sessionExpiredReason,
         postLoginView,
-        publicStats,
-        syncVersion,
         navigateTo,
         setSelectedDomainId,
         setPostLoginView,
@@ -974,10 +848,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshDomains,
         refreshElections,
         refreshCandidates,
-        refreshNotifications,
         createElectionAction,
-        updateElectionAction,
-        deleteElectionAction,
         updateElectionStatusAction,
         registerCandidateAction,
         updateCandidateAction,
@@ -1002,7 +873,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         resetBallot,
         submitBallotAction,
         markNotificationAsRead,
-        markAllNotificationsAsRead,
         submitComplaint,
         toggleCompareCandidate
       }}

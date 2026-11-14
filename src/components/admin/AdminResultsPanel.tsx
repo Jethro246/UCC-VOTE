@@ -63,7 +63,7 @@ const WORKFLOW_STAGES: {
     id: 'certified',
     step: 5,
     label: 'Certified Results',
-    actionLabel: 'Certify & Sign Cryptographic Seal',
+    actionLabel: 'Certify Demo Results Preview',
     restrictedToCommissioner: true,
   },
   {

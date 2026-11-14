@@ -1,29 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { electionClient } from '../../services/electionClient';
+import React, { useState } from 'react';
+import { MOCK_CALENDAR_EVENTS } from '../../data/mockData';
 import { Logo } from '../../components/common/Logo';
-import { Clock, MapPin, Calendar as CalendarIcon } from 'lucide-react';
-import { CalendarEvent, ElectionCategory } from '../../types';
+import { Clock, MapPin } from 'lucide-react';
+import { ElectionCategory } from '../../types';
 
 export const ElectionCalendarPage: React.FC = () => {
-  const { syncVersion } = useApp();
   const [selectedCat, setSelectedCat] = useState<ElectionCategory | 'All'>('All');
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    let active = true;
-    electionClient.getCalendarEvents().then((res) => {
-      if (!active) return;
-      if (res.success && Array.isArray(res.events)) {
-        setEvents(res.events);
-      }
-      setIsLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [syncVersion]);
 
   const categories: (ElectionCategory | 'All')[] = [
     'All',
@@ -35,7 +17,7 @@ export const ElectionCalendarPage: React.FC = () => {
     'Faculty / School'
   ];
 
-  const filteredEvents = events.filter(
+  const filteredEvents = MOCK_CALENDAR_EVENTS.filter(
     ev => selectedCat === 'All' || ev.electionCategory === selectedCat
   );
 
@@ -93,79 +75,65 @@ export const ElectionCalendarPage: React.FC = () => {
       </div>
 
       {/* Calendar Timeline */}
-      {isLoading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-500">
-          Loading official electoral schedule...
-        </div>
-      ) : filteredEvents.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
-          <CalendarIcon className="w-8 h-8 text-slate-300 mx-auto" />
-          <h3 className="text-sm font-bold text-slate-800">No Scheduled Electoral Events</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            There are currently no published electoral calendar events matching this category filter.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredEvents.map((ev) => (
-            <div
-              key={ev.id}
-              className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 hover:border-[#123B70]/40 transition-colors flex flex-col sm:flex-row sm:items-start gap-5"
-            >
-              {/* Date Block */}
-              <div className="p-3.5 rounded-xl bg-[#EAF2FA] text-[#123B70] text-center min-w-[90px] shrink-0 border border-blue-100">
-                <span className="text-[11px] uppercase font-bold tracking-wider block">
-                  {new Date(ev.startDate).toLocaleDateString('en-US', { month: 'short' })}
+      <div className="space-y-4">
+        {filteredEvents.map((ev) => (
+          <div
+            key={ev.id}
+            className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 hover:border-[#123B70]/40 transition-colors flex flex-col sm:flex-row sm:items-start gap-5"
+          >
+            {/* Date Block */}
+            <div className="p-3.5 rounded-xl bg-[#EAF2FA] text-[#123B70] text-center min-w-[90px] shrink-0 border border-blue-100">
+              <span className="text-[11px] uppercase font-bold tracking-wider block">
+                {new Date(ev.startDate).toLocaleDateString('en-US', { month: 'short' })}
+              </span>
+              <span className="text-2xl font-black font-mono tabular-nums block">
+                {new Date(ev.startDate).getDate()}
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono block">
+                {new Date(ev.startDate).getFullYear()}
+              </span>
+            </div>
+
+            {/* Event Details */}
+            <div className="space-y-2 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                {getTypeLabel(ev.type)}
+                <span className="text-slate-300">·</span>
+                <span className="text-xs font-bold text-[#123B70] uppercase">
+                  {ev.electionCategory}
                 </span>
-                <span className="text-2xl font-black font-mono tabular-nums block">
-                  {new Date(ev.startDate).getDate()}
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono block">
-                  {new Date(ev.startDate).getFullYear()}
-                </span>
+                {ev.subdomainLabel && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-xs text-slate-500">{ev.subdomainLabel}</span>
+                  </>
+                )}
               </div>
 
-              {/* Event Details */}
-              <div className="space-y-2 flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  {getTypeLabel(ev.type)}
-                  <span className="text-slate-300">·</span>
-                  <span className="text-xs font-bold text-[#123B70] uppercase">
-                    {ev.electionCategory}
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                {ev.title}
+              </h3>
+
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {ev.description}
+              </p>
+
+              <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>
+                    {new Date(ev.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(ev.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} GMT
                   </span>
-                  {ev.subdomainLabel && (
-                    <>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-xs text-slate-500">{ev.subdomainLabel}</span>
-                    </>
-                  )}
                 </div>
-
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
-                  {ev.title}
-                </h3>
-
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  {ev.description}
-                </p>
-
-                <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>
-                      {new Date(ev.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(ev.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} GMT
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{ev.location}</span>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{ev.location}</span>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
 
     </div>
   );

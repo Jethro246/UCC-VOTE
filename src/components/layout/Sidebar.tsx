@@ -119,11 +119,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
           {/* Security Status Box */}
           <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] space-y-1.5">
             <div className="flex items-center justify-between text-slate-300 font-semibold">
-              <span>Security Engine</span>
-              <span className="text-emerald-400 font-mono text-[10px]">ACTIVE</span>
+              <span>Preview Mode</span>
+              <span className="text-amber-400 font-mono text-[10px]">MOCK DATA</span>
             </div>
             <p className="text-slate-400 text-[10px] leading-tight">
-              Cryptographic separation between ballot storage and voter identification is enforced.
+              Frontend UI preview active using temporary mock data (no backend connected).
             </p>
           </div>
         </div>

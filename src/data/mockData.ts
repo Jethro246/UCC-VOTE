@@ -30,7 +30,7 @@ export const DEMO_STUDENT: StudentProfile = {
   hall: 'Casely Hayford Hall',
   isEligible: true,
   avatarUrl: CANDIDATE_MALE_IMAGE,
-  hasVotedElections: [],
+  hasVotedElections: ['UCC-GRA-2025', 'UCC-VAL-2025'],
   isDemoAccount: true
 };
 
@@ -60,9 +60,9 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'live',
     startDate: '2026-11-10T08:00:00Z',
     endDate: '2026-11-25T17:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 24850,
+    totalVotesCast: 14620,
+    turnoutPercentage: 58.8,
     organizingBody: 'UCC Electoral Commission (EC-UCC)',
     eligibilityCriteria: {
       levels: ['100', '200', '300', '400']
@@ -93,9 +93,9 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'live',
     startDate: '2026-11-10T09:00:00Z',
     endDate: '2026-11-25T16:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 3200,
+    totalVotesCast: 2180,
+    turnoutPercentage: 68.1,
     organizingBody: 'Casely Hayford Hall Electoral Board',
     eligibilityCriteria: {
       halls: ['Casely Hayford Hall']
@@ -125,9 +125,9 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'live',
     startDate: '2026-11-10T09:00:00Z',
     endDate: '2026-11-25T17:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 3100,
+    totalVotesCast: 1840,
+    turnoutPercentage: 59.4,
     organizingBody: 'Adehye Hall Electoral Commission',
     eligibilityCriteria: {
       halls: ['Adehye Hall']
@@ -155,9 +155,9 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'live',
     startDate: '2026-11-10T08:00:00Z',
     endDate: '2026-11-26T18:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 5620,
+    totalVotesCast: 2140,
+    turnoutPercentage: 38.1,
     organizingBody: 'GRASAG-UCC Electoral Commission',
     eligibilityCriteria: {
       levels: ['Postgraduate']
@@ -186,9 +186,9 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'live',
     startDate: '2026-11-10T08:00:00Z',
     endDate: '2026-11-25T17:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 28900,
+    totalVotesCast: 9420,
+    turnoutPercentage: 32.6,
     organizingBody: 'UCC Local NUGS Electoral Committee',
     eligibilityCriteria: {
       levels: ['100', '200', '300', '400', 'Postgraduate']
@@ -196,7 +196,7 @@ export const MOCK_ELECTIONS: Election[] = [
     rules: [
       'Open to all active registered UCC students in good standing.',
       'Executive positions are dynamically maintained by authorized Local NUGS administrators.',
-      'Votes are cryptographically separated from voter identity records.'
+      'Ballot choices are kept separate from voter participation records in the UI design.'
     ],
     positionsCount: 3,
     allowsEmptyBallot: false,
@@ -219,7 +219,7 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'upcoming',
     startDate: '2026-11-18T08:00:00Z',
     endDate: '2026-11-18T18:00:00Z',
-    totalEligibleVoters: 0,
+    totalEligibleVoters: 1150,
     totalVotesCast: 0,
     turnoutPercentage: 0,
     organizingBody: 'Departmental Electoral Board - DCIT',
@@ -250,7 +250,7 @@ export const MOCK_ELECTIONS: Election[] = [
     status: 'upcoming',
     startDate: '2026-11-22T08:00:00Z',
     endDate: '2026-11-22T17:00:00Z',
-    totalEligibleVoters: 0,
+    totalEligibleVoters: 4600,
     totalVotesCast: 0,
     turnoutPercentage: 0,
     organizingBody: 'SPS Electoral Committee',
@@ -275,12 +275,12 @@ export const MOCK_ELECTIONS: Election[] = [
     domainId: 'grasag',
     subdomainLabel: 'School of Graduate Studies (Postgraduate)',
     academicYear: '2025/2026',
-    status: 'closed',
+    status: 'results_published',
     startDate: '2026-10-15T08:00:00Z',
     endDate: '2026-10-15T18:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 5400,
+    totalVotesCast: 4120,
+    turnoutPercentage: 76.3,
     organizingBody: 'GRASAG-UCC Electoral Commission',
     eligibilityCriteria: {
       levels: ['Postgraduate']
@@ -289,8 +289,8 @@ export const MOCK_ELECTIONS: Election[] = [
       'Official results certified by Dean of School of Graduate Studies and Commission Chairperson.'
     ],
     positionsCount: 2,
-    resultsCertified: false,
-    provisionalResultsReady: false,
+    resultsCertified: true,
+    provisionalResultsReady: true,
     isDemoRecord: true
   },
   {
@@ -303,20 +303,20 @@ export const MOCK_ELECTIONS: Election[] = [
     hallId: 'hall-valco',
     subdomainLabel: 'Valco Hall',
     academicYear: '2025/2026',
-    status: 'closed',
+    status: 'results_published',
     startDate: '2026-09-28T09:00:00Z',
     endDate: '2026-09-28T17:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 2850,
+    totalVotesCast: 2210,
+    turnoutPercentage: 77.5,
     organizingBody: 'Valco Hall Electoral Committee',
     eligibilityCriteria: {
       halls: ['Valco Hall']
     },
     rules: ['Certified and declared at Valco Hall Forecourt.'],
     positionsCount: 2,
-    resultsCertified: false,
-    provisionalResultsReady: false,
+    resultsCertified: true,
+    provisionalResultsReady: true,
     isDemoRecord: true
   },
   {
@@ -330,12 +330,12 @@ export const MOCK_ELECTIONS: Election[] = [
     facultyId: 'fac-bus',
     subdomainLabel: 'School of Business',
     academicYear: '2026/2027',
-    status: 'closed',
+    status: 'results_pending_certification',
     startDate: '2026-11-05T08:00:00Z',
     endDate: '2026-11-05T17:00:00Z',
-    totalEligibleVoters: 0,
-    totalVotesCast: 0,
-    turnoutPercentage: 0,
+    totalEligibleVoters: 4200,
+    totalVotesCast: 2940,
+    turnoutPercentage: 70.0,
     organizingBody: 'School of Business Electoral Committee',
     eligibilityCriteria: {
       faculties: ['School of Business']
@@ -346,7 +346,7 @@ export const MOCK_ELECTIONS: Election[] = [
     ],
     positionsCount: 2,
     resultsCertified: false,
-    provisionalResultsReady: false,
+    provisionalResultsReady: true,
     isDemoRecord: true
   }
 ];
@@ -776,8 +776,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       department: 'Accounting & Finance',
       photoUrl: CANDIDATE_MALE_IMAGE
     },
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 7892,
+    votePercentage: 54.0
   },
   'cand-02': {
     id: 'cand-02',
@@ -835,8 +835,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
       department: 'English & Communication Studies',
       photoUrl: CANDIDATE_FEMALE_IMAGE
     },
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 6728,
+    votePercentage: 46.0
   },
   'cand-03': {
     id: 'cand-03',
@@ -875,8 +875,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-18T10:00:00Z',
     reviewedAt: '2026-10-21T09:15:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 8140,
+    votePercentage: 59.2
   },
   'cand-04': {
     id: 'cand-04',
@@ -914,8 +914,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-17T14:45:00Z',
     reviewedAt: '2026-10-21T10:00:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 5610,
+    votePercentage: 40.8
   },
   'cand-05': {
     id: 'cand-05',
@@ -953,8 +953,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-14T08:30:00Z',
     reviewedAt: '2026-10-20T16:00:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 12900,
+    votePercentage: 92.4
   },
   'cand-06': {
     id: 'cand-06',
@@ -985,8 +985,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T13:00:00Z',
     reviewedAt: '2026-10-22T11:00:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 7120,
+    votePercentage: 51.5
   },
   'cand-07': {
     id: 'cand-07',
@@ -1016,8 +1016,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T15:30:00Z',
     reviewedAt: '2026-10-22T11:30:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 6710,
+    votePercentage: 48.5
   },
   'cand-08': {
     id: 'cand-08',
@@ -1047,8 +1047,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T16:00:00Z',
     reviewedAt: '2026-10-22T12:00:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 7420,
+    votePercentage: 55.3
   },
   'cand-09': {
     id: 'cand-09',
@@ -1076,8 +1076,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T16:30:00Z',
     reviewedAt: '2026-10-22T12:15:00Z',
     reviewedBy: 'UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 6000,
+    votePercentage: 44.7
   },
 
   // Casford Candidates
@@ -1112,8 +1112,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-10T12:00:00Z',
     reviewedAt: '2026-10-14T10:00:00Z',
     reviewedBy: 'Casely Hayford Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1240,
+    votePercentage: 56.9
   },
   'cand-cas-02': {
     id: 'cand-cas-02',
@@ -1145,8 +1145,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-11T09:30:00Z',
     reviewedAt: '2026-10-14T10:30:00Z',
     reviewedBy: 'Casely Hayford Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 940,
+    votePercentage: 43.1
   },
   'cand-cas-03': {
     id: 'cand-cas-03',
@@ -1173,8 +1173,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-12T11:00:00Z',
     reviewedAt: '2026-10-14T11:00:00Z',
     reviewedBy: 'Casely Hayford Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1890,
+    votePercentage: 91.2
   },
 
   // Adehye Hall 2026 Candidates
@@ -1207,8 +1207,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-12T10:00:00Z',
     reviewedAt: '2026-10-16T11:00:00Z',
     reviewedBy: 'Adehye Hall Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1020,
+    votePercentage: 55.4
   },
   'cand-ade-02': {
     id: 'cand-ade-02',
@@ -1235,8 +1235,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-13T10:00:00Z',
     reviewedAt: '2026-10-16T11:30:00Z',
     reviewedBy: 'Adehye Hall Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 820,
+    votePercentage: 44.6
   },
   'cand-ade-03': {
     id: 'cand-ade-03',
@@ -1263,8 +1263,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-14T11:00:00Z',
     reviewedAt: '2026-10-16T12:00:00Z',
     reviewedBy: 'Adehye Hall Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1610,
+    votePercentage: 90.4
   },
   'cand-ade-04': {
     id: 'cand-ade-04',
@@ -1291,8 +1291,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-14T12:00:00Z',
     reviewedAt: '2026-10-16T12:30:00Z',
     reviewedBy: 'Adehye Hall Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1590,
+    votePercentage: 89.3
   },
 
   // GRASAG 2026 Live Election Candidates (Postgraduate Only)
@@ -1324,8 +1324,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-18T10:00:00Z',
     reviewedAt: '2026-10-24T10:00:00Z',
     reviewedBy: 'GRASAG-UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1210,
+    votePercentage: 56.5
   },
   'cand-gra26-02': {
     id: 'cand-gra26-02',
@@ -1354,8 +1354,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-18T12:00:00Z',
     reviewedAt: '2026-10-24T10:30:00Z',
     reviewedBy: 'GRASAG-UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 930,
+    votePercentage: 43.5
   },
   'cand-gra26-03': {
     id: 'cand-gra26-03',
@@ -1381,8 +1381,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T09:00:00Z',
     reviewedAt: '2026-10-24T11:00:00Z',
     reviewedBy: 'GRASAG-UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1840,
+    votePercentage: 90.2
   },
   'cand-gra26-04': {
     id: 'cand-gra26-04',
@@ -1408,8 +1408,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T10:30:00Z',
     reviewedAt: '2026-10-24T11:30:00Z',
     reviewedBy: 'GRASAG-UCC Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1810,
+    votePercentage: 89.6
   },
 
   // Local NUGS 2026 Candidates
@@ -1441,8 +1441,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-18T11:00:00Z',
     reviewedAt: '2026-10-23T15:00:00Z',
     reviewedBy: 'UCC Local NUGS Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 5180,
+    votePercentage: 55.0
   },
   'cand-nugs-02': {
     id: 'cand-nugs-02',
@@ -1470,8 +1470,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-18T14:00:00Z',
     reviewedAt: '2026-10-23T15:30:00Z',
     reviewedBy: 'UCC Local NUGS Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 4240,
+    votePercentage: 45.0
   },
   'cand-nugs-03': {
     id: 'cand-nugs-03',
@@ -1497,8 +1497,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T12:00:00Z',
     reviewedAt: '2026-10-23T16:00:00Z',
     reviewedBy: 'UCC Local NUGS Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 8110,
+    votePercentage: 91.0
   },
   'cand-nugs-04': {
     id: 'cand-nugs-04',
@@ -1524,8 +1524,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-19T13:00:00Z',
     reviewedAt: '2026-10-23T16:15:00Z',
     reviewedBy: 'UCC Local NUGS Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 8050,
+    votePercentage: 90.3
   },
 
   // Departmental Computer Science (UCC-DCS-2026) Candidates
@@ -1804,8 +1804,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-10T10:00:00Z',
     reviewedAt: '2025-09-15T14:00:00Z',
     reviewedBy: 'GRASAG Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 2450,
+    votePercentage: 59.5
   },
   'cand-gra-02': {
     id: 'cand-gra-02',
@@ -1832,8 +1832,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-11T12:00:00Z',
     reviewedAt: '2025-09-15T14:30:00Z',
     reviewedBy: 'GRASAG Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1670,
+    votePercentage: 40.5
   },
   'cand-gra-03': {
     id: 'cand-gra-03',
@@ -1859,8 +1859,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-12T09:00:00Z',
     reviewedAt: '2025-09-15T15:00:00Z',
     reviewedBy: 'GRASAG Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 2310,
+    votePercentage: 57.6
   },
   'cand-gra-04': {
     id: 'cand-gra-04',
@@ -1886,8 +1886,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-12T11:30:00Z',
     reviewedAt: '2025-09-15T15:15:00Z',
     reviewedBy: 'GRASAG Electoral Commission',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1700,
+    votePercentage: 42.4
   },
 
   // Valco Hall 2025 Certified Candidates (Includes Tie on General Secretary)
@@ -1917,8 +1917,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-01T10:00:00Z',
     reviewedAt: '2025-09-08T14:00:00Z',
     reviewedBy: 'Valco Hall Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1120,
+    votePercentage: 51.9
   },
   'cand-val-02': {
     id: 'cand-val-02',
@@ -1946,8 +1946,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-02T09:00:00Z',
     reviewedAt: '2025-09-08T14:30:00Z',
     reviewedBy: 'Valco Hall Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 690,
+    votePercentage: 31.9
   },
   'cand-val-03': {
     id: 'cand-val-03',
@@ -1974,8 +1974,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-03T11:00:00Z',
     reviewedAt: '2025-09-08T15:00:00Z',
     reviewedBy: 'Valco Hall Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 350,
+    votePercentage: 16.2
   },
   'cand-val-04': {
     id: 'cand-val-04',
@@ -2002,8 +2002,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-02T14:00:00Z',
     reviewedAt: '2025-09-08T15:30:00Z',
     reviewedBy: 'Valco Hall Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1075,
+    votePercentage: 50.0
   },
   'cand-val-05': {
     id: 'cand-val-05',
@@ -2030,8 +2030,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2025-09-02T15:00:00Z',
     reviewedAt: '2025-09-08T15:45:00Z',
     reviewedBy: 'Valco Hall Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1075,
+    votePercentage: 50.0
   },
 
   // School of Business 2026 Pending Certification Candidates
@@ -2061,8 +2061,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-15T10:00:00Z',
     reviewedAt: '2026-10-22T12:00:00Z',
     reviewedBy: 'School of Business Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1680,
+    votePercentage: 58.1
   },
   'cand-bus-02': {
     id: 'cand-bus-02',
@@ -2089,8 +2089,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-16T09:00:00Z',
     reviewedAt: '2026-10-22T12:15:00Z',
     reviewedBy: 'School of Business Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1210,
+    votePercentage: 41.9
   },
   'cand-bus-03': {
     id: 'cand-bus-03',
@@ -2117,8 +2117,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-16T14:00:00Z',
     reviewedAt: '2026-10-22T12:30:00Z',
     reviewedBy: 'School of Business Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1510,
+    votePercentage: 53.7
   },
   'cand-bus-04': {
     id: 'cand-bus-04',
@@ -2145,8 +2145,8 @@ export const MOCK_CANDIDATES: Record<string, Candidate> = {
     submittedAt: '2026-10-17T10:00:00Z',
     reviewedAt: '2026-10-22T12:45:00Z',
     reviewedBy: 'School of Business Electoral Committee',
-    votesReceived: 0,
-    votePercentage: 0
+    votesReceived: 1300,
+    votePercentage: 46.3
   },
 
   // NEW APPLICATIONS UNDERGOING REVIEW & LIFECYCLE (PHASE 5)

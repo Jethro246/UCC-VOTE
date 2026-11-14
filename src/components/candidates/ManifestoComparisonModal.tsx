@@ -33,21 +33,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 }) => {
   const {
     candidates: contextCandidates,
-    elections: rawElections,
+    elections,
     positionsByElection,
-    navigateTo,
-    userRole
+    navigateTo
   } = useApp();
-
-  const elections = useMemo(() => {
-    if (userRole === 'admin') return rawElections;
-    return rawElections.filter(
-      (e) =>
-        e.isPublished !== false &&
-        e.status !== 'draft' &&
-        e.status !== 'pending_approval'
-    );
-  }, [rawElections, userRole]);
 
   const sourceCandidates =
     propCandidates && propCandidates.length > 0 ? propCandidates : contextCandidates;
@@ -63,10 +52,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
   );
 
   const [selectedElectionId, setSelectedElectionId] = useState<string>(
-    initialElectionId || elections[0]?.id || ''
+    initialElectionId || 'UCC-SRC-2026'
   );
   const [selectedPositionId, setSelectedPositionId] = useState<string>(
-    initialPositionId || ''
+    initialPositionId || 'pos-src-pres'
   );
   const [activeCandidateId1, setActiveCandidateId1] = useState<string>(
     initialCandidateIds[0] || ''
@@ -85,13 +74,11 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
         setSelectedElectionId(seed.electionId);
         setSelectedPositionId(seed.positionId);
       }
-    } else if (elections.length > 0 && !elections.some((e) => e.id === selectedElectionId)) {
-      setSelectedElectionId(elections[0].id);
     }
     if (initialPositionId) {
       setSelectedPositionId(initialPositionId);
     }
-  }, [isOpen, initialElectionId, initialPositionId, initialCandidateIds, approvedCandidates, elections, selectedElectionId]);
+  }, [isOpen, initialElectionId, initialPositionId, initialCandidateIds, approvedCandidates]);
 
   const positionsInSelectedElection = useMemo(() => {
     const posList = positionsByElection[selectedElectionId] || [];

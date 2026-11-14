@@ -54,12 +54,9 @@ export const CandidateProfilePage: React.FC = () => {
   const position = electionPositions.find(p => p.id === candidate.positionId);
   const positionTitle = position ? position.title : candidate.positionId.replace('pos-', '').replace(/-/g, ' ').toUpperCase();
 
-  // Find approved opponents contesting exclusively for the same election AND position
+  // Find opponents contesting exclusively for the same election AND position
   const opponents = candidates.filter(
-    c =>
-      c.electionId === candidate.electionId &&
-      c.positionId === candidate.positionId &&
-      c.applicationStatus === 'Approved'
+    c => c.electionId === candidate.electionId && c.positionId === candidate.positionId
   );
 
   const isApproved = candidate.applicationStatus === 'Approved';
@@ -73,7 +70,8 @@ export const CandidateProfilePage: React.FC = () => {
           <button
             onClick={() =>
               navigateTo('candidate_directory', {
-                electionId: candidate.electionId
+                electionId: candidate.electionId,
+                positionId: candidate.positionId
               })
             }
             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B70] hover:underline transition-colors cursor-pointer"

@@ -40,21 +40,11 @@ export const CandidateDirectoryPage: React.FC = () => {
   }>({});
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  const visibleElections = useMemo(() => {
-    if (userRole === 'admin') return elections;
-    return elections.filter(
-      (e) =>
-        e.isPublished !== false &&
-        e.status !== 'draft' &&
-        e.status !== 'pending_approval'
-    );
-  }, [elections, userRole]);
-
   const electionMap = useMemo(() => {
-    const map = new Map<string, (typeof visibleElections)[number]>();
-    visibleElections.forEach((e) => map.set(e.id, e));
+    const map = new Map<string, (typeof elections)[number]>();
+    elections.forEach((e) => map.set(e.id, e));
     return map;
-  }, [visibleElections]);
+  }, [elections]);
 
   const positionLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -64,18 +54,11 @@ export const CandidateDirectoryPage: React.FC = () => {
     return map;
   }, [positionsByElection]);
 
-  const approvedCandidates = useMemo(() => {
-    const allowedElectionIds = new Set(visibleElections.map((e) => e.id));
-    return candidates.filter(
-      (c) =>
-        c.applicationStatus === 'Approved' &&
-        (userRole === 'admin' || allowedElectionIds.has(c.electionId))
-    );
-  }, [candidates, visibleElections, userRole]);
+  const approvedCandidates = candidates.filter((c) => c.applicationStatus === 'Approved');
 
   const electionsForDomain = useMemo(() => {
-    if (selectedDomain === 'All') return visibleElections;
-    return visibleElections.filter(
+    if (selectedDomain === 'All') return elections;
+    return elections.filter(
       (e) =>
         e.domainId === selectedDomain ||
         (selectedDomain === 'src' && e.category === 'SRC') ||
@@ -85,7 +68,7 @@ export const CandidateDirectoryPage: React.FC = () => {
         (selectedDomain === 'departmental' && e.category === 'Departmental') ||
         (selectedDomain === 'faculty_school' && e.category === 'Faculty / School')
     );
-  }, [visibleElections, selectedDomain]);
+  }, [elections, selectedDomain]);
 
   const allFaculties = Array.from(new Set(approvedCandidates.map((c) => c.faculty))).filter(Boolean);
 

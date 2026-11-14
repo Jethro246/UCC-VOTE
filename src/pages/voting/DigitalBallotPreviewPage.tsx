@@ -55,8 +55,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     sessionChecked,
     sessionExpiredReason,
     setPostLoginView,
-    recentVoteReceipt,
-    syncVersion
+    recentVoteReceipt
   } = useApp();
 
   const fallbackElection = elections.find((e) => e.id === selectedElectionId) || elections[0];
@@ -182,48 +181,6 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     idempotencyKeyRef.current = `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     loadAuthorizedBallot();
   }, [selectedElectionId, sessionChecked, userRole, student?.id, sessionExpiredReason]);
-
-  useEffect(() => {
-    if (syncVersion === 0) return;
-    if (!sessionChecked || userRole !== 'student' || !student) return;
-    if (currentStep === 3 || isSubmitting || isSubmittingRef.current) return;
-
-    let active = true;
-    electionClient.getBallot(selectedElectionId).then((res) => {
-      if (!active) return;
-      if (res.election) {
-        setServerElection(res.election);
-      }
-      if (res.eligibility) {
-        setEligibilityInfo(res.eligibility);
-      }
-      if (res.success && res.alreadyVoted && res.receipt) {
-        setAlreadyVotedReceipt(res.receipt);
-        return;
-      }
-      if (!res.success) {
-        setShowFinalConfirmModal(false);
-        setBallotError({
-          code: res.code,
-          message:
-            res.error || 'Polling status has changed. This ballot is currently unavailable.',
-          opensAt: res.opensAt || res.election?.startDate,
-          closesAt: res.closesAt || res.election?.endDate
-        });
-        return;
-      }
-      if (res.positions) {
-        setBallotError(null);
-        setBallotPositions(res.positions);
-        setActivePositionIndex((prev) =>
-          Math.min(prev, Math.max(0, (res.positions?.length || 1) - 1))
-        );
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [syncVersion]);
 
   useEffect(() => {
     if (!election?.endDate) return;
@@ -357,27 +314,27 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               <Logo variant="default" layout="stacked" showTagline subtitle="Electoral Commission" />
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>{alreadyVotedReceipt ? 'Official Participation Record' : 'Submission Verified'}</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold uppercase tracking-wider">
+              <CheckCircle2 className="w-4 h-4 text-amber-700" />
+              <span>{alreadyVotedReceipt ? 'Demo Participation Preview' : 'Frontend Preview Completed'}</span>
             </div>
 
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              YOUR VOTE HAS BEEN SUCCESSFULLY SUBMITTED.
+              BALLOT PREVIEW COMPLETED (LOCAL DEMO ONLY)
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto">
-              Your participation has been recorded for the University of Cape Coast election listed below. No candidate selections are stored on this receipt or linked to your student profile.
+              This is a temporary frontend-only demonstration for the election below. No backend server is connected, and no real vote has been transmitted or permanently recorded.
             </p>
           </div>
 
-          {/* Official Confirmation Details */}
+          {/* Demo Confirmation Details */}
           <div className="p-5 rounded-xl bg-[#F4F6F9] border border-slate-200 space-y-3 text-xs">
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-200">
               <span className="text-[11px] uppercase font-bold text-[#123B70] tracking-wider">
-                Ballot Submission Confirmation
+                Frontend Ballot Preview Summary
               </span>
-              <span className="font-mono font-bold text-emerald-700">RECORDED</span>
+              <span className="font-mono font-bold text-amber-700">DEMO PREVIEW</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -429,7 +386,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    {pos.status === 'VOTED' ? 'Ballot Recorded (Secret)' : 'Abstained'}
+                    {pos.status === 'VOTED' ? 'Preview Selected (Local Only)' : 'Abstained'}
                   </span>
                 </div>
               ))}
@@ -441,11 +398,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
               <p className="text-[11px] leading-relaxed">
-                <strong>Ballot Secrecy Protection:</strong> Your selected candidates are stored separately from your student identity and cannot be viewed in your profile, voting history, or by Electoral Commission administrators.
+                <strong>Frontend Preview Notice:</strong> Candidate selections are omitted from this browser receipt by design. Because no backend voting service is connected at this stage, this action is stored only in temporary browser memory for UI demonstration.
               </p>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-700 border-t border-blue-200/70 pt-2">
-              <strong>Security & Governance Notice:</strong> Do not use this platform for an actual UCC election until it has undergone independent security review, election governance approval, and full operational testing.
+              <strong>Security & Governance Notice:</strong> Do not use this interface for an actual UCC election until a secure backend voting architecture, independent security audit, and election governance approval are completed.
             </p>
           </div>
 
@@ -573,7 +530,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           {/* Detailed Eligibility Verification Checks if Ineligible */}
           {eligibilityInfo && !eligibilityInfo.isEligible && (
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-              <div className="font-bold text-slate-800">Server Eligibility Verification Breakdown</div>
+              <div className="font-bold text-slate-800">Frontend Eligibility Preview Breakdown</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(eligibilityInfo.checks).map(([key, passed]) => (
                   <div
@@ -1218,7 +1175,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
         <Lock className="w-4 h-4 text-[#123B70] shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>Ballot Secrecy Architecture:</strong> Your voter participation record is separated from your anonymous ballot selections on the server. Do not use this system for an actual UCC election until it has undergone independent security review, election governance approval, and operational testing.
+          <strong>Frontend Preview Notice:</strong> No backend voting server is currently connected. Selections made here operate strictly as a local UI demonstration and are not transmitted or securely recorded for any real UCC election.
         </p>
       </div>
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
-import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
 import { ElectionResultsPayload, DomainId } from '../../types';
 import {
@@ -13,10 +12,12 @@ import {
 } from 'lucide-react';
 
 export const ElectionResultsPage: React.FC = () => {
-  const { elections, domains, selectedElectionId, userRole, syncVersion } = useApp();
+  const { elections, domains, selectedElectionId, userRole } = useApp();
 
   const [selectedDomainTab, setSelectedDomainTab] = useState<DomainId | 'All'>('All');
-  const [activeElectionId, setActiveElectionId] = useState<string>(selectedElectionId || '');
+  const [activeElectionId, setActiveElectionId] = useState<string>(
+    selectedElectionId || 'UCC-GRA-2025'
+  );
   const [resultsPayload, setResultsPayload] = useState<ElectionResultsPayload | null>(null);
   const [loadingResults, setLoadingResults] = useState<boolean>(false);
   const [resultsBlockedMsg, setResultsBlockedMsg] = useState<string | null>(null);
@@ -38,10 +39,7 @@ export const ElectionResultsPage: React.FC = () => {
   }, [elections, selectedDomainTab]);
 
   useEffect(() => {
-    if (
-      filteredElections.length > 0 &&
-      (!activeElectionId || !filteredElections.some((e) => e.id === activeElectionId))
-    ) {
+    if (filteredElections.length > 0 && !filteredElections.some((e) => e.id === activeElectionId)) {
       const preferred =
         filteredElections.find((e) => e.status === 'results_published') || filteredElections[0];
       setActiveElectionId(preferred.id);
@@ -69,10 +67,7 @@ export const ElectionResultsPage: React.FC = () => {
             return;
           }
         }
-        const res = await authClient.authorizedFetch(
-          `/api/results/${encodeURIComponent(election.id)}`
-        );
-        const data = await res.json();
+        const data = await electionClient.getPublishedResults(election.id);
         if (!active) return;
         if (data.success && data.results) {
           setResultsPayload(data.results);
@@ -81,7 +76,7 @@ export const ElectionResultsPage: React.FC = () => {
           setResultsPayload(null);
           setResultsBlockedMsg(
             data.error ||
-              'Individual candidate tallies remain withheld until results are certified and published.'
+              'Individual candidate tallies remain withheld until results are marked published in this frontend preview.'
           );
         }
       } catch {
@@ -97,7 +92,7 @@ export const ElectionResultsPage: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [election?.id, userRole, syncVersion]);
+  }, [election?.id, userRole]);
 
   const handleExportPdf = async () => {
     setIsExporting(true);
@@ -118,18 +113,6 @@ export const ElectionResultsPage: React.FC = () => {
       });
     }
   };
-
-  if (!election) {
-    return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
-        <Award className="w-10 h-10 text-slate-300 mx-auto" />
-        <h2 className="text-lg font-bold text-slate-900">No Election Results Available</h2>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          There are currently no published elections available for results inspection.
-        </p>
-      </div>
-    );
-  }
 
   const isCertified =
     resultsPayload?.resultsCertified ||
@@ -345,11 +328,6 @@ export const ElectionResultsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {totalVotes === 0 && (
-            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-600">
-              No voting activity has been recorded yet. Statistics will update automatically as verified votes are submitted.
-            </div>
-          )}
           {resultsPayload.positions.map((pos) => (
             <div
               key={pos.positionId}
@@ -457,10 +435,7 @@ export const ElectionResultsPage: React.FC = () => {
               </h4>
             </div>
             <p className="text-xs text-slate-400 max-w-lg leading-relaxed">
-              Tallies are cryptographically verified against the UCC ballot ledger for this independent domain.{' '}
-              {resultsPayload?.certifiedBy
-                ? `Official sign-off: ${resultsPayload.certifiedBy}.`
-                : 'Awaiting official certification by the UCC Electoral Commission.'}
+              Temporary frontend demonstration tallies only (not official election outcomes; no backend database is currently connected).
             </p>
           </div>
         </div>

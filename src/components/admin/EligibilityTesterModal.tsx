@@ -67,7 +67,7 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
-              <span>DAA Server-Side Eligibility Engine</span>
+              <span>Frontend Mock Eligibility Preview Engine</span>
             </div>
             <h3 className="text-lg font-black text-slate-900 tracking-tight">
               Test Student Voter Eligibility

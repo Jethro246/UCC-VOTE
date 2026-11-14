@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -29,37 +29,25 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    if (isOpen) {
-      setTargetStatus('');
-      setJustification('');
-      setErrorMsg('');
-    }
-  }, [isOpen, election?.id]);
-
   if (!isOpen || !election) return null;
 
   // Allowed transitions per election lifecycle state machine
   const transitionOptions: Record<ElectionStatus, { status: ElectionStatus; label: string; desc: string }[]> = {
     draft: [
-      { status: 'scheduled', label: 'Publish & Schedule Election', desc: 'Make election visible to eligible students as an upcoming scheduled poll.' },
-      { status: 'live', label: 'Publish & Open Polling Now', desc: 'Publish to eligible students and immediately open the digital ballot.' },
-      { status: 'pending_approval', label: 'Submit for Commission Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' }
+      { status: 'pending_approval', label: 'Submit for Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' },
+      { status: 'scheduled', label: 'Approve & Schedule', desc: 'Confirm ballot ready and schedule official poll opening time.' }
     ],
     pending_approval: [
-      { status: 'scheduled', label: 'Gazette, Publish & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
-      { status: 'live', label: 'Gazette & Open Polling Now', desc: 'Approve, publish, and open digital voting immediately.' },
-      { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections (hidden from students).' },
+      { status: 'scheduled', label: 'Gazette & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
+      { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections.' },
       { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' }
     ],
     scheduled: [
       { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
-      { status: 'draft', label: 'Unpublish / Return to Draft', desc: 'Hide election from the student portal while revising configuration.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     upcoming: [
       { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
-      { status: 'draft', label: 'Unpublish / Return to Draft', desc: 'Hide election from the student portal while revising configuration.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     live: [
@@ -72,7 +60,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
       { status: 'closed', label: 'Terminate & Close', desc: 'Permanently conclude the election without resuming.' }
     ],
     closed: [
-      { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin cryptographic ballot counting and reconciliation.' },
+      { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin demo ballot tally review and reconciliation.' },
       { status: 'archived', label: 'Archive Record', desc: 'Lock election as an immutable historical record.' }
     ],
     results_pending_certification: [
@@ -198,7 +186,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
                 rows={3}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
-                placeholder="State the formal constitutional or administrative rationale for this transition (logged to permanent tamper-evident audit records)..."
+                placeholder="State the administrative rationale for this demo status transition (logged to local browser preview activity)..."
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900"
               />
             </div>

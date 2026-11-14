@@ -149,12 +149,6 @@ export const BallotDoughnutChart: React.FC<{
         </div>
       </div>
 
-      {summary.totalBallotsCast === 0 && (
-        <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600">
-          No voting activity has been recorded yet. Statistics will update automatically as verified votes are submitted.
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
         {/* SVG Doughnut */}
         <div className="md:col-span-5 flex justify-center">
@@ -384,12 +378,6 @@ export const CandidateBarChart: React.FC<{
               Top contenders received equal valid votes. No sole winner is declared; subject to UCC Electoral Commission run-off guidelines.
             </span>
           </div>
-        </div>
-      )}
-
-      {position.totalBallotsProcessed === 0 && (
-        <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600">
-          No voting activity has been recorded yet for this portfolio. Candidate tallies will update automatically as verified votes are submitted.
         </div>
       )}
 

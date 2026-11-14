@@ -43,8 +43,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
     setCategoryFilter,
     statusFilter,
     setStatusFilter,
-    student,
-    userRole
+    student
   } = useApp();
 
   const [search, setSearch] = useState('');
@@ -63,19 +62,13 @@ export const ElectionsDirectoryPage: React.FC = () => {
     { label: 'All Statuses', value: 'All' },
     { label: 'Live Polling', value: 'live' },
     { label: 'Scheduled', value: 'scheduled' },
-    ...(userRole === 'admin' ? [{ label: 'Pending Approval', value: 'pending_approval' as ElectionStatus }] : []),
+    { label: 'Pending Approval', value: 'pending_approval' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Closed', value: 'closed' },
     { label: 'Results Published', value: 'results_published' }
   ];
 
   const filteredElections = elections.filter((e) => {
-    if (
-      userRole !== 'admin' &&
-      (e.isPublished === false || e.status === 'draft' || e.status === 'pending_approval')
-    ) {
-      return false;
-    }
     const matchesCategory = categoryFilter === 'All' || e.category === categoryFilter;
     const matchesStatus =
       statusFilter === 'All' ||
@@ -264,11 +257,6 @@ export const ElectionsDirectoryPage: React.FC = () => {
                         <span className="font-bold text-[#123B70] uppercase tracking-wider">
                           {election.category}
                         </span>
-                        {election.isDemoRecord && (
-                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
-                            DEMO DATA
-                          </span>
-                        )}
                         {election.subdomainLabel && (
                           <>
                             <span aria-hidden="true">·</span>

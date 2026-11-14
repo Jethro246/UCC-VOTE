@@ -103,7 +103,7 @@ export const BrandedLoadingScreen: React.FC<{
   fullScreen?: boolean;
 }> = ({
   title = 'UCC VOTE Electoral Portal',
-  subtitle = 'Verifying institutional session and cryptographic integrity...',
+  subtitle = 'Loading portal view and temporary demonstration data...',
   fullScreen = false,
 }) => {
   return (

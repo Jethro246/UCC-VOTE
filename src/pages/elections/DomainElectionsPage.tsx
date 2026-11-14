@@ -126,7 +126,6 @@ export const DomainElectionsPage: React.FC = () => {
     positionsByElection,
     candidates,
     student,
-    userRole,
     navigateTo
   } = useApp();
 
@@ -171,12 +170,6 @@ export const DomainElectionsPage: React.FC = () => {
 
   const domainElections = useMemo(() => {
     return elections.filter((e) => {
-      if (
-        userRole !== 'admin' &&
-        (e.isPublished === false || e.status === 'draft' || e.status === 'pending_approval')
-      ) {
-        return false;
-      }
       const domId =
         e.domainId ||
         (e.category === 'SRC'
@@ -194,7 +187,7 @@ export const DomainElectionsPage: React.FC = () => {
           : 'src');
       return domId === activeDomain.id;
     });
-  }, [elections, activeDomain.id, userRole]);
+  }, [elections, activeDomain.id]);
 
   const filteredDepartments = useMemo(() => {
     if (selectedFacultyId === 'All') return departments;
@@ -600,11 +593,6 @@ export const DomainElectionsPage: React.FC = () => {
                       </span>
                       <span aria-hidden="true">·</span>
                       <span className="font-mono">{election.code}</span>
-                      {election.isDemoRecord && (
-                        <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
-                          DEMO DATA
-                        </span>
-                      )}
                     </div>
                     <span
                       className={`text-[11px] font-bold whitespace-nowrap ${

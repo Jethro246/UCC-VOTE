@@ -18,16 +18,12 @@ import {
 } from 'lucide-react';
 
 export const ElectionDetailsPage: React.FC = () => {
-  const { selectedElectionId, elections, candidates, navigateTo, student, userRole, syncVersion } = useApp();
+  const { selectedElectionId, elections, candidates, navigateTo, student } = useApp();
 
   const election = elections.find(e => e.id === selectedElectionId) || elections[0];
   const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
-    if (!election?.id) {
-      setPositions([]);
-      return;
-    }
     let active = true;
     electionClient.getElectionById(election.id).then((res) => {
       if (active && res.success && res.positions) {
@@ -35,27 +31,7 @@ export const ElectionDetailsPage: React.FC = () => {
       }
     });
     return () => { active = false; };
-  }, [election?.id, syncVersion]);
-
-  if (!election) {
-    return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-4">
-        <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
-        <h2 className="text-lg font-bold text-slate-900">Election Not Available</h2>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          {userRole === 'admin'
-            ? 'Select an election from the Admin Console or Elections Directory to inspect its details.'
-            : 'This election is either unpublished or no longer available to your student account.'}
-        </p>
-        <button
-          onClick={() => navigateTo('elections_directory')}
-          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer"
-        >
-          Back to Elections Directory
-        </button>
-      </div>
-    );
-  }
+  }, [election.id]);
 
   const hasVoted = student?.hasVotedElections.includes(election.id);
 

@@ -65,8 +65,7 @@ export const StudentDashboard: React.FC = () => {
     loginWithUserPayload, 
     logout,
     myCandidateApplication,
-    withdrawCandidateAction,
-    syncVersion
+    withdrawCandidateAction
   } = useApp();
 
   const [activeSectionTab, setActiveSectionTab] = useState<'available' | 'active' | 'upcoming' | 'completed'>('available');
@@ -108,7 +107,7 @@ export const StudentDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboard();
-  }, [sessionChecked, userRole, student?.id, syncVersion]);
+  }, [sessionChecked, userRole, student?.id]);
 
   if (!sessionChecked || (userRole === 'student' && student && isLoading && !dashboardData)) {
     return (
@@ -230,48 +229,21 @@ export const StudentDashboard: React.FC = () => {
     };
   });
 
-  const availableElections = allElectionsWithEligibility.filter(
-    (e) => e.isEligible && e.isPublished !== false && e.status !== 'draft' && e.status !== 'pending_approval'
+  const availableElections = allElectionsWithEligibility.filter(e => e.isEligible);
+  const activeElections = allElectionsWithEligibility.filter(e => e.status === 'live');
+  const upcomingElections = allElectionsWithEligibility.filter(
+    e => e.status === 'upcoming' || e.status === 'scheduled'
   );
-  const activeElections = availableElections.filter((e) => e.status === 'live');
-  const upcomingElections = availableElections.filter(
-    (e) => e.status === 'upcoming' || e.status === 'scheduled'
-  );
-  const completedElections = availableElections.filter(
-    (e) => e.status === 'results_published' || e.status === 'closed'
-  );
+  const completedElections = allElectionsWithEligibility.filter(e => e.status === 'results_published' || e.status === 'closed');
 
   // Voting Status figures
-  const completedVotesCount = availableElections.filter((e) => e.hasVoted).length;
-  const pendingVotesCount = availableElections.filter((e) => e.status === 'live' && !e.hasVoted).length;
-  const closedEligibleCount = availableElections.filter(
-    (e) => e.status === 'results_published' || e.status === 'closed'
-  ).length;
+  const completedVotesCount = availableElections.filter(e => e.hasVoted).length;
+  const pendingVotesCount = availableElections.filter(e => e.status === 'live' && !e.hasVoted).length;
+  const closedEligibleCount = availableElections.filter(e => e.status === 'results_published' || e.status === 'closed').length;
 
-  const liveAnnouncements: Array<{
-    id: string;
-    tag: string;
-    title: string;
-    deadline: string;
-    summary: string;
-  }> =
-    Array.isArray(dashboardData?.announcements) && dashboardData.announcements.length > 0
-      ? dashboardData.announcements.map((a: any) => ({
-          id: a.id,
-          tag: a.tag || 'Official Bulletin',
-          title: a.title,
-          deadline: a.timestamp || 'Official Notice',
-          summary: a.message || a.summary || ''
-        }))
-      : notifications.slice(0, 4).map((n) => ({
-          id: n.id,
-          tag: n.category || 'Bulletin',
-          title: n.title,
-          deadline: n.timestamp,
-          summary: n.message
-        }));
+  const unreadAlerts = notifications.slice(0, 4);
 
-  // Testing Persona Switchers (all execute real backend PBKDF2 authentication)
+  // Testing Persona Switchers (temporary frontend demo accounts)
   const switchTestPersona = async (
     personaType: 'kofi' | 'nana' | 'postgraduate' | 'suspended' | 'medical_freshman'
   ) => {
@@ -759,7 +731,7 @@ export const StudentDashboard: React.FC = () => {
               <span>Personalized Voting Participation Status</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tracks your participation progress across all eligible campus elections. (Ballot secrecy is cryptographically preserved: your selected candidates are never shown).
+              Tracks your demo participation progress across eligible campus elections using temporary browser mock data (no backend connected).
             </p>
           </div>
 
@@ -937,11 +909,7 @@ export const StudentDashboard: React.FC = () => {
                     <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                       <Vote className="w-6 h-6" />
                     </div>
-                    <h3 className="text-sm font-bold text-slate-800">
-                      {activeSectionTab === 'available'
-                        ? 'No elections are currently available for your account.'
-                        : 'No elections found in this section'}
-                    </h3>
+                    <h3 className="text-sm font-bold text-slate-800">No elections found in this section</h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                       {isSuspended 
                         ? 'Your account is suspended, rendering you ineligible for active ballots.' 
@@ -972,11 +940,6 @@ export const StudentDashboard: React.FC = () => {
                             <span className="font-mono text-slate-500 text-[11px]">
                               {election.code}
                             </span>
-                            {election.isDemoRecord && (
-                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                DEMO DATA
-                              </span>
-                            )}
                             <span className="text-slate-400">·</span>
                             <span className="text-slate-600 text-[11px]">
                               {election.positionsCount} Contested Positions
@@ -1000,15 +963,10 @@ export const StudentDashboard: React.FC = () => {
                               Polls Open
                             </span>
                           )}
-                          {(election.status === 'upcoming' || election.status === 'scheduled') && (
+                          {election.status === 'upcoming' && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] text-xs font-semibold">
                               <Clock className="w-3.5 h-3.5" />
                               Upcoming
-                            </span>
-                          )}
-                          {election.status === 'closed' && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
-                              Closed
                             </span>
                           )}
                           {election.status === 'results_published' && (
@@ -1174,36 +1132,52 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {liveAnnouncements.length === 0 ? (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-                  No official electoral announcements have been published yet.
-                </div>
-              ) : (
-                liveAnnouncements.map((ann) => (
-                  <div 
-                    key={ann.id}
-                    onClick={() => navigateTo('notifications')}
-                    className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors cursor-pointer space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#123B70] uppercase">
-                        {ann.tag}
-                      </span>
-                      <span className="text-amber-700 font-mono font-medium">
-                        {ann.deadline}
-                      </span>
-                    </div>
-
-                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                      {ann.title}
-                    </h4>
-
-                    <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
-                      {ann.summary}
-                    </p>
+              {[
+                {
+                  id: 'ann-1',
+                  tag: 'Official Polls Closing',
+                  title: '64th SRC General Elections: Polling Closes at 17:00 GMT',
+                  deadline: 'Tomorrow, 17:00 GMT',
+                  summary: 'Undergraduates are advised to confirm their secret ballot selections before the close of polls.'
+                },
+                {
+                  id: 'ann-2',
+                  tag: 'Hall Elections',
+                  title: 'Casely Hayford Hall Executive Voting Underway',
+                  deadline: 'Tomorrow, 16:00 GMT',
+                  summary: 'Registered gentlemen of Casford Hall can cast their votes online or at the Casford Forecourt kiosks.'
+                },
+                {
+                  id: 'ann-3',
+                  tag: 'Departmental Gazettes',
+                  title: 'NACOS-UCC (Computer Science) Presidential Debate',
+                  deadline: 'Nov 15, 16:00 GMT',
+                  summary: 'Manifesto town-hall presentations scheduled at Science Lecture Theatre 1.'
+                }
+              ].map((ann) => (
+                <div 
+                  key={ann.id}
+                  onClick={() => navigateTo('notifications')}
+                  className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors cursor-pointer space-y-1.5"
+                >
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-bold text-[#123B70] uppercase">
+                      {ann.tag}
+                    </span>
+                    <span className="text-amber-700 font-mono font-medium">
+                      {ann.deadline}
+                    </span>
                   </div>
-                ))
-              )}
+
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                    {ann.title}
+                  </h4>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
+                    {ann.summary}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -1214,8 +1188,7 @@ export const StudentDashboard: React.FC = () => {
               <span>Institutional Data Integrity</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Voting eligibility is verified directly against the Directorate of Academic Affairs registry. 
-              Voter selections are decoupled and encrypted to ensure complete constitutional privacy.
+              Frontend UI preview mode: temporary mock eligibility data is displayed locally. Connect a verified institutional backend before conducting live university elections.
             </p>
           </div>
 

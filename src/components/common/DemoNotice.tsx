@@ -12,11 +12,11 @@ export const DemoNotice: React.FC = () => {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="font-bold text-slate-200">
-            Phase 2: Student Authentication & Security System
+            UCC VOTE · Frontend UI Preview Mode
           </span>
           <span className="text-slate-500 hidden sm:inline">·</span>
           <span className="text-slate-400 hidden sm:inline">
-            PBKDF2 Password Hashing · Server-Side RBAC · Rate Limiting Active
+            Temporary Mock Data · No Backend Connected (Not Production)
           </span>
         </div>
 
