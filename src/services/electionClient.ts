@@ -14,7 +14,11 @@ import {
   FacultyUnit,
   DepartmentUnit,
   AdminProfile,
-  AdminRoleType
+  AdminRoleType,
+  NotificationItem,
+  CalendarEvent,
+  PublicPlatformStats,
+  AdminOverviewStats
 } from '../types';
 import { authClient } from './authClient';
 
@@ -47,6 +51,9 @@ export interface CreateElectionPayload {
   endTime?: string;
   organizingBody: string;
   rules: string[];
+  isDraft?: boolean;
+  isPublished?: boolean;
+  allowsEmptyBallot?: boolean;
   eligibilityCriteria: {
     faculties?: string[];
     departments?: string[];
@@ -92,7 +99,7 @@ export const electionClient = {
     error?: string;
   }> {
     try {
-      const res = await fetch('/api/domains', { credentials: 'include' });
+      const res = await authClient.authorizedFetch('/api/domains');
       return (
         (await safeJson(res)) || {
           success: false,
@@ -143,9 +150,9 @@ export const electionClient = {
       if (filters?.departmentId) query.append('departmentId', filters.departmentId);
       if (filters?.status) query.append('status', filters.status);
 
-      const res = await fetch(`/api/domains/${encodeURIComponent(domainId)}?${query.toString()}`, {
-        credentials: 'include'
-      });
+      const res = await authClient.authorizedFetch(
+        `/api/domains/${encodeURIComponent(domainId)}?${query.toString()}`
+      );
       return (
         (await safeJson(res)) || {
           success: false,
@@ -258,7 +265,7 @@ export const electionClient = {
       if (params?.status) query.append('status', params.status);
       if (params?.search) query.append('search', params.search);
 
-      const res = await fetch(`/api/elections?${query.toString()}`, { credentials: 'include' });
+      const res = await authClient.authorizedFetch(`/api/elections?${query.toString()}`);
       return (await safeJson(res)) || { success: false, total: 0, elections: [], error: `Server error (${res.status})` };
     } catch (err: any) {
       return { success: false, total: 0, elections: [], error: err.message };
@@ -275,7 +282,7 @@ export const electionClient = {
     error?: string;
   }> {
     try {
-      const res = await fetch(`/api/elections/${encodeURIComponent(id)}`, { credentials: 'include' });
+      const res = await authClient.authorizedFetch(`/api/elections/${encodeURIComponent(id)}`);
       return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -343,6 +350,24 @@ export const electionClient = {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
+      });
+      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  /**
+   * Delete draft/unvoted election (Admin)
+   */
+  async deleteElection(id: string): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const res = await authClient.authorizedFetch(`/api/elections/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
       });
       return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
     } catch (err: any) {
@@ -485,7 +510,7 @@ export const electionClient = {
       if (params?.faculty) query.append('faculty', params.faculty);
       if (params?.search) query.append('search', params.search);
 
-      const res = await fetch(`/api/candidates?${query.toString()}`, { credentials: 'include' });
+      const res = await authClient.authorizedFetch(`/api/candidates?${query.toString()}`);
       return (await safeJson(res)) || { success: false, total: 0, candidates: [], error: `Server error (${res.status})` };
     } catch (err: any) {
       return { success: false, total: 0, candidates: [], error: err.message };
@@ -501,7 +526,7 @@ export const electionClient = {
     error?: string;
   }> {
     try {
-      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}`, { credentials: 'include' });
+      const res = await authClient.authorizedFetch(`/api/candidates/${encodeURIComponent(id)}`);
       return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -1047,6 +1072,98 @@ export const electionClient = {
           body: JSON.stringify(payload)
         }
       );
+      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async getNotifications(): Promise<{
+    success: boolean;
+    notifications: NotificationItem[];
+    error?: string;
+  }> {
+    try {
+      const res = await authClient.authorizedFetch('/api/notifications');
+      return (
+        (await safeJson(res)) || {
+          success: false,
+          notifications: [],
+          error: `Server error (${res.status})`
+        }
+      );
+    } catch (err: any) {
+      return { success: false, notifications: [], error: err.message };
+    }
+  },
+
+  async markNotificationRead(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await authClient.authorizedFetch(
+        `/api/notifications/${encodeURIComponent(id)}/read`,
+        { method: 'POST' }
+      );
+      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async markAllNotificationsRead(): Promise<{
+    success: boolean;
+    notifications?: NotificationItem[];
+    error?: string;
+  }> {
+    try {
+      const res = await authClient.authorizedFetch('/api/notifications/read-all', {
+        method: 'POST'
+      });
+      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async getCalendarEvents(domainId?: string): Promise<{
+    success: boolean;
+    events: CalendarEvent[];
+    error?: string;
+  }> {
+    try {
+      const query = domainId ? `?domainId=${encodeURIComponent(domainId)}` : '';
+      const res = await authClient.authorizedFetch(`/api/calendar${query}`);
+      return (
+        (await safeJson(res)) || {
+          success: false,
+          events: [],
+          error: `Server error (${res.status})`
+        }
+      );
+    } catch (err: any) {
+      return { success: false, events: [], error: err.message };
+    }
+  },
+
+  async getPublicStats(): Promise<{
+    success: boolean;
+    stats?: PublicPlatformStats;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch('/api/elections/stats/public');
+      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async getAdminOverview(): Promise<{
+    success: boolean;
+    stats?: AdminOverviewStats;
+    error?: string;
+  }> {
+    try {
+      const res = await authClient.authorizedFetch('/api/admin/overview');
       return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
     } catch (err: any) {
       return { success: false, error: err.message };

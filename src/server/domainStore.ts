@@ -137,50 +137,109 @@ export const DOMAINS_STORE: Map<DomainId, DomainRegistryItem> = new Map([
   ]
 ]);
 
-export const HALLS_STORE: HallUnit[] = [
+export const OFFICIAL_UCC_HALLS: HallUnit[] = [
+  {
+    id: 'hall-adehye',
+    code: 'HALL-ADE',
+    name: 'Adehye Hall',
+    shortName: 'Adehye',
+    displayName: 'Adehye Hall',
+    affiliationNote: 'University of Cape Coast Residential Hall'
+  },
   {
     id: 'hall-atlantic',
+    code: 'HALL-ATL',
     name: 'Atlantic Hall',
     shortName: 'ATL',
-    motto: 'Marinelanders',
-    affiliationNote: 'Old Site Mixed Residential Hall'
+    displayName: 'Atlantic Hall',
+    affiliationNote: 'University of Cape Coast Residential Hall'
   },
   {
     id: 'hall-casford',
+    code: 'HALL-CAS',
     name: 'Casely Hayford Hall',
     shortName: 'Casford',
-    motto: 'Gentlemen of Casford',
-    affiliationNote: 'New Site Gentlemen Hall'
-  },
-  {
-    id: 'hall-adehye',
-    name: 'Adehye Hall',
-    shortName: 'Adehye',
-    motto: 'The Royals',
-    affiliationNote: 'Old Site Ladies Residential Hall'
-  },
-  {
-    id: 'hall-oguaa',
-    name: 'Oguaa Hall',
-    shortName: 'Oguaa',
-    motto: 'Premier Hall',
-    affiliationNote: 'Old Site Premier Mixed Hall'
+    displayName: 'Casely Hayford Hall (Casford)',
+    affiliationNote: 'University of Cape Coast Residential Hall'
   },
   {
     id: 'hall-knh',
+    code: 'HALL-KNH',
     name: 'Kwame Nkrumah Hall',
     shortName: 'KNH',
-    motto: 'The Patriots',
-    affiliationNote: 'New Site Mixed Residential Hall'
+    displayName: 'Kwame Nkrumah Hall (KNH)',
+    affiliationNote: 'University of Cape Coast Residential Hall'
+  },
+  {
+    id: 'hall-oguaa',
+    code: 'HALL-OGU',
+    name: 'Oguaa Hall',
+    shortName: 'Oguaa',
+    displayName: 'Oguaa Hall',
+    affiliationNote: 'University of Cape Coast Residential Hall'
   },
   {
     id: 'hall-valco',
+    code: 'HALL-VAL',
     name: 'Valco Hall',
     shortName: 'Valco',
-    motto: 'Industrialists',
-    affiliationNote: 'New Site Mixed Residential Hall'
+    displayName: 'Valco Hall',
+    affiliationNote: 'University of Cape Coast Residential Hall'
+  },
+  {
+    id: 'hall-src',
+    code: 'HALL-SRC',
+    name: 'SRC Hall',
+    shortName: 'SRC Hall',
+    displayName: 'SRC Hall',
+    affiliationNote: 'University of Cape Coast Residential Hall'
+  },
+  {
+    id: 'hall-super',
+    code: 'HALL-SUP',
+    name: 'Superannuation Hall',
+    shortName: 'Super Hall',
+    displayName: 'Superannuation Hall (Super Hall)',
+    affiliationNote: 'University of Cape Coast Residential Hall'
   }
 ];
+
+export const HALLS_STORE: HallUnit[] = OFFICIAL_UCC_HALLS.map((h) => ({ ...h }));
+
+/**
+ * Ensures all 8 official UCC halls are present in HALLS_STORE after state hydration,
+ * strips any legacy invented mottos, and preserves admin-uploaded verified branding URLs.
+ */
+export function ensureOfficialHallsPresent(): void {
+  const existingById = new Map<string, HallUnit>();
+  const customHalls: HallUnit[] = [];
+
+  for (const h of HALLS_STORE) {
+    const clean = { ...h };
+    delete clean.motto;
+    if (OFFICIAL_UCC_HALLS.some((o) => o.id === clean.id)) {
+      existingById.set(clean.id, clean);
+    } else {
+      customHalls.push(clean);
+    }
+  }
+
+  const merged: HallUnit[] = OFFICIAL_UCC_HALLS.map((official) => {
+    const prev = existingById.get(official.id);
+    return {
+      ...official,
+      ...(prev?.brandingLogoUrl
+        ? {
+            brandingLogoUrl: prev.brandingLogoUrl,
+            brandingUpdatedAt: prev.brandingUpdatedAt,
+            brandingUpdatedBy: prev.brandingUpdatedBy
+          }
+        : {})
+    };
+  });
+
+  HALLS_STORE.splice(0, HALLS_STORE.length, ...merged, ...customHalls);
+}
 
 export const FACULTIES_STORE: FacultyUnit[] = [
   {
@@ -442,26 +501,75 @@ export function matchesHallName(studentHall: string | undefined, targetHall: str
   const t = normalizeText(targetHall);
   if (!s || !t) return false;
   if (s === t) return true;
-  // Support recognized Casford / KNH / ATL abbreviations safely without loose token false positives
+
   const sClean = s.replace(/\bhall\b/g, '').trim();
   const tClean = t.replace(/\bhall\b/g, '').trim();
   if (sClean && tClean && sClean === tClean) return true;
-  if ((s.includes('casford') || s.includes('casely hayford')) && (t.includes('casford') || t.includes('casely hayford'))) {
+
+  if (
+    (s.includes('casford') || s.includes('casely hayford') || s === 'hall-casford' || s === 'hall-cas') &&
+    (t.includes('casford') || t.includes('casely hayford') || t === 'hall-casford' || t === 'hall-cas')
+  ) {
     return true;
   }
-  if ((s.includes('kwame nkrumah') || s === 'knh') && (t.includes('kwame nkrumah') || t === 'knh')) {
+  if (
+    (s.includes('kwame nkrumah') || s === 'knh' || s === 'hall-knh') &&
+    (t.includes('kwame nkrumah') || t === 'knh' || t === 'hall-knh')
+  ) {
     return true;
   }
-  if ((s.includes('atlantic') || s === 'atl') && (t.includes('atlantic') || t === 'atl')) {
+  if (
+    (s.includes('atlantic') || s === 'atl' || s === 'hall-atlantic' || s === 'hall-atl') &&
+    (t.includes('atlantic') || t === 'atl' || t === 'hall-atlantic' || t === 'hall-atl')
+  ) {
     return true;
   }
+  if (
+    (s.includes('adehye') || s === 'hall-adehye' || s === 'hall-ade') &&
+    (t.includes('adehye') || t === 'hall-adehye' || t === 'hall-ade')
+  ) {
+    return true;
+  }
+  if (
+    (s.includes('oguaa') || s === 'hall-oguaa' || s === 'hall-ogu') &&
+    (t.includes('oguaa') || t === 'hall-oguaa' || t === 'hall-ogu')
+  ) {
+    return true;
+  }
+  if (
+    (s.includes('valco') || s === 'hall-valco' || s === 'hall-val') &&
+    (t.includes('valco') || t === 'hall-valco' || t === 'hall-val')
+  ) {
+    return true;
+  }
+  const isSrcHall = (val: string) =>
+    val === 'src hall' || val === 'src hostel' || val === 'hall-src' || val === 'hall_src';
+  if (isSrcHall(s) && isSrcHall(t)) {
+    return true;
+  }
+  const isSuperHall = (val: string) =>
+    val.includes('superannuation') ||
+    val === 'super hall' ||
+    val === 'super' ||
+    val === 'hall-super' ||
+    val === 'hall-sup';
+  if (isSuperHall(s) && isSuperHall(t)) {
+    return true;
+  }
+
   return false;
 }
 
 export function resolveHallUnit(hallNameOrId?: string): HallUnit | undefined {
-  if (!hallNameOrId) return undefined;
+  if (!hallNameOrId || !hallNameOrId.trim()) return undefined;
+  const q = normalizeText(hallNameOrId);
   return HALLS_STORE.find(
-    (h) => h.id === hallNameOrId || matchesHallName(h.name, hallNameOrId) || normalizeText(h.shortName) === normalizeText(hallNameOrId)
+    (h) =>
+      normalizeText(h.id) === q ||
+      (h.code && normalizeText(h.code) === q) ||
+      (h.displayName && normalizeText(h.displayName) === q) ||
+      matchesHallName(h.name, hallNameOrId) ||
+      matchesHallName(h.shortName, hallNameOrId)
   );
 }
 
@@ -499,10 +607,14 @@ export function enrichElectionDomainRelations(election: Election): Election {
   let departmentId = election.departmentId;
   let subdomainLabel = election.subdomainLabel;
 
-  if (domainId === 'jcrc_hall' && crit.halls && crit.halls.length > 0) {
-    const unit = resolveHallUnit(crit.halls[0]);
-    if (unit && !hallId) hallId = unit.id;
-    if (!subdomainLabel) subdomainLabel = unit?.name || crit.halls[0];
+  if (domainId === 'jcrc_hall') {
+    const unit = resolveHallUnit(hallId || crit.halls?.[0] || subdomainLabel);
+    if (unit) {
+      hallId = unit.id;
+      subdomainLabel = unit.name;
+    } else if (crit.halls && crit.halls.length > 0 && !subdomainLabel) {
+      subdomainLabel = crit.halls[0];
+    }
   } else if (domainId === 'departmental' && crit.departments && crit.departments.length > 0) {
     const dept = resolveDepartmentUnit(crit.departments[0]);
     if (dept) {

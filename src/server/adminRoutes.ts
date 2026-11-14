@@ -8,12 +8,21 @@ import {
   AUDIT_LOGS,
   logAuditEvent,
   OFFICIAL_UCC_STUDENT_REGISTRY,
+  getRegisteredAndVerifiedStudentCounts,
   revokeUserSessions
 } from './authStore.ts';
 import type { StoredAdminAccount, SessionData } from './authStore.ts';
 import { hashPassword } from './cryptoUtils.ts';
 import { matchesHallName, normalizeText, categoryToDomainId } from './domainStore.ts';
-import type { AdminRoleType, DomainId, Election } from '../types/index.ts';
+import {
+  ELECTIONS_STORE,
+  CANDIDATES_STORE,
+  recomputeAllElectionCounts
+} from './electionStore.ts';
+import { ANONYMOUS_BALLOT_VAULT, VOTER_PARTICIPATION_VAULT } from './votingStore.ts';
+import { persistPlatformState } from './statePersistence.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import type { AdminOverviewStats, AdminRoleType, DomainId, Election } from '../types/index.ts';
 
 export const adminRouter = Router();
 
@@ -215,23 +224,62 @@ adminRouter.use(requireAdminRole());
 /**
  * GET /api/admin/overview
  */
-adminRouter.get('/overview', (req: Request, res: Response) => {
-  const totalRegistered = Object.keys(OFFICIAL_UCC_STUDENT_REGISTRY).length;
-  const activatedCount = STUDENT_ACCOUNTS.size;
-  const activeSessionsCount = ACTIVE_SESSIONS.size;
-  const suspendedCount = Array.from(STUDENT_ACCOUNTS.values()).filter(
-    (s) => s.status === 'suspended'
-  ).length;
+adminRouter.get('/overview', (_req: Request, res: Response) => {
+  const {
+    totalRegistryStudents,
+    activatedStudentAccounts,
+    registeredStudents,
+    verifiedStudents,
+    suspendedAccounts
+  } = getRegisteredAndVerifiedStudentCounts();
+
+  const elections = Array.from(ELECTIONS_STORE.values());
+  const candidates = Array.from(CANDIDATES_STORE.values());
+  const uniqueVoters = new Set(
+    Array.from(VOTER_PARTICIPATION_VAULT.values()).map((v) => v.studentAccountId)
+  );
+  const uniqueVotersVoted = uniqueVoters.size;
+  const totalVotesCast = ANONYMOUS_BALLOT_VAULT.length;
+
+  const stats: AdminOverviewStats = {
+    totalElections: elections.length,
+    activeElections: elections.filter((e) => e.status === 'live').length,
+    upcomingElections: elections.filter(
+      (e) => e.status === 'scheduled' || e.status === 'upcoming'
+    ).length,
+    closedElections: elections.filter(
+      (e) =>
+        e.status === 'closed' ||
+        e.status === 'results_pending_certification' ||
+        e.status === 'results_published'
+    ).length,
+    publishedResultsCount: elections.filter((e) => e.status === 'results_published').length,
+    draftElections: elections.filter(
+      (e) => e.status === 'draft' || e.status === 'pending_approval'
+    ).length,
+    totalCandidates: candidates.length,
+    approvedCandidates: candidates.filter((c) => c.applicationStatus === 'Approved').length,
+    pendingCandidates: candidates.filter(
+      (c) => c.applicationStatus === 'Submitted' || c.applicationStatus === 'Under review'
+    ).length,
+    registeredStudents,
+    verifiedStudents,
+    totalRegistryStudents,
+    activatedStudentAccounts,
+    suspendedAccounts,
+    totalVotesCast,
+    uniqueVotersVoted,
+    overallTurnoutPercentage:
+      verifiedStudents > 0
+        ? Math.round((uniqueVotersVoted / verifiedStudents) * 1000) / 10
+        : 0,
+    activeSessions: ACTIVE_SESSIONS.size,
+    totalAuditEvents: AUDIT_LOGS.length
+  };
 
   return res.json({
     success: true,
-    stats: {
-      totalRegistryStudents: totalRegistered,
-      activatedStudentAccounts: activatedCount,
-      activeSessions: activeSessionsCount,
-      suspendedAccounts: suspendedCount,
-      totalAuditEvents: AUDIT_LOGS.length
-    }
+    stats
   });
 });
 
@@ -303,6 +351,10 @@ adminRouter.put(
       status: status === 'suspended' ? 'WARNING' : 'SUCCESS',
       details: `${session.role} changed status of ${student.fullName} (${student.studentId}) to ${status.toUpperCase()}. Reason: ${reason || 'Administrative review'}.`
     });
+
+    recomputeAllElectionCounts();
+    persistPlatformState();
+    broadcastSyncEvent('student:status');
 
     return res.json({
       success: true,
@@ -403,6 +455,8 @@ adminRouter.post(
       details: `Super Administrator created/assigned ${role} (${fullName}) for domains [${(newAdmin.managedDomainIds || []).join(', ')}].`
     });
 
+    persistPlatformState();
+
     const { passwordHash: _ph, passwordSalt: _ps, ...sanitized } = newAdmin;
     return res.status(201).json({
       success: true,
@@ -451,6 +505,8 @@ adminRouter.put(
       status: 'SUCCESS',
       details: `Updated domain scope for ${admin.fullName} (${cleanStaffId}) to domains [${(admin.managedDomainIds || []).join(', ')}].`
     });
+
+    persistPlatformState();
 
     const { passwordHash: _ph, passwordSalt: _ps, ...sanitized } = admin;
     return res.json({

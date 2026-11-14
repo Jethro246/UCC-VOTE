@@ -105,12 +105,14 @@ export interface AuditLogEntry {
     | 'STATUS_CHANGE'
     | 'CREATE_ELECTION'
     | 'UPDATE_ELECTION'
+    | 'DELETE_ELECTION'
     | 'ELECTION_STATUS_CHANGE'
     | 'CREATE_POSITION'
     | 'DELETE_POSITION'
     | 'UPDATE_POSITION'
     | 'CREATE_DOMAIN'
     | 'CREATE_SUBDOMAIN'
+    | 'UPDATE_HALL_BRANDING'
     | 'UPDATE_ADMIN_SCOPE'
     | 'SUBMIT_CANDIDATE_APPLICATION'
     | 'UPDATE_CANDIDATE_PROFILE'
@@ -305,7 +307,7 @@ export const STUDENT_ACCOUNTS: Map<string, StoredStudentAccount> = new Map([
         smsBulletins: true,
         resultsAnnouncements: true
       },
-      hasVotedElections: ['UCC-GRA-2025', 'UCC-VAL-2025'],
+      hasVotedElections: [],
       createdAt: '2026-10-01T08:00:00Z',
       lastLogin: new Date().toISOString()
     }
@@ -702,7 +704,107 @@ export function findStudentAccountByIdentifier(identifier: string): StoredStuden
   return undefined;
 }
 
+export function getOptionalSessionFromRequest(req: {
+  headers: { authorization?: string };
+  cookies?: Record<string, string>;
+}): SessionData | null {
+  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
+  if (!token && req.cookies && req.cookies.ucc_session) {
+    token = req.cookies.ucc_session;
+  }
+  if (!token) return null;
+  const session = ACTIVE_SESSIONS.get(token);
+  if (!session || Date.now() > session.expiresAt) return null;
+  return session;
+}
+
 loadPersistedSessions();
+
+export interface CombinedStudentRecord {
+  studentId: string;
+  indexNumber: string;
+  fullName: string;
+  faculty: string;
+  department: string;
+  programme: string;
+  level: '100' | '200' | '300' | '400' | 'Postgraduate';
+  hall: string;
+  status: 'active' | 'suspended' | 'pending_verification';
+  isEligible: boolean;
+  isEnrolled: boolean;
+  isActivated: boolean;
+  hasVotedElections: string[];
+}
+
+/**
+ * Combines live activated STUDENT_ACCOUNTS with OFFICIAL_UCC_STUDENT_REGISTRY,
+ * ensuring live status/eligibility updates take precedence over static registry entries.
+ */
+export function getCombinedStudentDirectory(): CombinedStudentRecord[] {
+  const byId = new Map<string, CombinedStudentRecord>();
+
+  for (const reg of Object.values(OFFICIAL_UCC_STUDENT_REGISTRY)) {
+    byId.set(reg.studentId.toUpperCase(), {
+      studentId: reg.studentId,
+      indexNumber: reg.indexNumber,
+      fullName: reg.fullName,
+      faculty: reg.faculty,
+      department: reg.department,
+      programme: reg.programme,
+      level: reg.level,
+      hall: reg.hall,
+      status: reg.isEnrolled ? 'active' : 'suspended',
+      isEligible: reg.isEnrolled,
+      isEnrolled: reg.isEnrolled,
+      isActivated: false,
+      hasVotedElections: []
+    });
+  }
+
+  for (const acc of STUDENT_ACCOUNTS.values()) {
+    const key = acc.studentId.toUpperCase();
+    const reg = OFFICIAL_UCC_STUDENT_REGISTRY[acc.studentId];
+    const isEnrolled = reg ? reg.isEnrolled : true;
+    byId.set(key, {
+      studentId: acc.studentId,
+      indexNumber: acc.indexNumber,
+      fullName: acc.fullName,
+      faculty: acc.faculty,
+      department: acc.department,
+      programme: acc.programme,
+      level: acc.level,
+      hall: acc.hall,
+      status: acc.status,
+      isEligible: acc.status === 'active' && acc.isEligible && isEnrolled,
+      isEnrolled,
+      isActivated: true,
+      hasVotedElections: acc.hasVotedElections || []
+    });
+  }
+
+  return Array.from(byId.values());
+}
+
+export function getRegisteredAndVerifiedStudentCounts() {
+  const directory = getCombinedStudentDirectory();
+  const totalRegistryStudents = Object.keys(OFFICIAL_UCC_STUDENT_REGISTRY).length;
+  const activatedStudentAccounts = STUDENT_ACCOUNTS.size;
+  const registeredStudents = directory.length;
+  const verifiedStudents = directory.filter(
+    (s) => s.status === 'active' && s.isEligible && s.isEnrolled
+  ).length;
+  const suspendedAccounts = directory.filter(
+    (s) => s.status === 'suspended' || !s.isEnrolled
+  ).length;
+
+  return {
+    totalRegistryStudents,
+    activatedStudentAccounts,
+    registeredStudents,
+    verifiedStudents,
+    suspendedAccounts
+  };
+}
 
 // Password Reset Tokens: token -> { identifier, expiresAt }
 export const RESET_TOKENS: Map<string, { identifier: string; expiresAt: number; code: string }> = new Map();
@@ -710,31 +812,8 @@ export const RESET_TOKENS: Map<string, { identifier: string; expiresAt: number; 
 // Failed login attempt tracking: identifier_or_ip -> { count: number, lockedUntil: number }
 export const RATE_LIMIT_CACHE: Map<string, { count: number; lockedUntil: number }> = new Map();
 
-// Audit logs
-export const AUDIT_LOGS: AuditLogEntry[] = [
-  {
-    id: 'aud-001',
-    timestamp: '2026-11-10T14:45:12Z',
-    eventType: 'LOGIN_SUCCESS',
-    userId: 'PS/CSC/22/0089',
-    identifier: 'PS/CSC/22/0089',
-    role: 'Student',
-    ipAddress: '197.255.124.18',
-    status: 'SUCCESS',
-    details: 'Student Kofi Mensah Sarbah authenticated successfully'
-  },
-  {
-    id: 'aud-002',
-    timestamp: '2026-11-10T13:20:00Z',
-    eventType: 'LOGIN_SUCCESS',
-    userId: 'UCC/EC/ST/2019/04',
-    identifier: 'UCC/EC/ST/2019/04',
-    role: 'Electoral Commissioner',
-    ipAddress: '197.255.124.33',
-    status: 'SUCCESS',
-    details: 'Commissioner Dr. Joseph E. Tetteh logged into Electoral Console'
-  }
-];
+// Audit logs (starts empty; records only real runtime actions)
+export const AUDIT_LOGS: AuditLogEntry[] = [];
 
 export function logAuditEvent(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) {
   const newEntry: AuditLogEntry = {

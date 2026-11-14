@@ -6,9 +6,9 @@ import {
   canAdminManageElection,
   requireAdminRole
 } from './adminRoutes.ts';
-import { ELECTIONS_STORE } from './electionStore.ts';
+import { ELECTIONS_STORE, isElectionVisibleToSession } from './electionStore.ts';
 import { categoryToDomainId } from './domainStore.ts';
-import { ACTIVE_SESSIONS, logAuditEvent } from './authStore.ts';
+import { getOptionalSessionFromRequest, logAuditEvent } from './authStore.ts';
 import type { SessionData } from './authStore.ts';
 import {
   computeElectionResults,
@@ -17,6 +17,9 @@ import {
 } from './resultsStore.ts';
 import { generateElectionReportPdf, generateElectionReportCsv } from './pdfGenerator.ts';
 import type { ReportType } from './pdfGenerator.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import { persistPlatformState } from './statePersistence.ts';
+import { pushPlatformNotification } from './notificationStore.ts';
 import type { ResultsWorkflowStage } from '../types/index.ts';
 
 export const resultsRouter = Router();
@@ -27,17 +30,6 @@ const RESULTS_VIEWING_ROLES = [
   'Results Auditor'
 ];
 
-function getOptionalSession(req: Request): SessionData | null {
-  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
-  if (!token && req.cookies && req.cookies.ucc_session) {
-    token = req.cookies.ucc_session;
-  }
-  if (!token) return null;
-  const session = ACTIVE_SESSIONS.get(token);
-  if (!session || Date.now() > session.expiresAt) return null;
-  return session;
-}
-
 /**
  * GET /api/results
  * Overview of all elections with publication status & participation summaries.
@@ -45,10 +37,12 @@ function getOptionalSession(req: Request): SessionData | null {
  */
 resultsRouter.get('/', (req: Request, res: Response) => {
   const { domainId } = req.query;
-  const session = getOptionalSession(req);
+  const session = getOptionalSessionFromRequest(req);
   const isAdmin = Boolean(session && session.userType === 'admin');
 
-  let elections = Array.from(ELECTIONS_STORE.values());
+  let elections = Array.from(ELECTIONS_STORE.values()).filter((el) =>
+    isElectionVisibleToSession(el, session)
+  );
   if (domainId && typeof domainId === 'string' && domainId !== 'All') {
     elections = elections.filter(
       (el) => (el.domainId || categoryToDomainId(el.category)) === domainId
@@ -76,6 +70,16 @@ resultsRouter.get('/', (req: Request, res: Response) => {
  */
 resultsRouter.get('/:electionId', (req: Request, res: Response) => {
   const { electionId } = req.params;
+  const session = getOptionalSessionFromRequest(req);
+  const election = ELECTIONS_STORE.get(electionId);
+
+  if (!election || !isElectionVisibleToSession(election, session)) {
+    return res.status(404).json({
+      success: false,
+      error: `Election '${electionId}' was not found.`
+    });
+  }
+
   const results = computeElectionResults(electionId, false);
 
   if (!results) {
@@ -207,6 +211,22 @@ resultsRouter.post(
       });
     }
 
+    if (targetStage === 'published') {
+      pushPlatformNotification({
+        title: `Certified Results Published: ${election.title}`,
+        message: `Official Electoral Commission certified results have been released for ${election.title}.`,
+        category: 'results',
+        domainId: election.domainId,
+        linkAction: 'election_results'
+      });
+    }
+
+    persistPlatformState();
+    broadcastSyncEvent(targetStage === 'published' ? 'results:published' : 'results:updated', {
+      electionId,
+      domainId: election.domainId
+    });
+
     return res.json({
       success: true,
       message: outcome.message,
@@ -222,7 +242,7 @@ resultsRouter.post(
 resultsRouter.post('/:electionId/cast', (req: Request, res: Response) => {
   const { electionId } = req.params;
   const { selections, voterMeta } = req.body || {};
-  const session = getOptionalSession(req);
+  const session = getOptionalSessionFromRequest(req);
   const ipAddress =
     (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
@@ -245,6 +265,9 @@ resultsRouter.post('/:electionId/cast', (req: Request, res: Response) => {
     details: `Encrypted ballot cast recorded for election ${electionId}. Receipt hash: ${result.receiptCode}.`
   });
 
+  persistPlatformState();
+  broadcastSyncEvent('vote:cast', { electionId });
+
   return res.json({
     success: true,
     receiptCode: result.receiptCode,
@@ -265,7 +288,7 @@ resultsRouter.get('/:electionId/export', (req: Request, res: Response) => {
     ? (rawType as ReportType)
     : 'full';
 
-  const session = getOptionalSession(req);
+  const session = getOptionalSessionFromRequest(req);
   const election = ELECTIONS_STORE.get(electionId);
   if (!election) {
     return res.status(404).json({ success: false, error: 'Election not found.' });

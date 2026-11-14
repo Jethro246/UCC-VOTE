@@ -17,6 +17,9 @@ import {
 } from './authStore.ts';
 import type { StoredStudentAccount, SessionData, RefreshSessionData } from './authStore.ts';
 import { hashPassword, verifyPassword, generateToken } from './cryptoUtils.ts';
+import { recomputeAllElectionCounts } from './electionStore.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import { persistPlatformState } from './statePersistence.ts';
 
 export const authRouter = Router();
 
@@ -506,6 +509,9 @@ authRouter.post('/register', (req: Request, res: Response) => {
   };
 
   STUDENT_ACCOUNTS.set(cleanId, newAccount);
+  recomputeAllElectionCounts();
+  persistPlatformState();
+  broadcastSyncEvent('student:registered', { candidateId: newAccount.studentId });
 
   // Generate Access + Refresh Session Pair
   const issued = issueSessionPair({
@@ -696,6 +702,7 @@ authRouter.post('/reset-password', (req: Request, res: Response) => {
     status: 'SUCCESS',
     details: `Password successfully updated for ${account.fullName}. All prior sessions revoked.`
   });
+  persistPlatformState();
 
   return res.json({
     success: true,
@@ -952,6 +959,7 @@ authRouter.put('/profile', authenticateToken, (req: Request, res: Response) => {
       ...notificationPreferences
     };
   }
+  persistPlatformState();
 
   const { passwordHash, passwordSalt, ...sanitized } = student;
   return res.json({
@@ -1010,6 +1018,7 @@ authRouter.post('/change-password', authenticateToken, (req: Request, res: Respo
     status: 'SUCCESS',
     details: `Password changed by student ${account.fullName}.`
   });
+  persistPlatformState();
 
   return res.json({ success: true, message: 'Password updated successfully.' });
 });

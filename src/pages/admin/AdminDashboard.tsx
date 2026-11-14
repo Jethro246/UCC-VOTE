@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_AUDIT_LOGS } from '../../data/mockData';
 import { electionClient } from '../../services/electionClient';
 import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
@@ -23,7 +22,14 @@ import {
   Building,
   Layers
 } from 'lucide-react';
-import { AdminProfile, AdminRoleType, DomainId, Election, Candidate } from '../../types';
+import {
+  AdminOverviewStats,
+  AdminProfile,
+  AdminRoleType,
+  DomainId,
+  Election,
+  Candidate
+} from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
 import { StatusTransitionModal } from '../../components/admin/StatusTransitionModal';
 import { PositionManagerModal } from '../../components/admin/PositionManagerModal';
@@ -57,7 +63,8 @@ export const AdminDashboard: React.FC = () => {
     refreshElections,
     refreshDomains,
     candidates,
-    refreshCandidates
+    refreshCandidates,
+    syncVersion
   } = useApp();
 
   const isGlobalGovernanceAdmin =
@@ -88,6 +95,21 @@ export const AdminDashboard: React.FC = () => {
   const [inspectStudentId, setInspectStudentId] = useState('PS/CSC/22/0089');
   const [secrecyTestResult, setSecrecyTestResult] = useState<{ code?: string; message: string } | null>(null);
   const [vaultAuditSummary, setVaultAuditSummary] = useState<any>(null);
+  const [adminOverviewStats, setAdminOverviewStats] = useState<AdminOverviewStats | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (activeTab === 'overview') {
+      electionClient.getAdminOverview().then((res) => {
+        if (active && res.success && res.stats) {
+          setAdminOverviewStats(res.stats);
+        }
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [activeTab, syncVersion]);
 
   const fetchAuditLogs = async () => {
     try {
@@ -109,7 +131,7 @@ export const AdminDashboard: React.FC = () => {
         if (r.success && r.summary) setVaultAuditSummary(r.summary);
       });
     }
-  }, [activeTab]);
+  }, [activeTab, syncVersion]);
 
   // Domain & RBAC Management State (Super Admin / EC)
   const [adminAccounts, setAdminAccounts] = useState<AdminProfile[]>([]);
@@ -149,6 +171,7 @@ export const AdminDashboard: React.FC = () => {
 
   const [searchStudent, setSearchStudent] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingElection, setEditingElection] = useState<Election | null>(null);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
@@ -163,16 +186,45 @@ export const AdminDashboard: React.FC = () => {
 
   const [statusActionMsg, setStatusActionMsg] = useState('');
 
-  // Sample student registry for management
-  const [studentRegistry, setStudentRegistry] = useState([
-    { id: '1', studentId: 'PS/CSC/22/0089', name: 'Kofi Mensah Sarbah', programme: 'B.Sc. Computer Science', level: '300', hall: 'Casely Hayford Hall', isEligible: true, status: 'active' },
-    { id: '2', studentId: 'ED/EPS/21/0034', name: 'Nana Akua Afriyie Osei', programme: 'B.Ed. Psychology', level: '400', hall: 'Adehye Hall', isEligible: true, status: 'active' },
-    { id: '3', studentId: 'PG/CSC/25/0018', name: 'Ama Serwaa Darko (Postgraduate Demo)', programme: 'M.Phil. Computer Science', level: 'Postgraduate', hall: 'Casely Hayford Hall', isEligible: true, status: 'active' },
-    { id: '4', studentId: 'MED/SMS/24/0012', name: 'Kwame Osei Mensah', programme: 'MB ChB Medicine & Surgery', level: '100', hall: 'Off-Campus Private Hostel', isEligible: true, status: 'active' },
-    { id: '5', studentId: 'SB/ACC/21/0112', name: 'Richmond Kwabena Frimpong', programme: 'B.Com. Accounting', level: '400', hall: 'Valco Hall', isEligible: true, status: 'active' },
-    { id: '6', studentId: 'AS/COM/22/0104', name: 'Emmanuel Kofi Annan', programme: 'B.A. Communication', level: '300', hall: 'Valco Hall', isEligible: true, status: 'active' },
-    { id: '7', studentId: 'AS/HIS/22/0055', name: 'Kojo Adomako Danquah', programme: 'B.A. History', level: '300', hall: 'Casely Hayford Hall', isEligible: false, status: 'suspended' }
-  ]);
+  const [studentRegistry, setStudentRegistry] = useState<
+    Array<{
+      id: string;
+      studentId: string;
+      name: string;
+      programme: string;
+      level: string;
+      hall: string;
+      isEligible: boolean;
+      status: string;
+    }>
+  >([]);
+
+  const fetchStudentRegistry = async () => {
+    try {
+      const res = await authClient.authorizedFetch('/api/admin/students');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.students)) {
+        setStudentRegistry(
+          data.students.map((s: any) => ({
+            id: s.id || s.studentId,
+            studentId: s.studentId,
+            name: s.fullName || s.name || s.studentId,
+            programme: s.programme || s.department || 'UCC Student',
+            level: s.level || '100',
+            hall: s.hall || 'Off Campus',
+            isEligible: Boolean(s.isEligible && s.status !== 'suspended'),
+            status: s.status || 'active'
+          }))
+        );
+      }
+    } catch {
+      // ignore transient fetch errors
+    }
+  };
+
+  useEffect(() => {
+    fetchStudentRegistry();
+  }, [activeTab, syncVersion]);
 
   const toggleEligibility = async (studentId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
@@ -189,6 +241,8 @@ export const AdminDashboard: React.FC = () => {
       if (data.success) {
         setStatusActionMsg(`Account ${studentId} marked as ${newStatus.toUpperCase()}.`);
         setTimeout(() => setStatusActionMsg(''), 3000);
+        await fetchStudentRegistry();
+        return;
       }
     } catch {
       // ignore transient error
@@ -364,7 +418,10 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex items-center gap-3 shrink-0">
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setEditingElection(null);
+              setShowCreateModal(true);
+            }}
             className="px-4 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
@@ -456,19 +513,23 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1 block">
                 {scopedElections.length}
               </span>
-              <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">
-                Active domain workspace total
+              <span className="text-[10px] text-slate-600 font-semibold mt-0.5 block">
+                {scopedElections.filter((e) => e.status === 'live').length} active ·{' '}
+                {scopedElections.filter((e) => e.status === 'scheduled' || e.status === 'upcoming').length} upcoming ·{' '}
+                {scopedElections.filter((e) => e.status === 'closed' || e.status === 'results_pending_certification' || e.status === 'results_published').length} closed
               </span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Total Ballots Cast
+                Total Votes Cast
               </span>
               <span className="text-2xl font-black text-[#123B70] font-mono tabular-nums mt-1 block">
-                {scopedElections.reduce((sum, e) => sum + (e.totalVotesCast || 0), 0).toLocaleString()}
+                {(adminOverviewStats?.totalVotesCast ?? 0).toLocaleString()}
               </span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">Across scoped domain races</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">
+                {(adminOverviewStats?.uniqueVotersVoted ?? 0).toLocaleString()} unique participating voters
+              </span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
@@ -478,21 +539,87 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-1 block">
                 {scopedElections.filter((e) => e.status === 'live').length} Live
               </span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">Currently accepting ballots</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">
+                Published &amp; open for voting
+              </span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Ballot Vault Separation
+                Overall Voter Turnout
               </span>
-              <span className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-1 block">
-                ENFORCED
+              <span className="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-1 block">
+                {(adminOverviewStats?.overallTurnoutPercentage ?? 0).toFixed(1)}%
               </span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">
-                Identity & ballot stores decoupled
+                {(adminOverviewStats?.verifiedStudents ?? 0).toLocaleString()} verified / {(adminOverviewStats?.registeredStudents ?? 0).toLocaleString()} registered
               </span>
             </div>
           </div>
+
+          {/* Authoritative Database Record Totals */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Total Elections
+              </span>
+              <span className="text-base font-extrabold font-mono tabular-nums text-slate-900">
+                {adminOverviewStats?.totalElections ?? elections.length}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Total Candidates
+              </span>
+              <span className="text-base font-extrabold font-mono tabular-nums text-slate-900">
+                {adminOverviewStats?.totalCandidates ?? candidates.length}{' '}
+                <span className="text-[11px] font-normal text-slate-500">
+                  ({adminOverviewStats?.approvedCandidates ?? candidates.filter((c) => c.applicationStatus === 'Approved').length} approved)
+                </span>
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Registered Students
+              </span>
+              <span className="text-base font-extrabold font-mono tabular-nums text-slate-900">
+                {(adminOverviewStats?.registeredStudents ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Verified Students
+              </span>
+              <span className="text-base font-extrabold font-mono tabular-nums text-emerald-700">
+                {(adminOverviewStats?.verifiedStudents ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Published Results
+              </span>
+              <span className="text-base font-extrabold font-mono tabular-nums text-[#123B70]">
+                {adminOverviewStats?.publishedResultsCount ?? elections.filter((e) => e.status === 'results_published').length}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Ballot Secrecy
+              </span>
+              <span className="text-sm font-extrabold font-mono text-emerald-600">
+                VAULT DECOUPLED
+              </span>
+            </div>
+          </div>
+
+          {(adminOverviewStats?.totalVotesCast ?? 0) === 0 && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                No voting activity has been recorded yet. Statistics will update automatically as verified votes are submitted.
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
@@ -571,7 +698,10 @@ export const AdminDashboard: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setEditingElection(null);
+                setShowCreateModal(true);
+              }}
               className="px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] flex items-center gap-1.5 cursor-pointer self-start sm:self-auto whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -602,7 +732,14 @@ export const AdminDashboard: React.FC = () => {
                   scopedElections.map((el) => (
                     <tr key={el.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
-                        <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
+                        <div className="flex items-center gap-2 font-mono text-[10px] text-slate-400">
+                          <span>{el.code}</span>
+                          {el.isDemoRecord && (
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              DEMO DATA
+                            </span>
+                          )}
+                        </div>
                         <div className="truncate font-bold">{el.title}</div>
                         <div className="text-[10px] text-slate-500 font-normal mt-0.5">
                           {new Date(el.startDate).toLocaleDateString()} – {new Date(el.endDate).toLocaleDateString()}
@@ -618,6 +755,11 @@ export const AdminDashboard: React.FC = () => {
                         <span className="font-bold text-[11px] text-slate-800 uppercase">
                           {el.status.replace(/_/g, ' ')}
                         </span>
+                        {(el.isPublished === false || el.status === 'draft' || el.status === 'pending_approval') && (
+                          <div className="text-[10px] font-bold text-amber-700 mt-0.5">
+                            Hidden from Students
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
                         <button
@@ -632,6 +774,15 @@ export const AdminDashboard: React.FC = () => {
                         {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
                       </td>
                       <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => {
+                            setEditingElection(el);
+                            setShowCreateModal(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => setSelectedElectionForStatus(el)}
                           className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
@@ -1317,8 +1468,13 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              {(liveAuditLogs.length > 0
-                ? liveAuditLogs.map((l) => ({
+              {liveAuditLogs.length === 0 ? (
+                <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 text-center text-slate-500 font-sans text-xs">
+                  No audit events recorded yet. Live administrative actions, ballot submissions, and security checks will appear here automatically.
+                </div>
+              ) : (
+                liveAuditLogs
+                  .map((l) => ({
                     id: l.id,
                     timestamp: l.timestamp,
                     action: l.eventType,
@@ -1328,44 +1484,44 @@ export const AdminDashboard: React.FC = () => {
                     ipAddress: l.ipAddress,
                     status: l.status === 'FLAGGED' ? 'flagged' : l.status === 'WARNING' ? 'warning' : 'success'
                   }))
-                : MOCK_AUDIT_LOGS
-              ).map((log) => (
-                <div
-                  key={log.id}
-                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
-                    log.status === 'flagged'
-                      ? 'bg-red-50/60 border-red-300'
-                      : log.status === 'warning'
-                      ? 'bg-amber-50/60 border-amber-300'
-                      : 'bg-slate-50/80 border-slate-200'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[10px] font-bold uppercase ${
-                          log.status === 'flagged'
-                            ? 'text-red-800'
-                            : log.status === 'warning'
-                            ? 'text-amber-800'
-                            : 'text-emerald-800'
-                        }`}
-                      >
-                        {log.action}
-                      </span>
-                      <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
-                    </div>
-                    <p className="font-sans text-xs font-bold text-slate-900 mt-1">{log.target}</p>
-                    <p className="text-slate-500 text-[11px]">
-                      Actor: {log.adminName} ({log.adminRole})
-                    </p>
-                  </div>
+                  .map((log) => (
+                    <div
+                      key={log.id}
+                      className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
+                        log.status === 'flagged'
+                          ? 'bg-red-50/60 border-red-300'
+                          : log.status === 'warning'
+                          ? 'bg-amber-50/60 border-amber-300'
+                          : 'bg-slate-50/80 border-slate-200'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-bold uppercase ${
+                              log.status === 'flagged'
+                                ? 'text-red-800'
+                                : log.status === 'warning'
+                                ? 'text-amber-800'
+                                : 'text-emerald-800'
+                            }`}
+                          >
+                            {log.action}
+                          </span>
+                          <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
+                        </div>
+                        <p className="font-sans text-xs font-bold text-slate-900 mt-1">{log.target}</p>
+                        <p className="text-slate-500 text-[11px]">
+                          Actor: {log.adminName} ({log.adminRole})
+                        </p>
+                      </div>
 
-                  <div className="text-slate-400 text-[10px] text-right font-mono shrink-0">
-                    IP: {log.ipAddress}
-                  </div>
-                </div>
-              ))}
+                      <div className="text-slate-400 text-[10px] text-right font-mono shrink-0">
+                        IP: {log.ipAddress}
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         </div>
@@ -1375,9 +1531,18 @@ export const AdminDashboard: React.FC = () => {
       <CreateElectionModal
         isOpen={showCreateModal}
         defaultDomainId={selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={async (newElection) => {
-          showSuccessToast(`Election "${newElection.title}" created successfully.`);
+        electionToEdit={editingElection}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingElection(null);
+        }}
+        onSuccess={async (savedElection) => {
+          showSuccessToast(
+            editingElection
+              ? `Election "${savedElection.title}" updated successfully.`
+              : `Election "${savedElection.title}" created successfully.`
+          );
+          setEditingElection(null);
           await refreshElections();
         }}
       />

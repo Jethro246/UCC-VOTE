@@ -71,12 +71,30 @@ export type ElectionCategory =
   | 'Faculty / School'
   | 'Other';
 
+export interface HallStats {
+  electionsCount: number;
+  activeElectionsCount: number;
+  upcomingElectionsCount: number;
+  closedElectionsCount: number;
+  approvedCandidatesCount: number;
+  eligibleVotersCount: number;
+  totalVotesCast: number;
+  turnoutPercentage: number;
+  publishedResultsCount: number;
+}
+
 export interface HallUnit {
   id: string;
+  code?: string;
   name: string;
   shortName: string;
+  displayName?: string;
   motto?: string;
   affiliationNote?: string;
+  brandingLogoUrl?: string;
+  brandingUpdatedAt?: string;
+  brandingUpdatedBy?: string;
+  stats?: HallStats;
 }
 
 export interface FacultyUnit {
@@ -178,6 +196,32 @@ export interface Candidate {
   };
   votesReceived?: number;
   votePercentage?: number;
+  isDemoRecord?: boolean;
+}
+
+export interface PublicPlatformStats {
+  registeredStudents: number;
+  verifiedStudents: number;
+  totalElections: number;
+  activeElections: number;
+  upcomingElections: number;
+  closedElections: number;
+  publishedResultsCount: number;
+  totalVotesCast: number;
+  uniqueVotersVoted: number;
+}
+
+export interface AdminOverviewStats extends PublicPlatformStats {
+  draftElections: number;
+  totalCandidates: number;
+  approvedCandidates: number;
+  pendingCandidates: number;
+  totalRegistryStudents: number;
+  activatedStudentAccounts: number;
+  suspendedAccounts: number;
+  activeSessions: number;
+  overallTurnoutPercentage: number;
+  totalAuditEvents: number;
 }
 
 export interface Position {
@@ -230,6 +274,7 @@ export interface Election {
   allowsEmptyBallot?: boolean;
   resultsCertified: boolean;
   provisionalResultsReady: boolean;
+  isPublished?: boolean;
   createdAt?: string;
   updatedAt?: string;
   approvedBy?: string;

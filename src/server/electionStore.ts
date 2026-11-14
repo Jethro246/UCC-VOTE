@@ -1,6 +1,11 @@
 import type { Election, ElectionStatus, Position, Candidate } from '../types/index.ts';
 import { MOCK_ELECTIONS, MOCK_POSITIONS, MOCK_CANDIDATES } from '../data/mockData.ts';
-import { OFFICIAL_UCC_STUDENT_REGISTRY } from './authStore.ts';
+import {
+  ADMIN_ACCOUNTS,
+  OFFICIAL_UCC_STUDENT_REGISTRY,
+  getCombinedStudentDirectory
+} from './authStore.ts';
+import type { SessionData } from './authStore.ts';
 import {
   categoryToDomainId,
   matchesHallName,
@@ -15,8 +20,13 @@ export const CANDIDATES_STORE: Map<string, Candidate> = new Map();
 
 // Initialize with rich base elections from mockData
 MOCK_ELECTIONS.forEach((el) => {
+  const isPub =
+    el.isPublished !== undefined
+      ? el.isPublished
+      : el.status !== 'draft' && el.status !== 'pending_approval';
   ELECTIONS_STORE.set(el.id, {
     ...el,
+    isPublished: isPub,
     createdAt: '2026-10-01T08:00:00Z',
     updatedAt: new Date().toISOString()
   });
@@ -29,7 +39,11 @@ Object.entries(MOCK_POSITIONS).forEach(([electionId, positions]) => {
 
 // Initialize with candidates
 Object.entries(MOCK_CANDIDATES).forEach(([candId, candidate]) => {
-  CANDIDATES_STORE.set(candId, { ...candidate });
+  CANDIDATES_STORE.set(candId, {
+    ...candidate,
+    votesReceived: candidate.votesReceived ?? 0,
+    votePercentage: candidate.votePercentage ?? 0
+  });
 });
 
 // Idempotent relational domain/subdomain migration ensuring every record has domainId & unit FKs
@@ -40,14 +54,107 @@ runRelationalDomainMigration({
 });
 
 /**
+ * Determines whether an election is officially published for student/public visibility.
+ * Drafts, pending approvals, or explicitly unpublished records remain hidden from students.
+ */
+export function isElectionPublished(election: Election): boolean {
+  if (election.isPublished === false) return false;
+  if (election.status === 'draft' || election.status === 'pending_approval') return false;
+  return true;
+}
+
+/**
+ * Enforces visibility rules per session role & domain scope:
+ * - Published elections are visible to students, guests, and admins.
+ * - Draft / pending_approval / unpublished elections are ONLY visible to authorized admins for that domain/election.
+ */
+export function isElectionVisibleToSession(
+  election: Election,
+  session: SessionData | null
+): boolean {
+  if (isElectionPublished(election)) {
+    return true;
+  }
+
+  if (!session || session.userType !== 'admin') {
+    return false;
+  }
+
+  let adminRecord: any;
+  for (const a of ADMIN_ACCOUNTS.values()) {
+    if (a.id === session.userId || a.staffId === session.userId) {
+      adminRecord = a;
+      break;
+    }
+  }
+  const role = adminRecord?.role || session.role;
+  if (
+    role === 'Super Administrator' ||
+    role === 'Electoral Commissioner' ||
+    role === 'Returning Officer' ||
+    role === 'Results Auditor'
+  ) {
+    return true;
+  }
+
+  const domId = election.domainId || categoryToDomainId(election.category);
+  const managedDomains: string[] = adminRecord?.managedDomainIds || session.managedDomainIds || [];
+  if (!managedDomains.includes(domId)) {
+    return false;
+  }
+
+  const crit = election.eligibilityCriteria || {};
+  if (domId === 'jcrc_hall') {
+    const halls: string[] = adminRecord?.managedHalls || session.managedHalls || [];
+    const targetHall = crit.halls?.[0] || election.subdomainLabel;
+    if (halls.length > 0 && targetHall && !halls.some((h) => matchesHallName(h, targetHall))) {
+      return false;
+    }
+  }
+  if (domId === 'departmental') {
+    const depts: string[] = adminRecord?.managedDepartments || session.managedDepartments || [];
+    const targetDept = crit.departments?.[0] || election.subdomainLabel;
+    if (
+      depts.length > 0 &&
+      targetDept &&
+      !depts.some(
+        (d) =>
+          normalizeText(d) === normalizeText(targetDept) ||
+          normalizeText(targetDept).includes(normalizeText(d))
+      )
+    ) {
+      return false;
+    }
+  }
+  if (domId === 'faculty_school') {
+    const facs: string[] = adminRecord?.managedFaculties || session.managedFaculties || [];
+    const targetFac = crit.faculties?.[0] || election.subdomainLabel;
+    if (
+      facs.length > 0 &&
+      targetFac &&
+      !facs.some(
+        (f) =>
+          normalizeText(f) === normalizeText(targetFac) ||
+          normalizeText(targetFac).includes(normalizeText(f))
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Valid Election Status Lifecycle Transition State Machine
- * Prevents invalid state shifts (e.g., closed cannot silently become live or draft).
+ * Supports publishing (draft -> scheduled/live) and unpublishing (scheduled -> draft),
+ * while protecting closed/published/archived integrity.
  */
 export const VALID_STATUS_TRANSITIONS: Record<ElectionStatus, ElectionStatus[]> = {
-  draft: ['pending_approval', 'scheduled'],
-  pending_approval: ['draft', 'scheduled', 'suspended'],
-  scheduled: ['pending_approval', 'live', 'suspended'],
-  upcoming: ['live', 'suspended', 'scheduled'], // Backwards compatible alias
+  draft: ['pending_approval', 'scheduled', 'live'],
+  pending_approval: ['draft', 'scheduled', 'live', 'suspended'],
+  scheduled: ['draft', 'pending_approval', 'live', 'suspended'],
+  upcoming: ['draft', 'live', 'suspended', 'scheduled'], // Backwards compatible alias
   live: ['suspended', 'closed'],
   suspended: ['scheduled', 'live', 'closed', 'draft'],
   closed: ['results_pending_certification', 'archived'],
@@ -197,43 +304,92 @@ export function verifyStudentEligibility(
 }
 
 /**
- * Calculates estimated eligible voter count from the official UCC registry
+ * Calculates exact eligible voter count from the combined deduplicated student directory
+ * (STUDENT_ACCOUNTS + OFFICIAL_UCC_STUDENT_REGISTRY), excluding suspended/unenrolled records.
  */
-export function calculateEligibleVoterCount(criteria: Election['eligibilityCriteria']): number {
-  const students = Object.values(OFFICIAL_UCC_STUDENT_REGISTRY);
+export function calculateEligibleVoterCount(
+  criteria: Election['eligibilityCriteria'],
+  domainId?: Election['domainId']
+): number {
+  const students = getCombinedStudentDirectory();
   let count = 0;
 
   for (const s of students) {
+    if (s.status === 'suspended' || !s.isEligible || !s.isEnrolled) {
+      continue;
+    }
+
+    if (domainId === 'grasag' && normalizeText(s.level) !== 'postgraduate') {
+      continue;
+    }
+
     let eligible = true;
-    if (criteria.levels && criteria.levels.length > 0 && !criteria.levels.includes(s.level)) {
+    if (
+      criteria?.levels &&
+      criteria.levels.length > 0 &&
+      !criteria.levels.some((l) => normalizeText(l) === normalizeText(s.level))
+    ) {
       eligible = false;
     }
     if (
-      criteria.faculties &&
+      criteria?.faculties &&
       criteria.faculties.length > 0 &&
       !criteria.faculties.some((f) => normalizeText(s.faculty).includes(normalizeText(f)))
     ) {
       eligible = false;
     }
     if (
-      criteria.departments &&
+      criteria?.departments &&
       criteria.departments.length > 0 &&
       !criteria.departments.some((d) => normalizeText(s.department).includes(normalizeText(d)))
     ) {
       eligible = false;
     }
     if (
-      criteria.halls &&
+      criteria?.programmes &&
+      criteria.programmes.length > 0 &&
+      s.programme &&
+      !criteria.programmes.some((p) => normalizeText(s.programme).includes(normalizeText(p)))
+    ) {
+      eligible = false;
+    }
+    if (
+      criteria?.halls &&
       criteria.halls.length > 0 &&
       !criteria.halls.some((h) => matchesHallName(s.hall, h))
     ) {
       eligible = false;
     }
+
     if (eligible) count++;
   }
 
-  return Math.max(count * 1500, 1200);
+  return count;
 }
+
+/**
+ * Synchronizes every election's eligible voter population and turnout rate
+ * strictly from current student directory records and actual recorded votes.
+ */
+export function recomputeAllElectionCounts(ballotsByElection?: Map<string, number>): void {
+  for (const [id, election] of ELECTIONS_STORE.entries()) {
+    const domId = election.domainId || categoryToDomainId(election.category);
+    const eligibleCount = calculateEligibleVoterCount(election.eligibilityCriteria, domId);
+    const votesCast = ballotsByElection
+      ? ballotsByElection.get(id) || 0
+      : election.totalVotesCast || 0;
+    const turnoutPct =
+      eligibleCount > 0 ? Math.round((votesCast / eligibleCount) * 1000) / 10 : 0;
+
+    election.totalEligibleVoters = eligibleCount;
+    election.totalVotesCast = votesCast;
+    election.turnoutPercentage = turnoutPct;
+    ELECTIONS_STORE.set(id, election);
+  }
+}
+
+// Compute accurate baseline eligible voter counts immediately on initialization
+recomputeAllElectionCounts();
 
 /**
  * Server-Side Candidate Vetting & Eligibility Verification Engine

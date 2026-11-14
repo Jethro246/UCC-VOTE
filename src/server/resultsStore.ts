@@ -12,10 +12,12 @@ import type {
 import {
   ELECTIONS_STORE,
   POSITIONS_STORE,
-  CANDIDATES_STORE
+  CANDIDATES_STORE,
+  calculateEligibleVoterCount,
+  verifyStudentEligibility
 } from './electionStore.ts';
 import { categoryToDomainId } from './domainStore.ts';
-import { logAuditEvent } from './authStore.ts';
+import { getCombinedStudentDirectory, logAuditEvent } from './authStore.ts';
 
 export const PRIVACY_COHORT_THRESHOLD = 25;
 
@@ -71,574 +73,13 @@ function generateCertificationSignature(electionId: string, totalCast: number, v
 }
 
 /**
- * Initialize authoritative ledgers for all seeded elections
+ * Initialize clean zero-vote ledgers for seeded elections.
+ * Real tallies and cohorts populate exclusively from committed verified ballots.
  */
 function initializeBallotLedgers() {
-  // 1. UCC-GRA-2025: Officially Published & Certified
-  BALLOT_LEDGER_STORE.set('UCC-GRA-2025', {
-    electionId: 'UCC-GRA-2025',
-    workflowStage: 'published',
-    publishedAt: '2025-10-16T10:30:00Z',
-    certificationHash: 'SHA256:9B2D8E41A7C4F082E7F01A91',
-    certifiedBy: 'Dr. Joseph E. Tetteh (Electoral Commissioner)',
-    invalidBallots: 25,
-    blankOverallBallots: 40,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Tally Aggregation Engine',
-        actorRole: 'Automated Ledger',
-        timestamp: '2025-10-15T18:05:00Z',
-        notes: 'Initial digital ballot vault aggregation completed upon poll closure.'
-      },
-      {
-        stage: 'verification',
-        actorId: 'adm-003',
-        actorName: 'Mrs. Agnes Ocloo',
-        actorRole: 'Returning Officer',
-        timestamp: '2025-10-15T19:15:00Z',
-        notes: 'Checked accredited postgraduate check-in count (4,185) against submitted encrypted envelopes (4,185).'
-      },
-      {
-        stage: 'audit',
-        actorId: 'adm-002',
-        actorName: 'Ing. Kwabena Acheampong',
-        actorRole: 'Super Administrator',
-        timestamp: '2025-10-15T21:00:00Z',
-        notes: 'Zero duplicate tokens detected; 25 spoilt/malformed external kiosk tickets isolated cleanly.'
-      },
-      {
-        stage: 'approved',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-10-16T08:45:00Z',
-        notes: 'Approved by GRASAG-UCC Electoral Board in presence of candidate agents.'
-      },
-      {
-        stage: 'certified',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-10-16T10:00:00Z',
-        notes: 'Cryptographic certification signature affixed.',
-        signatureHash: 'SHA256:9B2D8E41A7C4F082E7F01A91'
-      },
-      {
-        stage: 'published',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-10-16T10:30:00Z',
-        notes: 'Officially declared and published to UCC University Portal.'
-      }
-    ],
-    positionTallies: {
-      'pos-gra-pres': {
-        candidateVotes: { 'cand-gra-01': 2450, 'cand-gra-02': 1670 },
-        blankVotes: 40,
-        invalidVotes: 25
-      },
-      'pos-gra-sec': {
-        candidateVotes: { 'cand-gra-03': 2310, 'cand-gra-04': 1700 },
-        blankVotes: 150,
-        invalidVotes: 25
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 1450, ballotsCast: 1165 },
-        { label: 'School of Physical Sciences', eligibleVoters: 980, ballotsCast: 774 },
-        { label: 'School of Biological Sciences', eligibleVoters: 860, ballotsCast: 662 },
-        { label: 'School of Business', eligibleVoters: 1120, ballotsCast: 851 },
-        { label: 'Faculty of Arts & Social Sciences', eligibleVoters: 972, ballotsCast: 721 },
-        { label: 'Institute of Marine Policy (Small Cohort)', eligibleVoters: 18, ballotsCast: 12 }
-      ],
-      byDepartment: [
-        { label: 'Educational Leadership', eligibleVoters: 820, ballotsCast: 675 },
-        { label: 'Fisheries & Aquatic Sciences', eligibleVoters: 490, ballotsCast: 392 },
-        { label: 'Management & Strategy', eligibleVoters: 640, ballotsCast: 498 },
-        { label: 'Mathematics & Statistics', eligibleVoters: 510, ballotsCast: 388 },
-        { label: 'Computer Science & IT', eligibleVoters: 470, ballotsCast: 386 },
-        { label: 'Classics & Ancient Philosophy', eligibleVoters: 16, ballotsCast: 11 }
-      ],
-      byLevel: [
-        { label: 'M.Phil. / M.Sc. Year 1', eligibleVoters: 2450, ballotsCast: 1935 },
-        { label: 'M.Phil. / M.Sc. Year 2', eligibleVoters: 1980, ballotsCast: 1510 },
-        { label: 'Ph.D. Candidates', eligibleVoters: 952, ballotsCast: 728 },
-        { label: 'Visiting Postgrad Fellows', eligibleVoters: 18, ballotsCast: 12 }
-      ],
-      byHall: [
-        { label: 'Superannuation Graduate Hostel', eligibleVoters: 1850, ballotsCast: 1520 },
-        { label: 'Valco Graduate Hostel', eligibleVoters: 1240, ballotsCast: 965 },
-        { label: 'Kwame Nkrumah Hall Postgrad Wing', eligibleVoters: 920, ballotsCast: 702 },
-        { label: 'Off-Campus Graduate Affiliates', eligibleVoters: 1390, ballotsCast: 998 }
-      ]
-    }
-  });
-
-  // 2. UCC-VAL-2025: Officially Published & Certified (Features Certified Tie + Invalid/Blank breakdown)
-  BALLOT_LEDGER_STORE.set('UCC-VAL-2025', {
-    electionId: 'UCC-VAL-2025',
-    workflowStage: 'published',
-    publishedAt: '2025-09-29T11:00:00Z',
-    certificationHash: 'SHA256:4F1C7E20B9D11204C3A8B519',
-    certifiedBy: 'Mrs. Agnes Ocloo (Returning Officer)',
-    invalidBallots: 18,
-    blankOverallBallots: 32,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Tally Aggregation Engine',
-        actorRole: 'Automated Ledger',
-        timestamp: '2025-09-28T17:02:00Z',
-        notes: 'Initial count flagged exact tie on Valco Hall JCR General Secretary (1,075 vs 1,075).'
-      },
-      {
-        stage: 'verification',
-        actorId: 'adm-003',
-        actorName: 'Mrs. Agnes Ocloo',
-        actorRole: 'Returning Officer',
-        timestamp: '2025-09-28T18:30:00Z',
-        notes: 'Manual recount of ballot vault logs verified 1,075-1,075 tie; 18 rejected offline tickets verified.'
-      },
-      {
-        stage: 'audit',
-        actorId: 'adm-002',
-        actorName: 'Ing. Kwabena Acheampong',
-        actorRole: 'Super Administrator',
-        timestamp: '2025-09-28T20:15:00Z',
-        notes: 'All 2,210 cast ballot hashes reconciled against Valco resident accreditation roll.'
-      },
-      {
-        stage: 'approved',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-09-29T09:00:00Z',
-        notes: 'Commission directed tie-break run-off for General Secretary while certifying Presidential outcome.'
-      },
-      {
-        stage: 'certified',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-09-29T10:15:00Z',
-        notes: 'Certified with official tie declaration note on General Secretary portfolio.',
-        signatureHash: 'SHA256:4F1C7E20B9D11204C3A8B519'
-      },
-      {
-        stage: 'published',
-        actorId: 'adm-001',
-        actorName: 'Dr. Joseph E. Tetteh',
-        actorRole: 'Electoral Commissioner',
-        timestamp: '2025-09-29T11:00:00Z',
-        notes: 'Gazetted and published at Valco Hall Forecourt and UCC VOTE Portal.'
-      }
-    ],
-    positionTallies: {
-      'pos-val-pres': {
-        candidateVotes: { 'cand-val-01': 1120, 'cand-val-02': 690, 'cand-val-03': 350 },
-        blankVotes: 32,
-        invalidVotes: 18
-      },
-      'pos-val-sec': {
-        candidateVotes: { 'cand-val-04': 1075, 'cand-val-05': 1075 },
-        blankVotes: 42,
-        invalidVotes: 18
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Business', eligibleVoters: 920, ballotsCast: 735 },
-        { label: 'School of Physical Sciences', eligibleVoters: 640, ballotsCast: 502 },
-        { label: 'Faculty of Social Sciences', eligibleVoters: 580, ballotsCast: 438 },
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 540, ballotsCast: 412 },
-        { label: 'School of Biological Sciences', eligibleVoters: 152, ballotsCast: 112 },
-        { label: 'School of Law (Hall Annex Cohort)', eligibleVoters: 18, ballotsCast: 11 }
-      ],
-      byDepartment: [
-        { label: 'Accounting & Finance', eligibleVoters: 540, ballotsCast: 436 },
-        { label: 'Computer Science & IT', eligibleVoters: 320, ballotsCast: 259 },
-        { label: 'Economics', eligibleVoters: 310, ballotsCast: 241 },
-        { label: 'Arts & Social Sciences Education', eligibleVoters: 380, ballotsCast: 295 },
-        { label: 'Biochemistry & Molecular Bio', eligibleVoters: 152, ballotsCast: 112 },
-        { label: 'Optometry Clinical Annex', eligibleVoters: 19, ballotsCast: 14 }
-      ],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 710, ballotsCast: 525 },
-        { label: 'Level 200', eligibleVoters: 740, ballotsCast: 582 },
-        { label: 'Level 300', eligibleVoters: 730, ballotsCast: 590 },
-        { label: 'Level 400', eligibleVoters: 670, ballotsCast: 513 }
-      ],
-      byHall: [
-        { label: 'Valco Hall Main Blocks A-C', eligibleVoters: 1450, ballotsCast: 1185 },
-        { label: 'Valco Hall Annex Blocks D-E', eligibleVoters: 1100, ballotsCast: 832 },
-        { label: 'Valco Non-Resident Affiliates', eligibleVoters: 300, ballotsCast: 193 }
-      ]
-    }
-  });
-
-  // 3. UCC-BUS-2026: Closed, Results Pending Certification (In 'audit' workflow stage)
-  BALLOT_LEDGER_STORE.set('UCC-BUS-2026', {
-    electionId: 'UCC-BUS-2026',
-    workflowStage: 'audit',
-    invalidBallots: 12,
-    blankOverallBallots: 38,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Tally Aggregation Engine',
-        actorRole: 'Automated Ledger',
-        timestamp: '2026-11-05T17:04:00Z',
-        notes: 'Polls closed at 17:00 GMT. 2,940 ballots sealed in digital vault.'
-      },
-      {
-        stage: 'verification',
-        actorId: 'adm-003',
-        actorName: 'Mrs. Agnes Ocloo',
-        actorRole: 'Returning Officer',
-        timestamp: '2026-11-05T18:10:00Z',
-        notes: 'Verified accredited School of Business voter roll match (2,940 cast out of 4,200 eligible).'
-      },
-      {
-        stage: 'audit',
-        actorId: 'adm-002',
-        actorName: 'Ing. Kwabena Acheampong',
-        actorRole: 'Super Administrator',
-        timestamp: '2026-11-05T19:25:00Z',
-        notes: 'Cryptographic envelope audit complete; awaiting Electoral Commissioner formal approval & certification.'
-      }
-    ],
-    positionTallies: {
-      'pos-bus-pres': {
-        candidateVotes: { 'cand-bus-01': 1680, 'cand-bus-02': 1210 },
-        blankVotes: 38,
-        invalidVotes: 12
-      },
-      'pos-bus-fin': {
-        candidateVotes: { 'cand-bus-03': 1510, 'cand-bus-04': 1300 },
-        blankVotes: 118,
-        invalidVotes: 12
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Business', eligibleVoters: 4200, ballotsCast: 2940 }
-      ],
-      byDepartment: [
-        { label: 'Accounting', eligibleVoters: 1350, ballotsCast: 985 },
-        { label: 'Finance', eligibleVoters: 1050, ballotsCast: 762 },
-        { label: 'Marketing & Supply Chain', eligibleVoters: 920, ballotsCast: 635 },
-        { label: 'Human Resource Management', eligibleVoters: 860, ballotsCast: 544 },
-        { label: 'Executive MBA Exchange Cohort', eligibleVoters: 20, ballotsCast: 14 }
-      ],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 1120, ballotsCast: 745 },
-        { label: 'Level 200', eligibleVoters: 1080, ballotsCast: 752 },
-        { label: 'Level 300', eligibleVoters: 1040, ballotsCast: 765 },
-        { label: 'Level 400', eligibleVoters: 960, ballotsCast: 678 }
-      ],
-      byHall: [
-        { label: 'Casely Hayford Hall', eligibleVoters: 680, ballotsCast: 512 },
-        { label: 'Valco Hall', eligibleVoters: 790, ballotsCast: 584 },
-        { label: 'Adehye Hall', eligibleVoters: 620, ballotsCast: 452 },
-        { label: 'Oguaa Hall', eligibleVoters: 690, ballotsCast: 486 },
-        { label: 'Kwame Nkrumah Hall', eligibleVoters: 740, ballotsCast: 510 },
-        { label: 'Atlantic Hall', eligibleVoters: 680, ballotsCast: 396 }
-      ]
-    }
-  });
-
-  // 4. UCC-SRC-2026: Live Polls Open (Preliminary tally, NOT published to students)
-  BALLOT_LEDGER_STORE.set('UCC-SRC-2026', {
-    electionId: 'UCC-SRC-2026',
-    workflowStage: 'preliminary',
-    invalidBallots: 45,
-    blankOverallBallots: 125,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Live Polling Telemetry',
-        actorRole: 'Automated Ledger',
-        timestamp: new Date().toISOString(),
-        notes: 'Polling stations open. Preliminary live count accessible strictly to Electoral Commission officials.'
-      }
-    ],
-    positionTallies: {
-      'pos-src-pres': {
-        candidateVotes: { 'cand-01': 7892, 'cand-02': 6728 },
-        blankVotes: 125,
-        invalidVotes: 45
-      },
-      'pos-src-sec': {
-        candidateVotes: { 'cand-03': 8140, 'cand-04': 5610 },
-        blankVotes: 995,
-        invalidVotes: 45
-      },
-      'pos-src-treas': {
-        candidateVotes: { 'cand-05': 12900 },
-        blankVotes: 1845,
-        invalidVotes: 45
-      },
-      'pos-src-pro': {
-        candidateVotes: { 'cand-06': 7120, 'cand-07': 6710 },
-        blankVotes: 915,
-        invalidVotes: 45
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Physical Sciences', eligibleVoters: 4590, ballotsCast: 3140 },
-        { label: 'School of Business', eligibleVoters: 6540, ballotsCast: 4200 },
-        { label: 'Faculty of Arts & Social Sciences', eligibleVoters: 8530, ballotsCast: 5100 },
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 3560, ballotsCast: 1620 },
-        { label: 'School of Medical Sciences', eligibleVoters: 1610, ballotsCast: 718 },
-        { label: 'Faculty of Law (Special Cohort)', eligibleVoters: 20, ballotsCast: 12 }
-      ],
-      byDepartment: [
-        { label: 'Computer Science & IT', eligibleVoters: 1150, ballotsCast: 824 },
-        { label: 'Accounting & Finance', eligibleVoters: 2650, ballotsCast: 1745 },
-        { label: 'Communication Studies', eligibleVoters: 1420, ballotsCast: 912 },
-        { label: 'Educational Foundations', eligibleVoters: 1950, ballotsCast: 1098 },
-        { label: 'Medicine & Surgery', eligibleVoters: 1120, ballotsCast: 615 },
-        { label: 'Archaeology & Heritage Studies', eligibleVoters: 18, ballotsCast: 9 }
-      ],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 6420, ballotsCast: 3480 },
-        { label: 'Level 200', eligibleVoters: 6280, ballotsCast: 3790 },
-        { label: 'Level 300', eligibleVoters: 6150, ballotsCast: 3920 },
-        { label: 'Level 400', eligibleVoters: 6000, ballotsCast: 3600 }
-      ],
-      byHall: [
-        { label: 'Casely Hayford Hall', eligibleVoters: 3200, ballotsCast: 2180 },
-        { label: 'Valco Hall', eligibleVoters: 2850, ballotsCast: 1890 },
-        { label: 'Oguaa Hall', eligibleVoters: 3650, ballotsCast: 2210 },
-        { label: 'Adehye Hall', eligibleVoters: 3100, ballotsCast: 1940 },
-        { label: 'Atlantic Hall', eligibleVoters: 3450, ballotsCast: 2090 },
-        { label: 'Kwame Nkrumah Hall', eligibleVoters: 3850, ballotsCast: 2380 },
-        { label: 'Off-Campus Hostels (Amamoma/Kokoado)', eligibleVoters: 4750, ballotsCast: 2100 }
-      ]
-    }
-  });
-
-  // 5. UCC-CAS-2026: Live Polls Open (Preliminary)
-  BALLOT_LEDGER_STORE.set('UCC-CAS-2026', {
-    electionId: 'UCC-CAS-2026',
-    workflowStage: 'preliminary',
-    invalidBallots: 8,
-    blankOverallBallots: 22,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Live Polling Telemetry',
-        actorRole: 'Automated Ledger',
-        timestamp: new Date().toISOString(),
-        notes: 'Casford JCR polling underway.'
-      }
-    ],
-    positionTallies: {
-      'pos-cas-pres': {
-        candidateVotes: { 'cand-cas-01': 1240, 'cand-cas-02': 940 },
-        blankVotes: 22,
-        invalidVotes: 8
-      },
-      'pos-cas-sec': {
-        candidateVotes: { 'cand-cas-03': 1890 },
-        blankVotes: 312,
-        invalidVotes: 8
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Physical Sciences', eligibleVoters: 980, ballotsCast: 720 },
-        { label: 'School of Business', eligibleVoters: 860, ballotsCast: 615 },
-        { label: 'Faculty of Arts & Social Sciences', eligibleVoters: 780, ballotsCast: 520 },
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 580, ballotsCast: 355 }
-      ],
-      byDepartment: [
-        { label: 'Computer Science & IT', eligibleVoters: 420, ballotsCast: 318 },
-        { label: 'Management & HR', eligibleVoters: 490, ballotsCast: 344 },
-        { label: 'English & Linguistics', eligibleVoters: 380, ballotsCast: 262 }
-      ],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 810, ballotsCast: 520 },
-        { label: 'Level 200', eligibleVoters: 820, ballotsCast: 560 },
-        { label: 'Level 300', eligibleVoters: 800, ballotsCast: 590 },
-        { label: 'Level 400', eligibleVoters: 770, ballotsCast: 540 }
-      ],
-      byHall: [
-        { label: 'Casely Hayford Main Block', eligibleVoters: 2100, ballotsCast: 1520 },
-        { label: 'Casely Hayford Annex / Affiliates', eligibleVoters: 1100, ballotsCast: 690 }
-      ]
-    }
-  });
-
-  // 6. UCC-ADE-2026: Live Polls Open (Adehye Hall)
-  BALLOT_LEDGER_STORE.set('UCC-ADE-2026', {
-    electionId: 'UCC-ADE-2026',
-    workflowStage: 'preliminary',
-    invalidBallots: 4,
-    blankOverallBallots: 12,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Live Polling Telemetry',
-        actorRole: 'Automated Ledger',
-        timestamp: new Date().toISOString(),
-        notes: 'Adehye Hall JCRC polling underway.'
-      }
-    ],
-    positionTallies: {
-      'pos-ade-pres': {
-        candidateVotes: { 'cand-ade-01': 1020, 'cand-ade-02': 820 },
-        blankVotes: 12,
-        invalidVotes: 4
-      },
-      'pos-ade-wel': {
-        candidateVotes: { 'cand-ade-03': 1610 },
-        blankVotes: 242,
-        invalidVotes: 4
-      },
-      'pos-ade-fin': {
-        candidateVotes: { 'cand-ade-04': 1590 },
-        blankVotes: 262,
-        invalidVotes: 4
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 1050, ballotsCast: 650 },
-        { label: 'School of Business', eligibleVoters: 890, ballotsCast: 540 },
-        { label: 'Faculty of Arts', eligibleVoters: 640, ballotsCast: 390 },
-        { label: 'School of Biological Sciences', eligibleVoters: 520, ballotsCast: 276 }
-      ],
-      byDepartment: [],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 820, ballotsCast: 440 },
-        { label: 'Level 200', eligibleVoters: 790, ballotsCast: 480 },
-        { label: 'Level 300', eligibleVoters: 770, ballotsCast: 492 },
-        { label: 'Level 400', eligibleVoters: 720, ballotsCast: 444 }
-      ],
-      byHall: [
-        { label: 'Adehye Hall Residents & Affiliates', eligibleVoters: 3100, ballotsCast: 1856 }
-      ]
-    }
-  });
-
-  // 7. UCC-GRA-2026: Live Polls Open (GRASAG 2026 Postgraduate Only)
-  BALLOT_LEDGER_STORE.set('UCC-GRA-2026', {
-    electionId: 'UCC-GRA-2026',
-    workflowStage: 'preliminary',
-    invalidBallots: 6,
-    blankOverallBallots: 18,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Live Polling Telemetry',
-        actorRole: 'Automated Ledger',
-        timestamp: new Date().toISOString(),
-        notes: 'GRASAG-UCC 2026/2027 postgraduate polling active.'
-      }
-    ],
-    positionTallies: {
-      'pos-gra26-pres': {
-        candidateVotes: { 'cand-gra26-01': 1210, 'cand-gra26-02': 930 },
-        blankVotes: 18,
-        invalidVotes: 6
-      },
-      'pos-gra26-sec': {
-        candidateVotes: { 'cand-gra26-03': 1840 },
-        blankVotes: 318,
-        invalidVotes: 6
-      },
-      'pos-gra26-fin': {
-        candidateVotes: { 'cand-gra26-04': 1810 },
-        blankVotes: 348,
-        invalidVotes: 6
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Physical Sciences', eligibleVoters: 1120, ballotsCast: 445 },
-        { label: 'School of Business', eligibleVoters: 1450, ballotsCast: 580 },
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 1680, ballotsCast: 642 },
-        { label: 'Faculty of Arts', eligibleVoters: 740, ballotsCast: 278 },
-        { label: 'School of Biological Sciences', eligibleVoters: 630, ballotsCast: 219 }
-      ],
-      byDepartment: [],
-      byLevel: [
-        { label: 'Postgraduate (M.Phil./M.Sc./M.A.)', eligibleVoters: 4480, ballotsCast: 1690 },
-        { label: 'Postgraduate (Ph.D.)', eligibleVoters: 1140, ballotsCast: 474 }
-      ],
-      byHall: [
-        { label: 'Superannuation Hostel', eligibleVoters: 1920, ballotsCast: 785 },
-        { label: 'Valco Graduate Hostel', eligibleVoters: 1380, ballotsCast: 560 },
-        { label: 'Off-Campus Postgraduate Affiliates', eligibleVoters: 2320, ballotsCast: 819 }
-      ]
-    }
-  });
-
-  // 8. UCC-NUGS-2026: Live Polls Open (Local NUGS)
-  BALLOT_LEDGER_STORE.set('UCC-NUGS-2026', {
-    electionId: 'UCC-NUGS-2026',
-    workflowStage: 'preliminary',
-    invalidBallots: 18,
-    blankOverallBallots: 44,
-    workflowHistory: [
-      {
-        stage: 'preliminary',
-        actorId: 'system',
-        actorName: 'Live Polling Telemetry',
-        actorRole: 'Automated Ledger',
-        timestamp: new Date().toISOString(),
-        notes: 'UCC Local NUGS 2026/2027 digital ballot stations open.'
-      }
-    ],
-    positionTallies: {
-      'pos-nugs-pres': {
-        candidateVotes: { 'cand-nugs-01': 5180, 'cand-nugs-02': 4240 },
-        blankVotes: 44,
-        invalidVotes: 18
-      },
-      'pos-nugs-sec': {
-        candidateVotes: { 'cand-nugs-03': 8110 },
-        blankVotes: 1354,
-        invalidVotes: 18
-      },
-      'pos-nugs-wocom': {
-        candidateVotes: { 'cand-nugs-04': 8050 },
-        blankVotes: 1414,
-        invalidVotes: 18
-      }
-    },
-    cohorts: {
-      byFaculty: [
-        { label: 'School of Physical Sciences', eligibleVoters: 5100, ballotsCast: 1820 },
-        { label: 'School of Business', eligibleVoters: 6800, ballotsCast: 2390 },
-        { label: 'Faculty of Arts & Social Sciences', eligibleVoters: 9200, ballotsCast: 3040 },
-        { label: 'Faculty of Educational Foundations', eligibleVoters: 4900, ballotsCast: 1420 },
-        { label: 'Faculty of Law', eligibleVoters: 1200, ballotsCast: 412 },
-        { label: 'School of Medical & Biological Sciences', eligibleVoters: 1700, ballotsCast: 400 }
-      ],
-      byDepartment: [],
-      byLevel: [
-        { label: 'Level 100', eligibleVoters: 6900, ballotsCast: 2010 },
-        { label: 'Level 200', eligibleVoters: 6600, ballotsCast: 2290 },
-        { label: 'Level 300', eligibleVoters: 6500, ballotsCast: 2450 },
-        { label: 'Level 400', eligibleVoters: 6300, ballotsCast: 2140 },
-        { label: 'Postgraduate', eligibleVoters: 2600, ballotsCast: 592 }
-      ],
-      byHall: []
-    }
-  });
+  for (const election of ELECTIONS_STORE.values()) {
+    getOrCreateLedger(election.id);
+  }
 }
 
 initializeBallotLedgers();
@@ -661,7 +102,7 @@ export function getOrCreateLedger(electionId: string): ElectionBallotLedger | nu
     pos.candidateIds.forEach((cid) => {
       const c = CANDIDATES_STORE.get(cid);
       if (c && c.applicationStatus === 'Approved') {
-        candidateVotes[cid] = c.votesReceived || 0;
+        candidateVotes[cid] = 0;
       }
     });
     positionTallies[pos.id] = {
@@ -672,11 +113,7 @@ export function getOrCreateLedger(electionId: string): ElectionBallotLedger | nu
   });
 
   const stage: ResultsWorkflowStage =
-    election.status === 'results_published'
-      ? 'published'
-      : election.status === 'results_pending_certification'
-      ? 'audit'
-      : 'preliminary';
+    election.status === 'results_published' ? 'published' : 'preliminary';
 
   ledger = {
     electionId,
@@ -704,6 +141,55 @@ export function getOrCreateLedger(electionId: string): ElectionBallotLedger | nu
 
   BALLOT_LEDGER_STORE.set(electionId, ledger);
   return ledger;
+}
+
+function buildDynamicTurnoutCohorts(electionId: string): {
+  byFaculty: RawCohortCount[];
+  byDepartment: RawCohortCount[];
+  byLevel: RawCohortCount[];
+  byHall: RawCohortCount[];
+} {
+  const election = ELECTIONS_STORE.get(electionId);
+  if (!election) {
+    return { byFaculty: [], byDepartment: [], byLevel: [], byHall: [] };
+  }
+
+  const facultyMap = new Map<string, RawCohortCount>();
+  const deptMap = new Map<string, RawCohortCount>();
+  const levelMap = new Map<string, RawCohortCount>();
+  const hallMap = new Map<string, RawCohortCount>();
+
+  const bump = (map: Map<string, RawCohortCount>, label: string, voted: boolean) => {
+    const clean = label || 'Unspecified';
+    const existing = map.get(clean) || { label: clean, eligibleVoters: 0, ballotsCast: 0 };
+    existing.eligibleVoters += 1;
+    if (voted) existing.ballotsCast += 1;
+    map.set(clean, existing);
+  };
+
+  for (const s of getCombinedStudentDirectory()) {
+    if (s.status === 'suspended' || !s.isEligible || !s.isEnrolled) continue;
+    const elig = verifyStudentEligibility(s, election);
+    if (!elig.isEligible) continue;
+
+    const voted = s.hasVotedElections.includes(election.id);
+    const levelLabel = s.level === 'Postgraduate' ? 'Postgraduate' : `Level ${s.level}`;
+
+    bump(facultyMap, s.faculty, voted);
+    bump(deptMap, s.department, voted);
+    bump(levelMap, levelLabel, voted);
+    bump(hallMap, s.hall, voted);
+  }
+
+  const sortDesc = (m: Map<string, RawCohortCount>) =>
+    Array.from(m.values()).sort((a, b) => b.eligibleVoters - a.eligibleVoters);
+
+  return {
+    byFaculty: sortDesc(facultyMap),
+    byDepartment: sortDesc(deptMap),
+    byLevel: sortDesc(levelMap),
+    byHall: sortDesc(hallMap)
+  };
 }
 
 /**
@@ -793,7 +279,7 @@ export function computeElectionResults(
     }
 
     const totalValidVotes = approvedCandidates.reduce((sum, cand) => {
-      const count = rawTally.candidateVotes[cand.id] ?? cand.votesReceived ?? 0;
+      const count = rawTally.candidateVotes[cand.id] ?? 0;
       return sum + count;
     }, 0);
 
@@ -806,7 +292,7 @@ export function computeElectionResults(
 
     // Rank candidates strictly by valid votes descending
     const unsortedRows = approvedCandidates.map((cand) => {
-      const votesReceived = rawTally.candidateVotes[cand.id] ?? cand.votesReceived ?? 0;
+      const votesReceived = rawTally.candidateVotes[cand.id] ?? 0;
       const pctValid = roundPct(votesReceived, totalValidVotes);
       const pctBallots = roundPct(votesReceived, totalBallotsProcessed);
       return {
@@ -866,8 +352,9 @@ export function computeElectionResults(
   });
 
   // Authoritative overall voter participation accounting
-  const totalEligibleVoters = election.totalEligibleVoters || 0;
-  const validBallots = primaryValidBallots || election.totalVotesCast || 0;
+  const domId = election.domainId || categoryToDomainId(election.category);
+  const totalEligibleVoters = calculateEligibleVoterCount(election.eligibilityCriteria, domId);
+  const validBallots = primaryValidBallots;
   const invalidBallots = ledger.invalidBallots || 0;
   const blankBallots = ledger.blankOverallBallots || 0;
   const totalBallotsCast =
@@ -889,16 +376,19 @@ export function computeElectionResults(
     blankBallotRate: roundPct(blankBallots, totalBallotsCast)
   };
 
-  // Sync election turnout metrics smoothly
+  // Sync election turnout metrics strictly from authoritative database records
+  election.totalEligibleVoters = totalEligibleVoters;
   election.totalVotesCast = totalBallotsCast;
   election.turnoutPercentage = ballotSummary.turnoutPercentage;
+
+  const dynamicCohorts = buildDynamicTurnoutCohorts(electionId);
 
   return {
     electionId: election.id,
     electionTitle: election.title,
     electionCode: election.code,
     category: election.category,
-    domainId: election.domainId || categoryToDomainId(election.category),
+    domainId: domId,
     subdomainLabel: election.subdomainLabel,
     status: election.status,
     academicYear: election.academicYear,
@@ -916,10 +406,10 @@ export function computeElectionResults(
     positions: canRevealCandidateTallies ? computedPositions : [],
     turnoutAnalytics: {
       privacyThreshold: PRIVACY_COHORT_THRESHOLD,
-      byFaculty: applyPrivacyProtection(ledger.cohorts.byFaculty),
-      byDepartment: applyPrivacyProtection(ledger.cohorts.byDepartment),
-      byLevel: applyPrivacyProtection(ledger.cohorts.byLevel),
-      byHall: applyPrivacyProtection(ledger.cohorts.byHall)
+      byFaculty: applyPrivacyProtection(dynamicCohorts.byFaculty),
+      byDepartment: applyPrivacyProtection(dynamicCohorts.byDepartment),
+      byLevel: applyPrivacyProtection(dynamicCohorts.byLevel),
+      byHall: applyPrivacyProtection(dynamicCohorts.byHall)
     }
   };
 }
@@ -950,11 +440,7 @@ export function syncAnonymousSelectionsIntoLedger(
     } else {
       hasAnySelection = true;
       for (const cid of sel.candidateIds) {
-        const cand = CANDIDATES_STORE.get(cid);
-        tally.candidateVotes[cid] =
-          tally.candidateVotes[cid] !== undefined
-            ? tally.candidateVotes[cid] + 1
-            : cand?.votesReceived || 1;
+        tally.candidateVotes[cid] = (tally.candidateVotes[cid] || 0) + 1;
       }
     }
   }
@@ -1007,7 +493,7 @@ export function recordBallotCast(
     } else {
       const cand = CANDIDATES_STORE.get(selectedCandId);
       if (cand && cand.applicationStatus === 'Approved' && cand.electionId === electionId) {
-        posTally.candidateVotes[selectedCandId] = (posTally.candidateVotes[selectedCandId] ?? cand.votesReceived ?? 0) + 1;
+        posTally.candidateVotes[selectedCandId] = (posTally.candidateVotes[selectedCandId] || 0) + 1;
         cand.votesReceived = posTally.candidateVotes[selectedCandId];
         hasAnyValidSelection = true;
       } else {

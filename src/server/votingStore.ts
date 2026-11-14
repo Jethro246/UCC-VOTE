@@ -15,10 +15,14 @@ import {
   ELECTIONS_STORE,
   POSITIONS_STORE,
   CANDIDATES_STORE,
+  calculateEligibleVoterCount,
+  isElectionPublished,
   verifyStudentEligibility
 } from './electionStore.ts';
 import { categoryToDomainId } from './domainStore.ts';
 import { syncAnonymousSelectionsIntoLedger } from './resultsStore.ts';
+import { persistPlatformState } from './statePersistence.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
 
 /**
  * VAULT 1: VOTER PARTICIPATION VAULT (Identity-linked eligibility & participation only)
@@ -73,48 +77,7 @@ const VOTE_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const VOTE_RATE_LIMIT_MAX_ATTEMPTS = 15;
 const VOTE_SUBMIT_RATE_LIMIT: Map<string, number[]> = new Map();
 
-// Seed historical participation confirmations for demonstration student who voted in 2025 elections
-function seedHistoricalParticipation() {
-  const kofi = STUDENT_ACCOUNTS.get('PS/CSC/22/0089');
-  if (!kofi) return;
-
-  const historicalIds = kofi.hasVotedElections || [];
-  for (const elId of historicalIds) {
-    const election = ELECTIONS_STORE.get(elId);
-    if (!election) continue;
-    const key = buildParticipationKey(elId, kofi.id);
-    if (VOTER_PARTICIPATION_VAULT.has(key)) continue;
-
-    const positions = POSITIONS_STORE.get(elId) || [];
-    const confirmationRef = `UCC-VOTE-2025-${elId.slice(-4)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-    const votedAt = election.endDate;
-    const receiptHash = crypto
-      .createHash('sha256')
-      .update(`${confirmationRef}:${elId}:${votedAt}:historical`)
-      .digest('hex')
-      .slice(0, 16)
-      .toUpperCase();
-
-    VOTER_PARTICIPATION_VAULT.set(key, {
-      participationKey: key,
-      electionId: elId,
-      electionTitle: election.title,
-      electionCategory: election.category,
-      domainId: election.domainId || categoryToDomainId(election.category),
-      studentAccountId: kofi.id,
-      studentId: kofi.studentId,
-      votedAt,
-      confirmationRef,
-      receiptHash,
-      positionsCompleted: positions.map((p) => ({
-        id: p.id,
-        title: p.title,
-        status: 'VOTED' as const
-      }))
-    });
-  }
-}
-seedHistoricalParticipation();
+// Vaults initialize completely empty so zero fake voting history exists at startup.
 
 export function buildParticipationKey(electionId: string, studentAccountId: string): string {
   return `${electionId}::${studentAccountId}`;
@@ -225,7 +188,7 @@ function getElectionStateRejection(election: Election): {
       })} GMT`
     : election.endDate;
 
-  if (election.status !== 'live') {
+  if (!isElectionPublished(election) || election.status !== 'live') {
     const statusLabels: Record<string, { code: string; msg: string }> = {
       closed: {
         code: 'ELECTION_CLOSED',
@@ -947,11 +910,13 @@ export function executeAtomicVoteSubmission(params: {
       }
     }
 
-    // 10c. Update election totalVotesCast & turnoutPercentage
-    election.totalVotesCast = (election.totalVotesCast || 0) + 1;
+    // 10c. Recompute exact election totalVotesCast, totalEligibleVoters, and turnoutPercentage
+    const domId = election.domainId || categoryToDomainId(election.category);
+    election.totalEligibleVoters = calculateEligibleVoterCount(election.eligibilityCriteria, domId);
+    election.totalVotesCast = ANONYMOUS_BALLOT_VAULT.filter((b) => b.electionId === electionId).length;
     election.turnoutPercentage =
       election.totalEligibleVoters > 0
-        ? Number(((election.totalVotesCast / election.totalEligibleVoters) * 100).toFixed(1))
+        ? Math.round((election.totalVotesCast / election.totalEligibleVoters) * 1000) / 10
         : 0;
     election.updatedAt = submittedAt;
     ELECTIONS_STORE.set(electionId, election);
@@ -1005,6 +970,12 @@ export function executeAtomicVoteSubmission(params: {
       ipAddress,
       status: 'SUCCESS',
       details: `Verified ballot participation recorded for election ${election.code} (${positionsCompleted.length} portfolio(s)). Confirmation Ref: ${confirmationRef}. Candidate choices decoupled from voter record.`
+    });
+
+    persistPlatformState();
+    broadcastSyncEvent('vote:cast', {
+      electionId,
+      domainId: election.domainId || categoryToDomainId(election.category)
     });
 
     return {

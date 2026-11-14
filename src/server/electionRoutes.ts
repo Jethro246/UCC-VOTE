@@ -10,6 +10,9 @@ import {
 import {
   ELECTIONS_STORE,
   POSITIONS_STORE,
+  CANDIDATES_STORE,
+  isElectionPublished,
+  isElectionVisibleToSession,
   isValidTransition,
   VALID_STATUS_TRANSITIONS,
   verifyStudentEligibility,
@@ -22,9 +25,27 @@ import {
   matchesHallName,
   normalizeText
 } from './domainStore.ts';
-import { logAuditEvent, OFFICIAL_UCC_STUDENT_REGISTRY, STUDENT_ACCOUNTS } from './authStore.ts';
+import {
+  getOptionalSessionFromRequest,
+  getRegisteredAndVerifiedStudentCounts,
+  logAuditEvent,
+  OFFICIAL_UCC_STUDENT_REGISTRY,
+  STUDENT_ACCOUNTS
+} from './authStore.ts';
 import type { SessionData } from './authStore.ts';
-import type { DomainId, Election, ElectionCategory, ElectionStatus, Position } from '../types/index.ts';
+import { BALLOT_LEDGER_STORE } from './resultsStore.ts';
+import { ANONYMOUS_BALLOT_VAULT, VOTER_PARTICIPATION_VAULT } from './votingStore.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import { persistPlatformState } from './statePersistence.ts';
+import { pushPlatformNotification } from './notificationStore.ts';
+import type {
+  DomainId,
+  Election,
+  ElectionCategory,
+  ElectionStatus,
+  Position,
+  PublicPlatformStats
+} from '../types/index.ts';
 
 export const electionRouter = Router();
 
@@ -38,7 +59,10 @@ export const electionRouter = Router();
  */
 electionRouter.get('/', (req: Request, res: Response) => {
   const { domainId, hallId, facultyId, departmentId, category, status, search } = req.query;
-  let list = Array.from(ELECTIONS_STORE.values());
+  const session = getOptionalSessionFromRequest(req);
+  let list = Array.from(ELECTIONS_STORE.values()).filter((e) =>
+    isElectionVisibleToSession(e, session)
+  );
 
   if (domainId && typeof domainId === 'string' && domainId !== 'All') {
     list = list.filter((e) => (e.domainId || categoryToDomainId(e.category)) === domainId);
@@ -99,17 +123,58 @@ electionRouter.get('/', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/elections/stats/public
+ * Authoritative public statistics computed strictly from live database stores
+ */
+electionRouter.get('/stats/public', (_req: Request, res: Response) => {
+  const { registeredStudents, verifiedStudents } = getRegisteredAndVerifiedStudentCounts();
+  const publishedElections = Array.from(ELECTIONS_STORE.values()).filter((e) =>
+    isElectionPublished(e)
+  );
+  const uniqueVoters = new Set(
+    Array.from(VOTER_PARTICIPATION_VAULT.values()).map((v) => v.studentAccountId)
+  );
+
+  const stats: PublicPlatformStats = {
+    registeredStudents,
+    verifiedStudents,
+    totalElections: publishedElections.length,
+    activeElections: publishedElections.filter((e) => e.status === 'live').length,
+    upcomingElections: publishedElections.filter(
+      (e) => e.status === 'scheduled' || e.status === 'upcoming'
+    ).length,
+    closedElections: publishedElections.filter(
+      (e) =>
+        e.status === 'closed' ||
+        e.status === 'results_pending_certification' ||
+        e.status === 'results_published'
+    ).length,
+    publishedResultsCount: publishedElections.filter(
+      (e) => e.status === 'results_published'
+    ).length,
+    totalVotesCast: ANONYMOUS_BALLOT_VAULT.length,
+    uniqueVotersVoted: uniqueVoters.size
+  };
+
+  return res.json({
+    success: true,
+    stats
+  });
+});
+
+/**
  * GET /api/elections/:id
  * Returns a single election by ID along with its positions
  */
 electionRouter.get('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
+  const session = getOptionalSessionFromRequest(req);
   const election = ELECTIONS_STORE.get(id);
 
-  if (!election) {
+  if (!election || !isElectionVisibleToSession(election, session)) {
     return res.status(404).json({
       success: false,
-      error: `Election with ID '${id}' was not found in the commission registry.`
+      error: `Election with ID '${id}' was not found or is not yet published.`
     });
   }
 
@@ -309,14 +374,19 @@ electionRouter.post(
     }
 
     const now = Date.now();
-    let initialStatus: ElectionStatus = body.status || 'draft';
-    if (!body.status) {
+    const explicitDraft = body.isDraft === true || body.isPublished === false || body.status === 'draft';
+    let initialStatus: ElectionStatus = body.status || (explicitDraft ? 'draft' : 'scheduled');
+    if (!body.status && !explicitDraft) {
       if (start > now) initialStatus = 'scheduled';
       else if (start <= now && end > now) initialStatus = 'live';
       else initialStatus = 'closed';
     }
+    const isPublished =
+      body.isPublished !== undefined
+        ? Boolean(body.isPublished)
+        : initialStatus !== 'draft' && initialStatus !== 'pending_approval';
 
-    const calculatedEligible = calculateEligibleVoterCount(parsedCriteria);
+    const calculatedEligible = calculateEligibleVoterCount(parsedCriteria, resolvedDomainId);
 
     const baseElection: Election = {
       id: electionId,
@@ -333,6 +403,7 @@ electionRouter.post(
       subdomainLabel,
       academicYear: academicYear || '2026/2027',
       status: initialStatus,
+      isPublished,
       startDate: new Date(startDate).toISOString(),
       endDate: new Date(endDate).toISOString(),
       startTime: body.startTime || '08:00',
@@ -351,6 +422,7 @@ electionRouter.post(
               'Voting closes automatically at official scheduled time.'
             ],
       positionsCount: Array.isArray(positions) ? positions.length : body.positionsCount || 0,
+      allowsEmptyBallot: Boolean(body.allowsEmptyBallot),
       resultsCertified: false,
       provisionalResultsReady: false,
       createdAt: new Date().toISOString(),
@@ -392,7 +464,23 @@ electionRouter.post(
       role: session.role,
       ipAddress,
       status: 'SUCCESS',
-      details: `Created new ${newElection.category} (${newElection.domainId}) election: "${title}" (ID: ${electionId}, Status: ${initialStatus}).`
+      details: `Created new ${newElection.category} (${newElection.domainId}) election: "${title}" (ID: ${electionId}, Status: ${initialStatus}, Published: ${isPublished}).`
+    });
+
+    if (isElectionPublished(newElection)) {
+      pushPlatformNotification({
+        title: `${newElection.title} ${newElection.status === 'live' ? 'Polling Now Live' : 'Published'}`,
+        message: `${newElection.category}${newElection.subdomainLabel ? ` (${newElection.subdomainLabel})` : ''} election has been published by the Electoral Commission.`,
+        category: 'election',
+        domainId: newElection.domainId,
+        linkAction: 'domain_elections'
+      });
+    }
+
+    persistPlatformState();
+    broadcastSyncEvent('election:created', {
+      electionId,
+      domainId: newElection.domainId
     });
 
     return res.status(201).json({
@@ -448,44 +536,159 @@ electionRouter.put(
       });
     }
 
-    const { title, description, startDate, endDate, organizingBody, rules, eligibilityCriteria } =
-      req.body || {};
+    const {
+      title,
+      code,
+      description,
+      category,
+      domainId,
+      hallId,
+      facultyId,
+      departmentId,
+      subdomainLabel,
+      academicYear,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      organizingBody,
+      rules,
+      eligibilityCriteria,
+      isPublished,
+      allowsEmptyBallot
+    } = req.body || {};
 
-    if (startDate && endDate) {
-      const s = new Date(startDate).getTime();
-      const e = new Date(endDate).getTime();
-      if (e <= s) {
-        return res.status(400).json({
-          success: false,
-          error: 'Closing date must be strictly after opening date.'
-        });
-      }
+    const nextStart = startDate ? new Date(startDate).getTime() : new Date(existing.startDate).getTime();
+    const nextEnd = endDate ? new Date(endDate).getTime() : new Date(existing.endDate).getTime();
+
+    if (isNaN(nextStart) || isNaN(nextEnd)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid start or closing date format.'
+      });
     }
+
+    if (nextEnd <= nextStart) {
+      return res.status(400).json({
+        success: false,
+        error: 'Closing date must be strictly after opening date.'
+      });
+    }
+
+    const nextDomainId: DomainId =
+      domainId || (category ? categoryToDomainId(category) : existing.domainId || categoryToDomainId(existing.category));
+    const nextCategory: ElectionCategory =
+      category || (domainId ? domainIdToCategory(domainId) : existing.category);
 
     const mergedCriteria = eligibilityCriteria
       ? {
-          ...existing.eligibilityCriteria,
-          ...eligibilityCriteria
+          faculties: Array.isArray(eligibilityCriteria.faculties)
+            ? eligibilityCriteria.faculties
+            : existing.eligibilityCriteria?.faculties || [],
+          departments: Array.isArray(eligibilityCriteria.departments)
+            ? eligibilityCriteria.departments
+            : existing.eligibilityCriteria?.departments || [],
+          programmes: Array.isArray(eligibilityCriteria.programmes)
+            ? eligibilityCriteria.programmes
+            : existing.eligibilityCriteria?.programmes || [],
+          levels: Array.isArray(eligibilityCriteria.levels)
+            ? eligibilityCriteria.levels
+            : existing.eligibilityCriteria?.levels || [],
+          halls: Array.isArray(eligibilityCriteria.halls)
+            ? eligibilityCriteria.halls
+            : existing.eligibilityCriteria?.halls || []
         }
       : existing.eligibilityCriteria;
 
-    if ((existing.domainId || categoryToDomainId(existing.category)) === 'grasag') {
+    if (nextDomainId === 'grasag') {
       mergedCriteria.levels = ['Postgraduate'];
     }
+
+    // Check target domain RBAC if category/domain changed
+    const domainAccess = canAdminAccessDomain(session, nextDomainId, {
+      hall: mergedCriteria?.halls?.[0] || subdomainLabel || existing.subdomainLabel,
+      faculty: mergedCriteria?.faculties?.[0] || subdomainLabel || existing.subdomainLabel,
+      department: mergedCriteria?.departments?.[0] || subdomainLabel || existing.subdomainLabel
+    });
+    if (!domainAccess.allowed) {
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: domainAccess.reason
+      });
+    }
+
+    let nextStatus = existing.status;
+    let nextPublished = existing.isPublished !== false && existing.status !== 'draft' && existing.status !== 'pending_approval';
+    if (typeof isPublished === 'boolean') {
+      nextPublished = isPublished;
+      if (!isPublished && (existing.status === 'scheduled' || existing.status === 'upcoming')) {
+        nextStatus = 'draft';
+      } else if (isPublished && (existing.status === 'draft' || existing.status === 'pending_approval')) {
+        const now = Date.now();
+        if (nextStart > now) nextStatus = 'scheduled';
+        else if (nextEnd > now) nextStatus = 'live';
+        else nextStatus = 'closed';
+      }
+    }
+
+    const recalculatedEligible = calculateEligibleVoterCount(mergedCriteria, nextDomainId);
+    const updatedTurnout =
+      recalculatedEligible > 0
+        ? Number(((existing.totalVotesCast / recalculatedEligible) * 100).toFixed(1))
+        : existing.turnoutPercentage;
 
     const updated: Election = enrichElectionDomainRelations({
       ...existing,
       title: title !== undefined ? title.trim() : existing.title,
+      code: code !== undefined && code.trim() ? code.trim().toUpperCase() : existing.code,
       description: description !== undefined ? description.trim() : existing.description,
+      category: nextCategory,
+      domainId: nextDomainId,
+      hallId: hallId !== undefined ? hallId : existing.hallId,
+      facultyId: facultyId !== undefined ? facultyId : existing.facultyId,
+      departmentId: departmentId !== undefined ? departmentId : existing.departmentId,
+      subdomainLabel: subdomainLabel !== undefined ? subdomainLabel : existing.subdomainLabel,
+      academicYear: academicYear !== undefined ? academicYear : existing.academicYear,
+      status: nextStatus,
+      isPublished: nextPublished,
       startDate: startDate ? new Date(startDate).toISOString() : existing.startDate,
       endDate: endDate ? new Date(endDate).toISOString() : existing.endDate,
+      startTime: startTime !== undefined ? startTime : existing.startTime,
+      endTime: endTime !== undefined ? endTime : existing.endTime,
       organizingBody: organizingBody !== undefined ? organizingBody.trim() : existing.organizingBody,
       rules: Array.isArray(rules) ? rules : existing.rules,
       eligibilityCriteria: mergedCriteria,
+      allowsEmptyBallot:
+        allowsEmptyBallot !== undefined ? Boolean(allowsEmptyBallot) : existing.allowsEmptyBallot,
+      totalEligibleVoters: recalculatedEligible,
+      turnoutPercentage: updatedTurnout,
       updatedAt: new Date().toISOString()
     });
 
     ELECTIONS_STORE.set(id, updated);
+
+    // Cascade relational domain/unit IDs to positions and candidates belonging to this election
+    const elPositions = POSITIONS_STORE.get(id);
+    if (elPositions) {
+      elPositions.forEach((p) => {
+        p.domainId = updated.domainId;
+        p.hallId = updated.hallId;
+        p.facultyId = updated.facultyId;
+        p.departmentId = updated.departmentId;
+      });
+      POSITIONS_STORE.set(id, elPositions);
+    }
+
+    for (const [candId, cand] of CANDIDATES_STORE.entries()) {
+      if (cand.electionId === id) {
+        cand.domainId = updated.domainId;
+        cand.hallId = updated.hallId;
+        cand.facultyId = updated.facultyId;
+        cand.departmentId = updated.departmentId;
+        CANDIDATES_STORE.set(candId, cand);
+      }
+    }
 
     logAuditEvent({
       eventType: 'UPDATE_ELECTION',
@@ -497,10 +700,83 @@ electionRouter.put(
       details: `Updated parameters for election ${id} ("${updated.title}").`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('election:updated', {
+      electionId: id,
+      domainId: updated.domainId
+    });
+
     return res.json({
       success: true,
       message: `Election '${updated.title}' updated successfully.`,
       election: updated
+    });
+  }
+);
+
+/**
+ * DELETE /api/elections/:id
+ * Delete an unpublished/draft or un-voted scheduled election (Domain-RBAC scoped)
+ */
+electionRouter.delete(
+  '/:id',
+  authenticateToken,
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
+  (req: Request, res: Response) => {
+    const { id } = req.params;
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+    const existing = ELECTIONS_STORE.get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, existing);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
+    if (existing.totalVotesCast > 0 || existing.status === 'live' || existing.status === 'results_published') {
+      return res.status(400).json({
+        success: false,
+        error: 'Elections with live polls, cast votes, or published results cannot be deleted.'
+      });
+    }
+
+    ELECTIONS_STORE.delete(id);
+    POSITIONS_STORE.delete(id);
+    BALLOT_LEDGER_STORE.delete(id);
+    for (const [candId, cand] of CANDIDATES_STORE.entries()) {
+      if (cand.electionId === id) {
+        CANDIDATES_STORE.delete(candId);
+      }
+    }
+
+    logAuditEvent({
+      eventType: 'DELETE_ELECTION',
+      userId: session.userId,
+      identifier: id,
+      role: session.role,
+      ipAddress,
+      status: 'SUCCESS',
+      details: `Deleted election ${id} ("${existing.title}").`
+    });
+
+    persistPlatformState();
+    broadcastSyncEvent('election:deleted', {
+      electionId: id,
+      domainId: existing.domainId
+    });
+
+    return res.json({
+      success: true,
+      message: `Election '${existing.title}' deleted successfully.`
     });
   }
 );
@@ -556,8 +832,23 @@ electionRouter.patch(
       });
     }
 
+    const previousPublished = isElectionPublished(election);
     election.status = newStatus as ElectionStatus;
+    election.isPublished = newStatus !== 'draft' && newStatus !== 'pending_approval';
     election.updatedAt = new Date().toISOString();
+
+    // When admin explicitly opens voting now, ensure voting window starts immediately if scheduled for future
+    if (newStatus === 'live') {
+      const nowMs = Date.now();
+      const startMs = new Date(election.startDate).getTime();
+      const endMs = new Date(election.endDate).getTime();
+      if (isNaN(startMs) || startMs > nowMs) {
+        election.startDate = new Date(nowMs).toISOString();
+      }
+      if (isNaN(endMs) || endMs <= nowMs) {
+        election.endDate = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
 
     if (newStatus === 'results_published') {
       election.resultsCertified = true;
@@ -576,6 +867,38 @@ electionRouter.patch(
       details: `Transitioned election ${id} from '${currentStatus}' to '${newStatus}'. Justification: ${justification || 'Administrative order'}.`
     });
 
+    if (newStatus === 'live') {
+      pushPlatformNotification({
+        title: `Voting Open: ${election.title}`,
+        message: `Polls are now open for ${election.category}${election.subdomainLabel ? ` (${election.subdomainLabel})` : ''}. Cast your verified ballot before polling closes.`,
+        category: 'election',
+        domainId: election.domainId,
+        linkAction: 'domain_elections'
+      });
+    } else if (newStatus === 'closed') {
+      pushPlatformNotification({
+        title: `Polls Closed: ${election.title}`,
+        message: `Official polling has concluded for ${election.title}. Results are proceeding to Electoral Commission verification.`,
+        category: 'deadline',
+        domainId: election.domainId,
+        linkAction: 'election_results'
+      });
+    } else if (!previousPublished && election.isPublished) {
+      pushPlatformNotification({
+        title: `Election Published: ${election.title}`,
+        message: `${election.title} has been scheduled and published to eligible voters.`,
+        category: 'election',
+        domainId: election.domainId,
+        linkAction: 'domain_elections'
+      });
+    }
+
+    persistPlatformState();
+    broadcastSyncEvent('election:status', {
+      electionId: id,
+      domainId: election.domainId
+    });
+
     return res.json({
       success: true,
       message: `Election '${election.title}' is now ${newStatus.toUpperCase()}.`,
@@ -586,10 +909,15 @@ electionRouter.patch(
 
 /**
  * GET /api/elections/:id/positions
- * Return positions for a given election
+ * Return positions for a given election (enforcing visibility rules)
  */
 electionRouter.get('/:id/positions', (req: Request, res: Response) => {
   const { id } = req.params;
+  const session = getOptionalSessionFromRequest(req);
+  const election = ELECTIONS_STORE.get(id);
+  if (!election || !isElectionVisibleToSession(election, session)) {
+    return res.status(404).json({ success: false, error: 'Election not found.' });
+  }
   const positions = [...(POSITIONS_STORE.get(id) || [])].sort((a, b) => a.order - b.order);
   return res.json({ success: true, positions });
 });
@@ -679,6 +1007,13 @@ electionRouter.post(
       details: `Added position '${newPosition.title}' to election ${id}.`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('position:updated', {
+      electionId: id,
+      domainId: election.domainId,
+      positionId: newPosition.id
+    });
+
     return res.status(201).json({
       success: true,
       message: `Position '${newPosition.title}' added successfully.`,
@@ -754,6 +1089,13 @@ electionRouter.put(
       ipAddress,
       status: 'SUCCESS',
       details: `Updated position '${target.title}' in election ${id}.`
+    });
+
+    persistPlatformState();
+    broadcastSyncEvent('position:updated', {
+      electionId: id,
+      domainId: election.domainId,
+      positionId: posId
     });
 
     return res.json({
@@ -833,6 +1175,13 @@ electionRouter.delete(
       ipAddress,
       status: 'SUCCESS',
       details: `Removed position ${posId} from election ${id}.`
+    });
+
+    persistPlatformState();
+    broadcastSyncEvent('position:updated', {
+      electionId: id,
+      domainId: election.domainId,
+      positionId: posId
     });
 
     return res.json({

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -29,25 +29,37 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+    if (isOpen) {
+      setTargetStatus('');
+      setJustification('');
+      setErrorMsg('');
+    }
+  }, [isOpen, election?.id]);
+
   if (!isOpen || !election) return null;
 
   // Allowed transitions per election lifecycle state machine
   const transitionOptions: Record<ElectionStatus, { status: ElectionStatus; label: string; desc: string }[]> = {
     draft: [
-      { status: 'pending_approval', label: 'Submit for Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' },
-      { status: 'scheduled', label: 'Approve & Schedule', desc: 'Confirm ballot ready and schedule official poll opening time.' }
+      { status: 'scheduled', label: 'Publish & Schedule Election', desc: 'Make election visible to eligible students as an upcoming scheduled poll.' },
+      { status: 'live', label: 'Publish & Open Polling Now', desc: 'Publish to eligible students and immediately open the digital ballot.' },
+      { status: 'pending_approval', label: 'Submit for Commission Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' }
     ],
     pending_approval: [
-      { status: 'scheduled', label: 'Gazette & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
-      { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections.' },
+      { status: 'scheduled', label: 'Gazette, Publish & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
+      { status: 'live', label: 'Gazette & Open Polling Now', desc: 'Approve, publish, and open digital voting immediately.' },
+      { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections (hidden from students).' },
       { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' }
     ],
     scheduled: [
       { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
+      { status: 'draft', label: 'Unpublish / Return to Draft', desc: 'Hide election from the student portal while revising configuration.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     upcoming: [
       { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
+      { status: 'draft', label: 'Unpublish / Return to Draft', desc: 'Hide election from the student portal while revising configuration.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     live: [

@@ -4,7 +4,6 @@ import { DemoNotice } from './components/common/DemoNotice';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { BottomNav } from './components/layout/BottomNav';
-import { Footer } from './components/layout/Footer';
 import { BrandedErrorBoundary } from './components/common/BrandedErrorBoundary';
 
 // Page Views
@@ -86,10 +85,9 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen flex flex-col bg-[#F4F6F9]">
         <DemoNotice />
         <Navbar />
-        <main className="flex-1">
+        <main className="flex-1 pb-16 md:pb-0">
           <LandingPage />
         </main>
-        <Footer />
         <BottomNav />
       </div>
     );
@@ -106,10 +104,9 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen flex flex-col bg-[#F4F6F9]">
         <DemoNotice />
         <Navbar />
-        <main className="flex-1">
+        <main className="flex-1 pb-16 md:pb-0">
           {renderActiveView()}
         </main>
-        <Footer />
         <BottomNav />
       </div>
     );
@@ -133,7 +130,6 @@ const AppContent: React.FC = () => {
         </main>
       </div>
 
-      <Footer />
       <BottomNav />
     </div>
   );

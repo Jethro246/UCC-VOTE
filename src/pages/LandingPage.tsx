@@ -15,10 +15,13 @@ import {
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { navigateTo, elections, userRole } = useApp();
+  const { navigateTo, elections, userRole, publicStats } = useApp();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  const activeElectionCount = elections.filter(e => e.status === 'live').length;
+  const activeElectionCount = publicStats
+    ? publicStats.activeElections
+    : elections.filter((e) => e.status === 'live').length;
+  const verifiedVoterCount = publicStats ? publicStats.verifiedStudents : 0;
 
   const faqs = [
     {
@@ -106,8 +109,10 @@ export const LandingPage: React.FC = () => {
             {/* Key Institutional Trust Metrics */}
             <div className="pt-5 mt-2 border-t border-white/20 grid grid-cols-3 gap-4">
               <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">24,850+</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Eligible Student Voters</p>
+                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">
+                  {verifiedVoterCount.toLocaleString()}
+                </p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Verified Student Voters</p>
               </div>
               <div>
                 <p className="text-lg sm:text-2xl font-extrabold text-amber-300 font-mono tabular-nums">{activeElectionCount} Live</p>
@@ -427,7 +432,9 @@ export const LandingPage: React.FC = () => {
             Ready to Make Your Vote Count?
           </h2>
           <p className="text-sm sm:text-base text-slate-200 max-w-2xl mx-auto leading-relaxed">
-            Log into your student account or activate your voter credentials to participate in the live 64th SRC General Elections.
+            {activeElectionCount > 0
+              ? `Log into your student account or activate your voter credentials to participate in ${activeElectionCount} live campus ${activeElectionCount === 1 ? 'election' : 'elections'}.`
+              : 'Log into your student account or activate your voter credentials to view upcoming University of Cape Coast elections.'}
           </p>
           <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
             <button

@@ -3,8 +3,15 @@ import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
 import { STUDENT_ACCOUNTS } from './authStore.ts';
 import type { SessionData } from './authStore.ts';
-import { ELECTIONS_STORE, POSITIONS_STORE, verifyStudentEligibility } from './electionStore.ts';
+import {
+  ELECTIONS_STORE,
+  POSITIONS_STORE,
+  CANDIDATES_STORE,
+  isElectionPublished,
+  verifyStudentEligibility
+} from './electionStore.ts';
 import { DOMAINS_STORE, categoryToDomainId } from './domainStore.ts';
+import { NOTIFICATIONS_STORE } from './notificationStore.ts';
 
 export const studentDashboardRouter = Router();
 
@@ -13,8 +20,8 @@ export const checkStudentEligibility = verifyStudentEligibility;
 
 /**
  * GET /api/student/dashboard
- * Aggregates personalized real-time statistics, domain category cards, elections,
- * voting status, and announcements
+ * Aggregates personalized real-time statistics, domain category cards, published eligible elections,
+ * voting status, and dynamic announcements
  */
 studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: Response) => {
   const session: SessionData = (req as any).session;
@@ -43,15 +50,19 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
     });
   }
 
-  const elections = Array.from(ELECTIONS_STORE.values());
+  // Only published elections are visible to students (drafts & pending approvals are strictly excluded)
+  const elections = Array.from(ELECTIONS_STORE.values()).filter((el) => isElectionPublished(el));
   const hasVotedList: string[] = studentAccount.hasVotedElections || [];
+  const allApprovedCandidates = Array.from(CANDIDATES_STORE.values()).filter(
+    (c) => c.applicationStatus === 'Approved'
+  );
 
   const processedElections = elections.map((el) => {
     const { isEligible, reason } = verifyStudentEligibility(studentAccount, el);
     const hasVoted = hasVotedList.includes(el.id);
     const canVoteNow =
       isEligible && el.status === 'live' && !hasVoted && studentAccount.status === 'active';
-    const positions = POSITIONS_STORE.get(el.id) || [];
+    const positions = [...(POSITIONS_STORE.get(el.id) || [])].sort((a, b) => a.order - b.order);
 
     return {
       ...el,
@@ -62,22 +73,31 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
         hasVoted,
         canVoteNow
       },
-      positionsList: positions.map((p) => ({
-        id: p.id,
-        title: p.title,
-        order: p.order,
-        candidatesCount: p.candidateIds.length
-      }))
+      positionsList: positions.map((p) => {
+        const approvedCount = allApprovedCandidates.filter(
+          (c) => c.electionId === el.id && c.positionId === p.id
+        ).length;
+        return {
+          id: p.id,
+          title: p.title,
+          order: p.order,
+          candidatesCount: approvedCount
+        };
+      })
     };
   });
 
+  // Strict personalized election sections for the logged-in student
   const electionsAvailableToMe = processedElections.filter((e) => e.studentEligibility.isEligible);
-  const activeElections = processedElections.filter((e) => e.status === 'live');
-  const upcomingElections = processedElections.filter(
+  const activeElections = electionsAvailableToMe.filter((e) => e.status === 'live');
+  const upcomingElections = electionsAvailableToMe.filter(
     (e) => e.status === 'upcoming' || e.status === 'scheduled'
   );
-  const completedElections = processedElections.filter(
-    (e) => e.status === 'results_published' || e.status === 'closed'
+  const completedElections = electionsAvailableToMe.filter(
+    (e) =>
+      e.status === 'results_published' ||
+      e.status === 'closed' ||
+      e.status === 'results_pending_certification'
   );
 
   // Build personalized per-domain summary cards for all registered domains
@@ -86,15 +106,15 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
     .map((dom) => {
       const domElections = processedElections.filter((e) => e.domainId === dom.id);
       const eligibleInDom = domElections.filter((e) => e.studentEligibility.isEligible);
-      const activeInDom = domElections.filter((e) => e.status === 'live');
-      const canVoteCount = domElections.filter((e) => e.studentEligibility.canVoteNow).length;
-      const votedCount = domElections.filter((e) => e.studentEligibility.hasVoted).length;
+      const activeInDom = eligibleInDom.filter((e) => e.status === 'live');
+      const canVoteCount = eligibleInDom.filter((e) => e.studentEligibility.canVoteNow).length;
+      const votedCount = eligibleInDom.filter((e) => e.studentEligibility.hasVoted).length;
 
       return {
         ...dom,
         totalElections: domElections.length,
         activeCount: activeInDom.length,
-        upcomingCount: domElections.filter(
+        upcomingCount: eligibleInDom.filter(
           (e) => e.status === 'upcoming' || e.status === 'scheduled'
         ).length,
         eligibleCount: eligibleInDom.length,
@@ -113,52 +133,43 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
     (e) => e.status === 'results_published' || e.status === 'closed'
   ).length;
 
-  const announcements = [
-    {
-      id: 'ann-1',
-      title: '64th SRC General Elections: Digital Polling Closes at 17:00 GMT',
-      category: 'Official Notice',
-      domainId: 'src',
-      timestamp: 'Today, 08:00 GMT',
-      deadline: 'Nov 25, 17:00 GMT',
-      summary:
-        'All eligible undergraduate voters are urged to verify their ballot token before the official closing time.',
-      priority: 'high'
-    },
-    {
-      id: 'ann-2',
-      title: 'JCRC / Hall Polling Underway: Casford & Adehye Halls',
-      category: 'Hall Election',
-      domainId: 'jcrc_hall',
-      timestamp: 'Today, 09:00 GMT',
-      deadline: 'Nov 25, 16:00 GMT',
-      summary:
-        'Voting for participating residential hall JCRC executive portfolios is active for verified hall residents and affiliates.',
-      priority: 'medium'
-    },
-    {
-      id: 'ann-5',
-      title: 'GRASAG-UCC 2026 & Local NUGS Polls Open',
-      category: 'Union & Postgraduate',
-      domainId: 'grasag',
-      timestamp: 'Today, 08:30 GMT',
-      deadline: 'Nov 26, 18:00 GMT',
-      summary:
-        'Postgraduate students may cast independent GRASAG ballots, and active students may participate in Local NUGS elections.',
-      priority: 'medium'
-    },
-    {
-      id: 'ann-3',
-      title: 'Department of Computer Science & IT (NACOS) Nominations Gazetted',
-      category: 'Departmental',
-      domainId: 'departmental',
-      timestamp: 'Yesterday',
-      deadline: 'Nov 18, 08:00 GMT',
-      summary:
-        'Final vetting reports and aspirant manifestos for the 2026 NACOS executive elections are now available for review.',
-      priority: 'info'
-    }
-  ];
+  // Dynamic announcements derived from live notifications & eligible published elections
+  const eligibleDomainIds = new Set(electionsAvailableToMe.map((e) => e.domainId));
+  const relevantNotifs = NOTIFICATIONS_STORE.filter(
+    (n) => !n.domainId || eligibleDomainIds.has(n.domainId)
+  ).slice(0, 4);
+
+  const announcements =
+    relevantNotifs.length > 0
+      ? relevantNotifs.map((n) => ({
+          id: n.id,
+          title: n.title,
+          category: n.category === 'results' ? 'Certified Results' : n.category === 'deadline' ? 'Polling Notice' : 'Official Notice',
+          domainId: n.domainId,
+          timestamp: n.timestamp,
+          deadline:
+            n.category === 'results'
+              ? 'Published'
+              : n.category === 'security'
+              ? 'Security Bulletin'
+              : 'Active Bulletin',
+          summary: n.message,
+          priority: n.category === 'deadline' ? 'high' : 'medium'
+        }))
+      : electionsAvailableToMe.slice(0, 3).map((el) => ({
+          id: `dyn-${el.id}`,
+          title: el.title,
+          category: el.category,
+          domainId: el.domainId,
+          timestamp: el.updatedAt ? new Date(el.updatedAt).toLocaleDateString('en-GB') : 'Active',
+          deadline: new Date(el.endDate).toLocaleString('en-GB', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: 'UTC'
+          }),
+          summary: el.description,
+          priority: el.status === 'live' ? 'high' : 'medium'
+        }));
 
   return res.json({
     success: true,
@@ -182,8 +193,7 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
         availableElections: electionsAvailableToMe.length,
         activeElections: activeElections.length,
         upcomingElections: upcomingElections.length,
-        completedElections: completedElections.length,
-        isDemoData: true
+        completedElections: completedElections.length
       },
       votingStatus: {
         totalEligible: electionsAvailableToMe.length,

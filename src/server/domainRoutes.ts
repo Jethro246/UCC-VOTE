@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
 import { requireAdminRole } from './adminRoutes.ts';
-import { logAuditEvent } from './authStore.ts';
+import { getOptionalSessionFromRequest, logAuditEvent } from './authStore.ts';
 import type { SessionData } from './authStore.ts';
 import {
   DOMAINS_STORE,
@@ -11,8 +11,15 @@ import {
   DEPARTMENTS_STORE,
   categoryToDomainId
 } from './domainStore.ts';
-import { ELECTIONS_STORE, POSITIONS_STORE, CANDIDATES_STORE } from './electionStore.ts';
-import { MOCK_CALENDAR_EVENTS, MOCK_NOTIFICATIONS } from '../data/mockData.ts';
+import {
+  ELECTIONS_STORE,
+  POSITIONS_STORE,
+  CANDIDATES_STORE,
+  isElectionVisibleToSession
+} from './electionStore.ts';
+import { NOTIFICATIONS_STORE, buildDynamicCalendarEvents } from './notificationStore.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import { persistPlatformState } from './statePersistence.ts';
 import type { AdminRoleType, DomainId, DomainRegistryItem } from '../types/index.ts';
 
 export const domainRouter = Router();
@@ -21,9 +28,15 @@ export const domainRouter = Router();
  * GET /api/domains
  * Returns all university election domains with live stats, institutional units, and position dictionaries
  */
-domainRouter.get('/', (_req: Request, res: Response) => {
-  const elections = Array.from(ELECTIONS_STORE.values());
-  const candidates = Array.from(CANDIDATES_STORE.values());
+domainRouter.get('/', (req: Request, res: Response) => {
+  const session = getOptionalSessionFromRequest(req);
+  const elections = Array.from(ELECTIONS_STORE.values()).filter((e) =>
+    isElectionVisibleToSession(e, session)
+  );
+  const visibleElectionIds = new Set(elections.map((e) => e.id));
+  const candidates = Array.from(CANDIDATES_STORE.values()).filter((c) =>
+    visibleElectionIds.has(c.electionId)
+  );
 
   const domains = Array.from(DOMAINS_STORE.values())
     .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -61,10 +74,12 @@ domainRouter.get('/', (_req: Request, res: Response) => {
       };
     });
 
-  // Flat dictionary of all positions by electionId and id -> position for frontend consistency
+  // Flat dictionary of all positions by electionId for visible elections
   const positionsByElection: Record<string, any[]> = {};
   for (const [elId, posList] of POSITIONS_STORE.entries()) {
-    positionsByElection[elId] = [...posList].sort((a, b) => a.order - b.order);
+    if (visibleElectionIds.has(elId)) {
+      positionsByElection[elId] = [...posList].sort((a, b) => a.order - b.order);
+    }
   }
 
   return res.json({
@@ -84,6 +99,8 @@ domainRouter.get('/', (_req: Request, res: Response) => {
 domainRouter.get('/:domainId', (req: Request, res: Response) => {
   const { domainId } = req.params;
   const { hallId, facultyId, departmentId, status } = req.query;
+  const session = getOptionalSessionFromRequest(req);
+  const isAdmin = Boolean(session && session.userType === 'admin');
 
   const domain = DOMAINS_STORE.get(domainId as DomainId);
   if (!domain) {
@@ -94,7 +111,9 @@ domainRouter.get('/:domainId', (req: Request, res: Response) => {
   }
 
   let elections = Array.from(ELECTIONS_STORE.values()).filter(
-    (e) => (e.domainId || categoryToDomainId(e.category)) === domain.id
+    (e) =>
+      (e.domainId || categoryToDomainId(e.category)) === domain.id &&
+      isElectionVisibleToSession(e, session)
   );
 
   if (hallId && typeof hallId === 'string' && hallId !== 'All') {
@@ -137,14 +156,14 @@ domainRouter.get('/:domainId', (req: Request, res: Response) => {
     );
   }
 
-  const domainCandidates = Array.from(CANDIDATES_STORE.values()).filter((c) =>
-    electionIds.has(c.electionId)
+  const domainCandidates = Array.from(CANDIDATES_STORE.values()).filter(
+    (c) => electionIds.has(c.electionId) && (isAdmin || c.applicationStatus === 'Approved')
   );
 
-  const notifications = MOCK_NOTIFICATIONS.filter(
+  const notifications = NOTIFICATIONS_STORE.filter(
     (n) => !n.domainId || n.domainId === domain.id
   );
-  const calendarEvents = MOCK_CALENDAR_EVENTS.filter((ev) => ev.domainId === domain.id);
+  const calendarEvents = buildDynamicCalendarEvents(elections, domain.id);
 
   return res.json({
     success: true,
@@ -242,6 +261,9 @@ domainRouter.post(
       details: `Super Administrator created new election domain "${newDomain.name}" (ID: ${generatedId}).`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('domain:updated', { domainId: generatedId });
+
     return res.status(201).json({
       success: true,
       message: `Election domain '${newDomain.name}' created successfully.`,
@@ -298,6 +320,8 @@ domainRouter.post(
         status: 'SUCCESS',
         details: `Registered new JCRC Hall subdomain "${hall.name}".`
       });
+      persistPlatformState();
+      broadcastSyncEvent('domain:updated', { domainId });
       return res.status(201).json({ success: true, subdomain: hall, halls: HALLS_STORE });
     }
 
@@ -319,6 +343,8 @@ domainRouter.post(
         status: 'SUCCESS',
         details: `Registered new Faculty/School subdomain "${fac.name}".`
       });
+      persistPlatformState();
+      broadcastSyncEvent('domain:updated', { domainId });
       return res.status(201).json({ success: true, subdomain: fac, faculties: FACULTIES_STORE });
     }
 
@@ -345,6 +371,8 @@ domainRouter.post(
         status: 'SUCCESS',
         details: `Registered new Departmental subdomain "${dept.name}" under ${dept.facultyName}.`
       });
+      persistPlatformState();
+      broadcastSyncEvent('domain:updated', { domainId });
       return res.status(201).json({ success: true, subdomain: dept, departments: DEPARTMENTS_STORE });
     }
 

@@ -10,6 +10,15 @@ import { candidateRouter } from './src/server/candidateRoutes.ts';
 import { votingRouter } from './src/server/votingRoutes.ts';
 import { resultsRouter } from './src/server/resultsRoutes.ts';
 import { domainRouter } from './src/server/domainRoutes.ts';
+import './src/server/bootstrapPersistence.ts';
+import { sseEventsHandler } from './src/server/realtimeBus.ts';
+import {
+  buildDynamicCalendarEvents,
+  notificationRouter
+} from './src/server/notificationStore.ts';
+import { ELECTIONS_STORE, isElectionVisibleToSession } from './src/server/electionStore.ts';
+import { getOptionalSessionFromRequest } from './src/server/authStore.ts';
+import type { DomainId } from './src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +42,24 @@ async function startServer() {
   app.use('/api/candidates', candidateRouter);
   app.use('/api/elections/candidates', candidateRouter);
   app.use('/api/elections', electionRouter);
+  app.use('/api/notifications', notificationRouter);
+
+  // Real-time Server-Sent Events sync channel
+  app.get('/api/events', sseEventsHandler);
+
+  // Dynamic calendar milestones derived from visible elections
+  app.get('/api/calendar', (req, res) => {
+    const session = getOptionalSessionFromRequest(req as any);
+    const domainId = req.query.domainId as DomainId | undefined;
+    const visibleElections = Array.from(ELECTIONS_STORE.values()).filter((el) =>
+      isElectionVisibleToSession(el, session)
+    );
+    const events = buildDynamicCalendarEvents(visibleElections, domainId);
+    return res.json({
+      success: true,
+      events
+    });
+  });
 
   // Health check route
   app.get('/api/health', (req, res) => {

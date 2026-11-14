@@ -55,7 +55,8 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     sessionChecked,
     sessionExpiredReason,
     setPostLoginView,
-    recentVoteReceipt
+    recentVoteReceipt,
+    syncVersion
   } = useApp();
 
   const fallbackElection = elections.find((e) => e.id === selectedElectionId) || elections[0];
@@ -181,6 +182,48 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     idempotencyKeyRef.current = `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     loadAuthorizedBallot();
   }, [selectedElectionId, sessionChecked, userRole, student?.id, sessionExpiredReason]);
+
+  useEffect(() => {
+    if (syncVersion === 0) return;
+    if (!sessionChecked || userRole !== 'student' || !student) return;
+    if (currentStep === 3 || isSubmitting || isSubmittingRef.current) return;
+
+    let active = true;
+    electionClient.getBallot(selectedElectionId).then((res) => {
+      if (!active) return;
+      if (res.election) {
+        setServerElection(res.election);
+      }
+      if (res.eligibility) {
+        setEligibilityInfo(res.eligibility);
+      }
+      if (res.success && res.alreadyVoted && res.receipt) {
+        setAlreadyVotedReceipt(res.receipt);
+        return;
+      }
+      if (!res.success) {
+        setShowFinalConfirmModal(false);
+        setBallotError({
+          code: res.code,
+          message:
+            res.error || 'Polling status has changed. This ballot is currently unavailable.',
+          opensAt: res.opensAt || res.election?.startDate,
+          closesAt: res.closesAt || res.election?.endDate
+        });
+        return;
+      }
+      if (res.positions) {
+        setBallotError(null);
+        setBallotPositions(res.positions);
+        setActivePositionIndex((prev) =>
+          Math.min(prev, Math.max(0, (res.positions?.length || 1) - 1))
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [syncVersion]);
 
   useEffect(() => {
     if (!election?.endDate) return;

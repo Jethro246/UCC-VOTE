@@ -10,25 +10,21 @@ import {
   ELECTIONS_STORE,
   POSITIONS_STORE,
   CANDIDATES_STORE,
+  isElectionVisibleToSession,
   verifyCandidateCandidacyEligibility
 } from './electionStore.ts';
 import { categoryToDomainId, matchesHallName } from './domainStore.ts';
-import { ACTIVE_SESSIONS, logAuditEvent } from './authStore.ts';
+import {
+  findStudentAccountByIdentifier,
+  getOptionalSessionFromRequest,
+  logAuditEvent
+} from './authStore.ts';
 import type { SessionData } from './authStore.ts';
+import { broadcastSyncEvent } from './realtimeBus.ts';
+import { persistPlatformState } from './statePersistence.ts';
 import type { Candidate, CandidateApplicationStatus } from '../types/index.ts';
 
 export const candidateRouter = Router();
-
-function getOptionalSession(req: Request): SessionData | null {
-  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
-  if (!token && req.cookies && req.cookies.ucc_session) {
-    token = req.cookies.ucc_session;
-  }
-  if (!token) return null;
-  const session = ACTIVE_SESSIONS.get(token);
-  if (!session || Date.now() > session.expiresAt) return null;
-  return session;
-}
 
 /**
  * GET /api/candidates or /api/elections/candidates
@@ -37,7 +33,25 @@ function getOptionalSession(req: Request): SessionData | null {
 candidateRouter.get('/', (req: Request, res: Response) => {
   const { domainId, electionId, positionId, status, approvedOnly, search, department, faculty, hall } =
     req.query;
-  let list = Array.from(CANDIDATES_STORE.values());
+  const session = getOptionalSessionFromRequest(req);
+  const isAdmin = Boolean(session && session.userType === 'admin');
+  const sessionStudent =
+    session && session.userType === 'student' ? findStudentAccountByIdentifier(session.userId) : undefined;
+
+  let list = Array.from(CANDIDATES_STORE.values()).filter((c) => {
+    const parentElection = ELECTIONS_STORE.get(c.electionId);
+    if (!parentElection || !isElectionVisibleToSession(parentElection, session)) {
+      return false;
+    }
+    if (!isAdmin) {
+      const isOwnApplication =
+        sessionStudent && c.studentId.toUpperCase() === sessionStudent.studentId.toUpperCase();
+      if (!isOwnApplication && c.applicationStatus !== 'Approved') {
+        return false;
+      }
+    }
+    return true;
+  });
 
   if (domainId && typeof domainId === 'string' && domainId !== 'All') {
     list = list.filter((c) => {
@@ -99,13 +113,29 @@ candidateRouter.get('/', (req: Request, res: Response) => {
 
 /**
  * GET /api/candidates/:id
- * Retrieve a specific candidate's full profile
+ * Retrieve a specific candidate's full profile (enforcing election & approval visibility)
  */
 candidateRouter.get('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
+  const session = getOptionalSessionFromRequest(req);
   const candidate = CANDIDATES_STORE.get(id);
 
   if (!candidate) {
+    return res.status(404).json({ success: false, error: 'Candidate record not found.' });
+  }
+
+  const parentElection = ELECTIONS_STORE.get(candidate.electionId);
+  if (!parentElection || !isElectionVisibleToSession(parentElection, session)) {
+    return res.status(404).json({ success: false, error: 'Candidate record not found.' });
+  }
+
+  const isAdmin = Boolean(session && session.userType === 'admin');
+  const sessionStudent =
+    session && session.userType === 'student' ? findStudentAccountByIdentifier(session.userId) : undefined;
+  const isOwnApplication =
+    sessionStudent && candidate.studentId.toUpperCase() === sessionStudent.studentId.toUpperCase();
+
+  if (!isAdmin && !isOwnApplication && candidate.applicationStatus !== 'Approved') {
     return res.status(404).json({ success: false, error: 'Candidate record not found.' });
   }
 
@@ -120,7 +150,7 @@ candidateRouter.get('/:id', (req: Request, res: Response) => {
  * Register candidate nomination application (strictly bound to electionId & positionId within same election/domain)
  */
 candidateRouter.post('/', (req: Request, res: Response) => {
-  const session = getOptionalSession(req);
+  const session = getOptionalSessionFromRequest(req);
   const ipAddress =
     (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
@@ -232,7 +262,9 @@ candidateRouter.post('/', (req: Request, res: Response) => {
       : ['Active member of UCC Student Body'],
     videoUrl: videoUrl ? videoUrl.trim() : undefined,
     applicationStatus: initialStatus,
-    submittedAt: isDraft ? undefined : new Date().toISOString()
+    submittedAt: isDraft ? undefined : new Date().toISOString(),
+    votesReceived: 0,
+    votePercentage: 0
   };
 
   const eligibilityResult = verifyCandidateCandidacyEligibility(candidate, election);
@@ -251,6 +283,14 @@ candidateRouter.post('/', (req: Request, res: Response) => {
     details: `Candidate nomination registered for ${fullName} (${newId}) in election ${election.code} [${domId}] as ${initialStatus}.`
   });
 
+  persistPlatformState();
+  broadcastSyncEvent('candidate:created', {
+    electionId,
+    domainId: domId,
+    candidateId: newId,
+    positionId
+  });
+
   return res.status(201).json({
     success: true,
     message: isDraft
@@ -266,6 +306,9 @@ candidateRouter.post('/', (req: Request, res: Response) => {
  */
 candidateRouter.put('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
+  const session = getOptionalSessionFromRequest(req);
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
   const existing = CANDIDATES_STORE.get(id);
 
   if (!existing) {
@@ -281,12 +324,46 @@ candidateRouter.put('/:id', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Target election does not exist.' });
   }
 
+  if (session?.userType === 'admin') {
+    const accessCheck = canAdminManageElection(session, targetElection);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+  } else if (session?.userType === 'student') {
+    const studentAcc = findStudentAccountByIdentifier(session.userId);
+    if (!studentAcc || studentAcc.studentId.toUpperCase() !== existing.studentId.toUpperCase()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Students can only update their own candidate nomination profile.'
+      });
+    }
+  } else {
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required to modify candidate profiles.'
+    });
+  }
+
   const targetPositions = POSITIONS_STORE.get(targetElectionId) || [];
   if (!targetPositions.some((p) => p.id === targetPositionId)) {
     return res.status(400).json({
       success: false,
       error: 'Target position does not belong to the specified election.'
     });
+  }
+
+  // Keep POSITIONS_STORE candidateIds synced if election or position changed
+  if (existing.electionId !== targetElectionId || existing.positionId !== targetPositionId) {
+    const prevPositions = POSITIONS_STORE.get(existing.electionId) || [];
+    const prevPos = prevPositions.find((p) => p.id === existing.positionId);
+    if (prevPos) {
+      prevPos.candidateIds = prevPos.candidateIds.filter((cid) => cid !== id);
+      POSITIONS_STORE.set(existing.electionId, prevPositions);
+    }
   }
 
   const updated: Candidate = {
@@ -308,18 +385,32 @@ candidateRouter.put('/:id', (req: Request, res: Response) => {
     updated.rejectionReason = undefined;
   }
 
+  if (updated.applicationStatus === 'Approved') {
+    const nextPos = targetPositions.find((p) => p.id === targetPositionId);
+    if (nextPos && !nextPos.candidateIds.includes(id)) {
+      nextPos.candidateIds.push(id);
+      POSITIONS_STORE.set(targetElectionId, targetPositions);
+    }
+  }
+
   CANDIDATES_STORE.set(id, updated);
 
-  const ipAddress =
-    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
   logAuditEvent({
     eventType: 'UPDATE_CANDIDATE_PROFILE',
-    userId: updated.studentId,
+    userId: session?.userId || updated.studentId,
     identifier: updated.studentId,
-    role: 'student',
+    role: session?.role || 'student',
     ipAddress,
     status: 'SUCCESS',
     details: `Updated details and credentials for candidate ${updated.fullName} (${id}).`
+  });
+
+  persistPlatformState();
+  broadcastSyncEvent('candidate:updated', {
+    electionId: updated.electionId,
+    domainId: updated.domainId,
+    candidateId: id,
+    positionId: updated.positionId
   });
 
   return res.json({
@@ -435,6 +526,14 @@ candidateRouter.post(
       details: `Approved candidate ${candidate.fullName} (${candidate.studentId}) for portfolio ${pos.title} in election ${election.code}.`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('candidate:approved', {
+      electionId: candidate.electionId,
+      domainId: candidate.domainId || election.domainId,
+      candidateId: id,
+      positionId: candidate.positionId
+    });
+
     return res.json({
       success: true,
       message: `Candidate ${candidate.fullName} has been approved and added to the official ballot for ${pos.title}.`,
@@ -516,6 +615,14 @@ candidateRouter.post(
       details: `Rejected candidate nomination for ${candidate.fullName} (${candidate.studentId}). Reason: ${reason.trim()}`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('candidate:rejected', {
+      electionId: candidate.electionId,
+      domainId: candidate.domainId,
+      candidateId: id,
+      positionId: candidate.positionId
+    });
+
     return res.json({
       success: true,
       message: `Candidate application for ${candidate.fullName} has been marked as Rejected.`,
@@ -589,6 +696,14 @@ candidateRouter.post(
       details: `Requested revisions from candidate ${candidate.fullName} (${candidate.studentId}). Notes: ${notes.trim()}`
     });
 
+    persistPlatformState();
+    broadcastSyncEvent('candidate:status', {
+      electionId: candidate.electionId,
+      domainId: candidate.domainId,
+      candidateId: id,
+      positionId: candidate.positionId
+    });
+
     return res.json({
       success: true,
       message: 'Correction request dispatched to candidate.',
@@ -632,6 +747,14 @@ candidateRouter.post('/:id/withdraw', (req: Request, res: Response) => {
     ipAddress,
     status: 'SUCCESS',
     details: `Candidacy nomination withdrawn for ${candidate.fullName} (${candidate.studentId}).`
+  });
+
+  persistPlatformState();
+  broadcastSyncEvent('candidate:status', {
+    electionId: candidate.electionId,
+    domainId: candidate.domainId,
+    candidateId: id,
+    positionId: candidate.positionId
   });
 
   return res.json({
@@ -712,6 +835,14 @@ candidateRouter.post(
       ipAddress,
       status: 'SUCCESS',
       details: `Reassigned candidate ${candidate.fullName} to position ${newPos.title} in election ${targetElection.code}.`
+    });
+
+    persistPlatformState();
+    broadcastSyncEvent('candidate:updated', {
+      electionId: candidate.electionId,
+      domainId: candidate.domainId,
+      candidateId: id,
+      positionId: candidate.positionId
     });
 
     return res.json({
