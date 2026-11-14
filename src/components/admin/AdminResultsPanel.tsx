@@ -76,12 +76,34 @@ const WORKFLOW_STAGES: {
 ];
 
 export const AdminResultsPanel: React.FC = () => {
-  const { elections, admin, navigateTo, refreshElections } = useApp();
+  const { elections, domains, admin, navigateTo, refreshElections } = useApp();
+
+  const [domainFilter, setDomainFilter] = useState<string>('all');
+
+  const scopedElections = elections.filter((el) => {
+    if (admin?.managedDomainIds?.length && el.domainId && !admin.managedDomainIds.includes(el.domainId)) {
+      return false;
+    }
+    if (admin?.managedHalls?.length && el.domainId === 'jcrc_hall') {
+      const hList = el.eligibilityCriteria?.halls || [];
+      if (!hList.some((h) => admin.managedHalls!.some((mh) => h.toLowerCase().includes(mh.toLowerCase().split(' ')[0])))) {
+        return false;
+      }
+    }
+    if (domainFilter !== 'all' && el.domainId !== domainFilter) return false;
+    return true;
+  });
 
   const [selectedId, setSelectedId] = useState<string>(() => {
-    const pending = elections.find(e => e.status === 'results_pending_certification');
-    return pending?.id || elections[0]?.id || 'UCC-BUS-2026';
+    const pending = scopedElections.find(e => e.status === 'results_pending_certification');
+    return pending?.id || scopedElections[0]?.id || elections[0]?.id || 'UCC-BUS-2026';
   });
+
+  useEffect(() => {
+    if (scopedElections.length > 0 && !scopedElections.some((e) => e.id === selectedId)) {
+      setSelectedId(scopedElections[0].id);
+    }
+  }, [domainFilter, scopedElections.length]);
 
   const [results, setResults] = useState<ElectionResultsPayload | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -194,6 +216,23 @@ export const AdminResultsPanel: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {domains.length > 0 && (!admin?.managedDomainIds || admin.managedDomainIds.length > 1) && (
+            <select
+              value={domainFilter}
+              onChange={(e) => setDomainFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-[#123B70]"
+            >
+              <option value="all">All Permitted Domains</option>
+              {domains
+                .filter((d) => !admin?.managedDomainIds?.length || admin.managedDomainIds.includes(d.id))
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+            </select>
+          )}
+
           <select
             value={selectedId}
             onChange={(e) => {
@@ -202,9 +241,9 @@ export const AdminResultsPanel: React.FC = () => {
             }}
             className="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-[#123B70]"
           >
-            {elections.map((el) => (
+            {scopedElections.map((el) => (
               <option key={el.id} value={el.id}>
-                {el.title} ({el.status.replace(/_/g, ' ')})
+                {el.title} · {el.category} ({el.status.replace(/_/g, ' ')})
               </option>
             ))}
           </select>

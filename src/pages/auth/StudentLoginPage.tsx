@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const StudentLoginPage: React.FC = () => {
-  const { navigateTo, loginWithUserPayload } = useApp();
+  const { navigateTo, loginWithUserPayload, sessionExpiredReason } = useApp();
   
   const [studentId, setStudentId] = useState('PS/CSC/22/0089');
   const [password, setPassword] = useState('Vote@UCC2026');
@@ -94,6 +94,12 @@ export const StudentLoginPage: React.FC = () => {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {sessionExpiredReason && !errorMsg && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>{sessionExpiredReason}</span>
+            </div>
+          )}
           {errorMsg && (
             <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-[#C62828] space-y-1">
               <div className="flex items-start gap-2">

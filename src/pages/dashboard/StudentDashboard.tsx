@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
-import { Logo } from '../../components/common/Logo';
+import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { 
   Vote, 
   CheckCircle2, 
@@ -34,17 +34,37 @@ import {
 import { Election } from '../../types';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
 
+function matchesHallAlias(studentHall: string | undefined, targetHall: string): boolean {
+  const s = (studentHall || '').toLowerCase().trim();
+  const t = targetHall.toLowerCase().trim();
+  if (!s || !t) return false;
+  if (s.includes(t) || t.includes(s)) return true;
+  if ((s.includes('casford') || s.includes('casely hayford')) && (t.includes('casford') || t.includes('casely hayford'))) {
+    return true;
+  }
+  if (s.includes('adehye') && t.includes('adehye')) return true;
+  if (s.includes('atlantic') && t.includes('atlantic')) return true;
+  if (s.includes('oguaa') && t.includes('oguaa')) return true;
+  if (s.includes('valco') && t.includes('valco')) return true;
+  if (s.includes('nkrumah') && t.includes('nkrumah')) return true;
+  return false;
+}
+
 export const StudentDashboard: React.FC = () => {
   const { 
     student, 
-    elections, 
+    userRole,
+    sessionChecked,
+    sessionExpiredReason,
+    setPostLoginView,
+    elections,
+    domains,
+    positionsByElection,
     navigateTo, 
     notifications, 
     loginWithUserPayload, 
     logout,
     myCandidateApplication,
-    candidates,
-    refreshCandidates,
     withdrawCandidateAction
   } = useApp();
 
@@ -55,8 +75,15 @@ export const StudentDashboard: React.FC = () => {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showCandidateAppModal, setShowCandidateAppModal] = useState(false);
 
-  // Fetch live dashboard data from backend API
+  // Fetch live dashboard data from backend API once session check completes
   const fetchDashboard = async () => {
+    if (!sessionChecked) return;
+    if (userRole !== 'student' || !student) {
+      setDashboardData(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -64,8 +91,12 @@ export const StudentDashboard: React.FC = () => {
       if (res.success && res.data) {
         setDashboardData(res.data);
       } else {
-        // If not logged in via backend token, build fallback from local context
         setDashboardData(null);
+        if (res.code === 'NETWORK_ERROR' || res.code === 'SERVER_ERROR') {
+          setErrorMsg(res.error || 'Temporary issue refreshing live dashboard metrics.');
+        } else if (res.error && res.code !== 'AUTH_REQUIRED' && res.code !== 'SESSION_EXPIRED') {
+          setErrorMsg(res.error);
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to load dashboard from backend.');
@@ -76,32 +107,71 @@ export const StudentDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboard();
-  }, [student]);
+  }, [sessionChecked, userRole, student?.id]);
 
-  // Current active student profile
-  const currentStudent = student || {
-    id: 'stu-001',
-    studentId: 'PS/CSC/22/0089',
-    indexNumber: '10982341',
-    fullName: 'Kofi Mensah Sarbah',
-    email: 'kofi.sarbah@st.ucc.edu.gh',
-    phone: '+233 24 555 0192',
-    department: 'Computer Science & Information Technology',
-    faculty: 'School of Physical Sciences',
-    programme: 'B.Sc. Computer Science',
-    level: '300',
-    hall: 'Casely Hayford Hall',
-    status: 'active',
-    avatarUrl: '/src/assets/images/candidate_male_1794352938747.jpg',
-    isEligible: true,
-    hasVotedElections: ['UCC-GRA-2025', 'UCC-VAL-2025']
-  };
+  if (!sessionChecked || (userRole === 'student' && student && isLoading && !dashboardData)) {
+    return (
+      <BrandedLoadingScreen
+        title="Verifying your secure voting session..."
+        subtitle="Checking your authenticated UCC student session and loading personalized election eligibility..."
+      />
+    );
+  }
+
+  if (userRole !== 'student' || !student) {
+    const isExpired = Boolean(sessionExpiredReason);
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5 text-center">
+          <div className="flex justify-center">
+            <Logo variant="default" layout="stacked" subtitle="Student Voter Portal" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-extrabold text-slate-900">
+              {isExpired ? 'Your Session Has Expired' : 'Student Sign-In Required'}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+              {sessionExpiredReason ||
+                'Sign in with your University of Cape Coast Student ID to view your verified eligibility status and access digital ballots.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => {
+                setPostLoginView('student_dashboard');
+                navigateTo('student_login');
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold cursor-pointer shadow-xs"
+            >
+              {isExpired ? 'Log In Again' : 'Sign In as Student'}
+            </button>
+            <button
+              onClick={() => navigateTo('elections_directory')}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
+            >
+              Explore Elections
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentStudent = dashboardData?.student
+    ? { ...student, ...dashboardData.student }
+    : student;
 
   const isSuspended = currentStudent.status === 'suspended';
 
   // Helper to compute student eligibility for an election locally if backend data unavailable
   const computeEligibility = (el: Election): { isEligible: boolean; reason: string } => {
     if (isSuspended) return { isEligible: false, reason: 'Account administratively suspended.' };
+    if (el.domainId === 'grasag' || el.category === 'GRASAG') {
+      if (currentStudent.level !== 'Postgraduate') {
+        return { isEligible: false, reason: 'Restricted exclusively to Postgraduate students' };
+      }
+      return { isEligible: true, reason: 'Verified Postgraduate voter (GRASAG)' };
+    }
     const crit = el.eligibilityCriteria;
     if (!crit) return { isEligible: true, reason: 'Open to all university students' };
 
@@ -114,14 +184,39 @@ export const StudentDashboard: React.FC = () => {
     if (crit.departments && crit.departments.length > 0 && !crit.departments.some(d => currentStudent.department?.toLowerCase().includes(d.toLowerCase()))) {
       return { isEligible: false, reason: `Restricted to ${crit.departments.join(', ')}` };
     }
-    if (crit.halls && crit.halls.length > 0 && !crit.halls.some(h => currentStudent.hall?.toLowerCase().includes(h.toLowerCase().split(' ')[0]))) {
+    if (crit.programmes && crit.programmes.length > 0 && !crit.programmes.some(p => currentStudent.programme?.toLowerCase().includes(p.toLowerCase()))) {
+      return { isEligible: false, reason: `Restricted to ${crit.programmes.join(', ')}` };
+    }
+    if (crit.halls && crit.halls.length > 0 && !crit.halls.some(h => matchesHallAlias(currentStudent.hall, h))) {
       return { isEligible: false, reason: `Restricted to residents of ${crit.halls.join(', ')}` };
     }
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  // Build section datasets
-  const allElectionsWithEligibility = elections.map(el => {
+  // Prefer authoritative backend processed election rows when available
+  const backendAllElections: any[] | null = dashboardData?.sections
+    ? Array.from(
+        new Map(
+          [
+            ...(dashboardData.sections.availableToMe || []),
+            ...(dashboardData.sections.active || []),
+            ...(dashboardData.sections.upcoming || []),
+            ...(dashboardData.sections.completed || [])
+          ].map((e: any) => [e.id, e])
+        ).values()
+      )
+    : null;
+
+  const allElectionsWithEligibility = (backendAllElections || elections).map((el: any) => {
+    if (el.studentEligibility) {
+      return {
+        ...el,
+        isEligible: el.studentEligibility.isEligible,
+        eligibilityReason: el.studentEligibility.reason,
+        hasVoted: el.studentEligibility.hasVoted,
+        canVoteNow: el.studentEligibility.canVoteNow
+      };
+    }
     const { isEligible, reason } = computeEligibility(el);
     const hasVoted = currentStudent.hasVotedElections?.includes(el.id);
     const canVoteNow = isEligible && el.status === 'live' && !hasVoted && !isSuspended;
@@ -136,7 +231,9 @@ export const StudentDashboard: React.FC = () => {
 
   const availableElections = allElectionsWithEligibility.filter(e => e.isEligible);
   const activeElections = allElectionsWithEligibility.filter(e => e.status === 'live');
-  const upcomingElections = allElectionsWithEligibility.filter(e => e.status === 'upcoming');
+  const upcomingElections = allElectionsWithEligibility.filter(
+    e => e.status === 'upcoming' || e.status === 'scheduled'
+  );
   const completedElections = allElectionsWithEligibility.filter(e => e.status === 'results_published' || e.status === 'closed');
 
   // Voting Status figures
@@ -146,65 +243,51 @@ export const StudentDashboard: React.FC = () => {
 
   const unreadAlerts = notifications.slice(0, 4);
 
-  // Testing Persona Switchers
-  const switchTestPersona = async (personaType: 'kofi' | 'nana' | 'beatrice' | 'suspended' | 'medical_freshman') => {
+  // Testing Persona Switchers (all execute real backend PBKDF2 authentication)
+  const switchTestPersona = async (
+    personaType: 'kofi' | 'nana' | 'postgraduate' | 'suspended' | 'medical_freshman'
+  ) => {
     setIsLoading(true);
+    setErrorMsg('');
     let idToLogin = 'PS/CSC/22/0089';
     if (personaType === 'nana') idToLogin = 'ED/EPS/21/0034';
-    if (personaType === 'beatrice') idToLogin = 'SB/MKT/23/0142';
+    if (personaType === 'postgraduate') idToLogin = 'PG/CSC/25/0018';
     if (personaType === 'suspended') idToLogin = 'AS/HIS/22/0055';
-
-    if (personaType === 'medical_freshman') {
-      const mockFreshman = {
-        id: 'stu-freshman',
-        studentId: 'MED/SMS/24/0012',
-        indexNumber: '10991204',
-        fullName: 'Kwame Osei Mensah (Medical Freshman)',
-        email: 'kwame.mensah@st.ucc.edu.gh',
-        phone: '+233 24 111 2233',
-        department: 'School of Medical Sciences',
-        faculty: 'School of Medical Sciences',
-        programme: 'MB ChB Medicine & Surgery',
-        level: '100' as const,
-        hall: 'Off-Campus Private Hostel',
-        status: 'active' as const,
-        isEligible: true,
-        hasVotedElections: []
-      };
-      loginWithUserPayload(mockFreshman, 'student');
-      setIsLoading(false);
-      return;
-    }
+    if (personaType === 'medical_freshman') idToLogin = 'MED/SMS/24/0012';
 
     try {
       const res = await authClient.login(idToLogin, 'Vote@UCC2026', true);
-      if (res.user) {
+      if (res.success && res.user) {
         loginWithUserPayload(res.user, 'student');
+      } else {
+        setErrorMsg(res.error || `Unable to switch persona to ${idToLogin}.`);
       }
-    } catch {
-      // fallback
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Network error switching persona.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const firstPendingElection = availableElections.find(e => e.canVoteNow);
+
   return (
     <div className="space-y-6">
       
-      {/* Testing Persona Switcher Bar */}
-      <div className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Demonstration Account Switcher Bar */}
+      <div className="p-3.5 bg-white rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-500" />
-          <span className="font-bold text-slate-800">Persona Testing Switcher:</span>
-          <span className="text-slate-500 hidden sm:inline">Evaluate different student eligibility states</span>
+          <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+          <span className="font-bold text-slate-800">Demo Account Switcher:</span>
+          <span className="text-slate-500 hidden sm:inline">Test eligibility across undergraduate, hall, and postgraduate domains</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => switchTestPersona('kofi')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
               currentStudent.studentId === 'PS/CSC/22/0089' && !isSuspended
-                ? 'bg-[#123B70] text-white shadow-xs'
+                ? 'bg-[#123B70] text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -213,9 +296,9 @@ export const StudentDashboard: React.FC = () => {
 
           <button
             onClick={() => switchTestPersona('nana')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
               currentStudent.studentId === 'ED/EPS/21/0034'
-                ? 'bg-[#123B70] text-white shadow-xs'
+                ? 'bg-[#123B70] text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -223,10 +306,21 @@ export const StudentDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => switchTestPersona('postgraduate')}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              currentStudent.studentId === 'PG/CSC/25/0018'
+                ? 'bg-[#123B70] text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Ama Darko (Postgraduate · GRASAG)
+          </button>
+
+          <button
             onClick={() => switchTestPersona('medical_freshman')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
               currentStudent.studentId === 'MED/SMS/24/0012'
-                ? 'bg-[#123B70] text-white shadow-xs'
+                ? 'bg-[#123B70] text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -235,16 +329,32 @@ export const StudentDashboard: React.FC = () => {
 
           <button
             onClick={() => switchTestPersona('suspended')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
               isSuspended
-                ? 'bg-red-600 text-white shadow-xs'
+                ? 'bg-red-600 text-white'
                 : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
             }`}
           >
-            ⚠ Suspended Student
+            Suspended Demo
           </button>
         </div>
       </div>
+
+      {/* API / Persona Switch Feedback Banner */}
+      {errorMsg && (
+        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+          <button
+            onClick={() => setErrorMsg('')}
+            className="text-[11px] font-bold text-amber-800 hover:underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Suspended Alert Banner (If Account is Suspended) */}
       {isSuspended && (
@@ -325,10 +435,10 @@ export const StudentDashboard: React.FC = () => {
             </button>
 
             {/* Direct Cast Ballot CTA */}
-            {pendingVotesCount > 0 && !isSuspended && (
+            {pendingVotesCount > 0 && firstPendingElection && !isSuspended && (
               <button
-                onClick={() => navigateTo('digital_ballot', { electionId: 'UCC-SRC-2026' })}
-                className="px-5 py-3 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                onClick={() => navigateTo('digital_ballot', { electionId: firstPendingElection.id })}
+                className="px-5 py-3 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
               >
                 <Vote className="w-4 h-4" />
                 <span>Cast Live Ballot ({pendingVotesCount})</span>
@@ -522,7 +632,12 @@ export const StudentDashboard: React.FC = () => {
               </div>
 
               <p className="text-xs text-[#123B70] font-semibold">
-                Contesting for: <strong>{myCandidateApplication.positionId.replace('pos-', '').replace(/-/g, ' ').toUpperCase()}</strong>
+                Contesting for:{' '}
+                <strong>
+                  {(positionsByElection[myCandidateApplication.electionId] || []).find(
+                    p => p.id === myCandidateApplication.positionId
+                  )?.title || myCandidateApplication.positionId}
+                </strong>
               </p>
 
               <p className="text-xs text-slate-600 italic line-clamp-2">
@@ -657,6 +772,56 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* UCC STUDENT ELECTION DOMAINS PORTAL HUB */}
+      {domains.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <Building className="w-4 h-4 text-[#123B70]" />
+                <span>Independent UCC Election Domains</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Explore elections organized strictly by institutional constituency domain (SRC, Hall JCRC, GRASAG, Local NUGS, Departmental, Faculty).
+              </p>
+            </div>
+            <button
+              onClick={() => navigateTo('elections_directory')}
+              className="text-xs font-bold text-[#123B70] hover:underline cursor-pointer whitespace-nowrap shrink-0 self-start sm:self-auto"
+            >
+              View All Domains →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {domains.map((dom) => {
+              const domainSummary = Array.isArray(dashboardData?.domainsSummary)
+                ? dashboardData.domainsSummary.find((d: any) => d.domainId === dom.id)
+                : null;
+              const eligibleInDomain = availableElections.filter((e) => e.domainId === dom.id).length;
+              return (
+                <button
+                  key={dom.id}
+                  onClick={() => navigateTo('domain_elections', { domainId: dom.id })}
+                  className="text-left p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-[#123B70] transition-colors cursor-pointer space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold text-[#123B70] uppercase tracking-wide">
+                      {dom.shortName}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-600 tabular-nums">
+                      {dom.stats.activeElections} live · {domainSummary ? domainSummary.eligibleCount : eligibleInDomain} eligible
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-slate-900 leading-snug">{dom.name}</div>
+                  <p className="text-[11px] text-slate-500 line-clamp-1">{dom.eligibilityRuleSummary}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* MAIN TWO-COLUMN SECTION: ELECTIONS DIRECTORY (LEFT) + QUICK ACTIONS & ANNOUNCEMENTS (RIGHT) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

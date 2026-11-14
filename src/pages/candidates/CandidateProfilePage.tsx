@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_POSITIONS } from '../../data/mockData';
 import { Logo } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { 
   ArrowLeft, 
   Vote, 
@@ -24,7 +24,7 @@ import {
 import { ManifestoComparisonModal } from '../../components/candidates/ManifestoComparisonModal';
 
 export const CandidateProfilePage: React.FC = () => {
-  const { selectedCandidateId, candidates, elections, navigateTo } = useApp();
+  const { selectedCandidateId, candidates, elections, positionsByElection, navigateTo } = useApp();
   const [showComparisonModal, setShowComparisonModal] = useState(false);
 
   // Find candidate from live context candidates
@@ -48,13 +48,13 @@ export const CandidateProfilePage: React.FC = () => {
     );
   }
 
-  // Find election and position
+  // Find election and position dynamically
   const election = elections.find(e => e.id === candidate.electionId);
-  const electionPositions = MOCK_POSITIONS[candidate.electionId] || [];
+  const electionPositions = positionsByElection[candidate.electionId] || [];
   const position = electionPositions.find(p => p.id === candidate.positionId);
   const positionTitle = position ? position.title : candidate.positionId.replace('pos-', '').replace(/-/g, ' ').toUpperCase();
 
-  // Find opponents contesting for the same position
+  // Find opponents contesting exclusively for the same election AND position
   const opponents = candidates.filter(
     c => c.electionId === candidate.electionId && c.positionId === candidate.positionId
   );
@@ -66,13 +66,27 @@ export const CandidateProfilePage: React.FC = () => {
       
       {/* Top navigation row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          onClick={() => navigateTo('candidate_directory')}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#123B70] transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Candidate Directory</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            onClick={() =>
+              navigateTo('candidate_directory', {
+                electionId: candidate.electionId,
+                positionId: candidate.positionId
+              })
+            }
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B70] hover:underline transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to {positionTitle} Candidates</span>
+          </button>
+
+          <button
+            onClick={() => navigateTo('candidate_directory')}
+            className="text-xs font-semibold text-slate-500 hover:text-[#123B70] transition-colors cursor-pointer"
+          >
+            All Positions Directory
+          </button>
+        </div>
 
         {opponents.length > 1 && (
           <button
@@ -91,7 +105,7 @@ export const CandidateProfilePage: React.FC = () => {
           
           {/* Large Profile Photograph with Status Badge */}
           <div className="relative shrink-0 mx-auto md:mx-0">
-            <img
+            <CandidateAvatar
               src={candidate.photoUrl}
               alt={candidate.fullName}
               className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl object-cover object-top border-2 border-slate-200 shadow-md ring-4 ring-[#EAF2FA]"
@@ -374,8 +388,8 @@ export const CandidateProfilePage: React.FC = () => {
                 Vice Presidential Running Mate
               </span>
               <div className="flex items-center gap-3 pt-1">
-                <img
-                  src={candidate.runningMate.photoUrl || '/src/assets/images/candidate_male_1794352938747.jpg'}
+                <CandidateAvatar
+                  src={candidate.runningMate.photoUrl}
                   alt={candidate.runningMate.fullName}
                   className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
                 />
@@ -457,6 +471,9 @@ export const CandidateProfilePage: React.FC = () => {
       <ManifestoComparisonModal
         isOpen={showComparisonModal}
         onClose={() => setShowComparisonModal(false)}
+        initialElectionId={candidate.electionId}
+        initialPositionId={candidate.positionId}
+        initialCandidateIds={[candidate.id, ...opponents.filter(o => o.id !== candidate.id).map(o => o.id)].slice(0, 2)}
         positionTitle={positionTitle}
         electionTitle={election?.title || 'UCC Election'}
         candidates={opponents}

@@ -1,4 +1,8 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { hashPassword } from './cryptoUtils.ts';
+import type { AdminRoleType, DomainId } from '../types/index.ts';
 
 export interface OfficialRegistryStudent {
   studentId: string;
@@ -47,9 +51,14 @@ export interface StoredAdminAccount {
   staffId: string;
   fullName: string;
   email: string;
-  role: 'Super Administrator' | 'Electoral Commissioner' | 'Returning Officer' | 'Results Auditor';
+  role: AdminRoleType;
   department: string;
   permissions: string[];
+  managedDomainIds?: DomainId[];
+  managedHalls?: string[];
+  managedFaculties?: string[];
+  managedDepartments?: string[];
+  isDemoAccount?: boolean;
   passwordHash: string;
   passwordSalt: string;
   status: 'active' | 'suspended';
@@ -61,10 +70,25 @@ export interface SessionData {
   userId: string;
   role: string;
   userType: 'student' | 'admin';
+  managedDomainIds?: DomainId[];
+  managedHalls?: string[];
+  managedFaculties?: string[];
+  managedDepartments?: string[];
   expiresAt: number; // timestamp
   createdAt: number;
+  refreshToken?: string;
   ipAddress?: string;
   userAgent?: string;
+  rememberMe?: boolean;
+}
+
+export interface RefreshSessionData {
+  refreshToken: string;
+  userId: string;
+  role: string;
+  userType: 'student' | 'admin';
+  expiresAt: number;
+  createdAt: number;
   rememberMe?: boolean;
 }
 
@@ -84,6 +108,10 @@ export interface AuditLogEntry {
     | 'ELECTION_STATUS_CHANGE'
     | 'CREATE_POSITION'
     | 'DELETE_POSITION'
+    | 'UPDATE_POSITION'
+    | 'CREATE_DOMAIN'
+    | 'CREATE_SUBDOMAIN'
+    | 'UPDATE_ADMIN_SCOPE'
     | 'SUBMIT_CANDIDATE_APPLICATION'
     | 'UPDATE_CANDIDATE_PROFILE'
     | 'APPROVE_CANDIDATE_NOMINATION'
@@ -217,6 +245,34 @@ export const OFFICIAL_UCC_STUDENT_REGISTRY: Record<string, OfficialRegistryStude
     hall: 'Oguaa Hall',
     isEnrolled: false, // suspended enrollment
     cgpaQualified: false
+  },
+  // Test Account: Level 100 Medical Freshman (Off-campus, eligible for SRC but ineligible for Hall/CS/SPS races)
+  'MED/SMS/24/0012': {
+    studentId: 'MED/SMS/24/0012',
+    indexNumber: '10991204',
+    fullName: 'Kwame Osei Mensah',
+    officialEmail: 'kwame.mensah@st.ucc.edu.gh',
+    faculty: 'School of Medical Sciences',
+    department: 'School of Medical Sciences',
+    programme: 'MB ChB Medicine & Surgery',
+    level: '100',
+    hall: 'Off-Campus Private Hostel',
+    isEnrolled: true,
+    cgpaQualified: true
+  },
+  // Test Account: Postgraduate Student (Eligible for GRASAG & Local NUGS, restricted from SRC undergraduate ballot)
+  'PG/CSC/25/0018': {
+    studentId: 'PG/CSC/25/0018',
+    indexNumber: '20980018',
+    fullName: 'Dr. (cand.) Ama Serwaa Darko',
+    officialEmail: 'ama.darko@st.ucc.edu.gh',
+    faculty: 'School of Physical Sciences',
+    department: 'Computer Science & Information Technology',
+    programme: 'M.Phil. Computer Science',
+    level: 'Postgraduate',
+    hall: 'Casely Hayford Hall',
+    isEnrolled: true,
+    cgpaQualified: true
   }
 };
 
@@ -310,10 +366,66 @@ export const STUDENT_ACCOUNTS: Map<string, StoredStudentAccount> = new Map([
       hasVotedElections: [],
       createdAt: '2026-10-05T12:00:00Z'
     }
+  ],
+  [
+    'MED/SMS/24/0012',
+    {
+      id: 'stu-freshman',
+      studentId: 'MED/SMS/24/0012',
+      indexNumber: '10991204',
+      fullName: 'Kwame Osei Mensah (Medical Freshman)',
+      email: 'kwame.mensah@st.ucc.edu.gh',
+      phone: '+233 24 111 2233',
+      department: 'School of Medical Sciences',
+      faculty: 'School of Medical Sciences',
+      programme: 'MB ChB Medicine & Surgery',
+      level: '100',
+      hall: 'Off-Campus Private Hostel',
+      passwordHash: defaultPwd.hash,
+      passwordSalt: defaultPwd.salt,
+      status: 'active',
+      isEligible: true,
+      emailVerified: true,
+      notificationPreferences: {
+        emailAlerts: true,
+        smsBulletins: true,
+        resultsAnnouncements: true
+      },
+      hasVotedElections: [],
+      createdAt: '2026-10-06T09:00:00Z'
+    }
+  ],
+  [
+    'PG/CSC/25/0018',
+    {
+      id: 'stu-pg-001',
+      studentId: 'PG/CSC/25/0018',
+      indexNumber: '20980018',
+      fullName: 'Ama Serwaa Darko (Postgraduate Demo)',
+      email: 'ama.darko@st.ucc.edu.gh',
+      phone: '+233 24 777 3344',
+      department: 'Computer Science & Information Technology',
+      faculty: 'School of Physical Sciences',
+      programme: 'M.Phil. Computer Science',
+      level: 'Postgraduate',
+      hall: 'Casely Hayford Hall',
+      passwordHash: defaultPwd.hash,
+      passwordSalt: defaultPwd.salt,
+      status: 'active',
+      isEligible: true,
+      emailVerified: true,
+      notificationPreferences: {
+        emailAlerts: true,
+        smsBulletins: true,
+        resultsAnnouncements: true
+      },
+      hasVotedElections: [],
+      createdAt: '2026-10-06T10:00:00Z'
+    }
   ]
 ]);
 
-// Initial Administrative Accounts
+// Initial Administrative Accounts (Global + Domain-Scoped RBAC Demonstration Accounts)
 const adminPwd = hashPassword('Admin@UCC2026');
 
 export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
@@ -327,6 +439,8 @@ export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
       role: 'Electoral Commissioner',
       department: 'University Electoral Commission',
       permissions: ['manage_elections', 'certify_results', 'audit_ballots', 'verify_students'],
+      managedDomainIds: ['src', 'jcrc_hall', 'grasag', 'local_nugs', 'departmental', 'faculty_school'],
+      isDemoAccount: true,
       passwordHash: adminPwd.hash,
       passwordSalt: adminPwd.salt,
       status: 'active'
@@ -341,7 +455,9 @@ export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
       email: 'k.acheampong@ucc.edu.gh',
       role: 'Super Administrator',
       department: 'Directorate of ICT (DoICT)',
-      permissions: ['all_systems', 'manage_admins', 'system_config', 'audit_all'],
+      permissions: ['all_systems', 'manage_admins', 'manage_domains', 'system_config', 'audit_all'],
+      managedDomainIds: ['src', 'jcrc_hall', 'grasag', 'local_nugs', 'departmental', 'faculty_school'],
+      isDemoAccount: true,
       passwordHash: adminPwd.hash,
       passwordSalt: adminPwd.salt,
       status: 'active'
@@ -357,6 +473,8 @@ export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
       role: 'Returning Officer',
       department: 'Electoral Board - Halls & Faculties',
       permissions: ['verify_students', 'publish_provisional', 'view_turnout'],
+      managedDomainIds: ['src', 'jcrc_hall', 'grasag', 'local_nugs', 'departmental', 'faculty_school'],
+      isDemoAccount: true,
       passwordHash: adminPwd.hash,
       passwordSalt: adminPwd.salt,
       status: 'active'
@@ -372,6 +490,132 @@ export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
       role: 'Results Auditor',
       department: 'Independent Audit Council',
       permissions: ['inspect_checksums', 'validate_tallies', 'audit_logs'],
+      managedDomainIds: ['src', 'jcrc_hall', 'grasag', 'local_nugs', 'departmental', 'faculty_school'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/SRC/01',
+    {
+      id: 'adm-dom-src',
+      staffId: 'UCC/DOM/SRC/01',
+      fullName: 'Mr. Francis K. Asante',
+      email: 'src.admin@ucc.edu.gh',
+      role: 'SRC Election Administrator',
+      department: 'SRC Electoral Directorate',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['src'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/CAS/01',
+    {
+      id: 'adm-dom-cas',
+      staffId: 'UCC/DOM/CAS/01',
+      fullName: 'Dr. Emmanuel Quayson (Casford Senior Tutor)',
+      email: 'casford.admin@ucc.edu.gh',
+      role: 'Hall Election Administrator',
+      department: 'Casely Hayford Hall Electoral Board',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['jcrc_hall'],
+      managedHalls: ['Casely Hayford Hall'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/VAL/01',
+    {
+      id: 'adm-dom-val',
+      staffId: 'UCC/DOM/VAL/01',
+      fullName: 'Mrs. Akosua Boateng (Valco Hall Warden)',
+      email: 'valco.admin@ucc.edu.gh',
+      role: 'Hall Election Administrator',
+      department: 'Valco Hall Electoral Board',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['jcrc_hall'],
+      managedHalls: ['Valco Hall'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/GRA/01',
+    {
+      id: 'adm-dom-gra',
+      staffId: 'UCC/DOM/GRA/01',
+      fullName: 'Prof. Efua P. Osei-Wusu',
+      email: 'grasag.admin@ucc.edu.gh',
+      role: 'GRASAG Election Administrator',
+      department: 'School of Graduate Studies Electoral Board',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['grasag'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/NUGS/01',
+    {
+      id: 'adm-dom-nugs',
+      staffId: 'UCC/DOM/NUGS/01',
+      fullName: 'Mr. Bernard K. Mensah',
+      email: 'nugs.admin@ucc.edu.gh',
+      role: 'Local NUGS Election Administrator',
+      department: 'UCC Local NUGS Electoral Committee',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['local_nugs'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/DCS/01',
+    {
+      id: 'adm-dom-dcs',
+      staffId: 'UCC/DOM/DCS/01',
+      fullName: 'Dr. Isaac Armah-Mensah',
+      email: 'dcit.admin@ucc.edu.gh',
+      role: 'Departmental Election Administrator',
+      department: 'Dept. of Computer Science & Information Technology',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['departmental'],
+      managedFaculties: ['School of Physical Sciences'],
+      managedDepartments: ['Computer Science & Information Technology'],
+      isDemoAccount: true,
+      passwordHash: adminPwd.hash,
+      passwordSalt: adminPwd.salt,
+      status: 'active'
+    }
+  ],
+  [
+    'UCC/DOM/SPS/01',
+    {
+      id: 'adm-dom-sps',
+      staffId: 'UCC/DOM/SPS/01',
+      fullName: 'Prof. Samuel K. Donkoh',
+      email: 'sps.admin@ucc.edu.gh',
+      role: 'Faculty/School Election Administrator',
+      department: 'School of Physical Sciences Electoral Board',
+      permissions: ['manage_domain_elections', 'manage_positions', 'vet_candidates', 'view_domain_results'],
+      managedDomainIds: ['faculty_school'],
+      managedFaculties: ['School of Physical Sciences'],
+      isDemoAccount: true,
       passwordHash: adminPwd.hash,
       passwordSalt: adminPwd.salt,
       status: 'active'
@@ -379,8 +623,86 @@ export const ADMIN_ACCOUNTS: Map<string, StoredAdminAccount> = new Map([
   ]
 ]);
 
-// Active Sessions Store: token -> SessionData
+// Active Sessions Store: accessToken -> SessionData
 export const ACTIVE_SESSIONS: Map<string, SessionData> = new Map();
+
+// Refresh Sessions Store: refreshToken -> RefreshSessionData
+export const REFRESH_SESSIONS: Map<string, RefreshSessionData> = new Map();
+
+const SESSION_PERSIST_FILE = path.join(os.tmpdir(), 'ucc-vote-sessions.json');
+
+export function loadPersistedSessions() {
+  try {
+    if (!fs.existsSync(SESSION_PERSIST_FILE)) return;
+    const raw = fs.readFileSync(SESSION_PERSIST_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (Array.isArray(parsed?.activeSessions)) {
+      for (const [token, sess] of parsed.activeSessions) {
+        if (token && sess && typeof sess.expiresAt === 'number' && sess.expiresAt > now) {
+          ACTIVE_SESSIONS.set(token, sess);
+        }
+      }
+    }
+    if (Array.isArray(parsed?.refreshSessions)) {
+      for (const [rToken, rSess] of parsed.refreshSessions) {
+        if (rToken && rSess && typeof rSess.expiresAt === 'number' && rSess.expiresAt > now) {
+          REFRESH_SESSIONS.set(rToken, rSess);
+        }
+      }
+    }
+  } catch {
+    // ignore corrupt/unavailable temp file
+  }
+}
+
+export function persistSessions() {
+  try {
+    const now = Date.now();
+    const activeEntries = Array.from(ACTIVE_SESSIONS.entries()).filter(([, s]) => s.expiresAt > now);
+    const refreshEntries = Array.from(REFRESH_SESSIONS.entries()).filter(([, s]) => s.expiresAt > now);
+    fs.writeFileSync(
+      SESSION_PERSIST_FILE,
+      JSON.stringify({ activeSessions: activeEntries, refreshSessions: refreshEntries }),
+      'utf8'
+    );
+  } catch {
+    // non-fatal if temp directory isn't writable
+  }
+}
+
+export function revokeUserSessions(userId: string) {
+  for (const [token, sess] of ACTIVE_SESSIONS.entries()) {
+    if (sess.userId === userId) {
+      ACTIVE_SESSIONS.delete(token);
+    }
+  }
+  for (const [rToken, rSess] of REFRESH_SESSIONS.entries()) {
+    if (rSess.userId === userId) {
+      REFRESH_SESSIONS.delete(rToken);
+    }
+  }
+  persistSessions();
+}
+
+export function findStudentAccountByIdentifier(identifier: string): StoredStudentAccount | undefined {
+  const clean = identifier.trim();
+  const direct = STUDENT_ACCOUNTS.get(clean);
+  if (direct) return direct;
+  const lower = clean.toLowerCase();
+  for (const acc of STUDENT_ACCOUNTS.values()) {
+    if (
+      acc.studentId.toLowerCase() === lower ||
+      acc.indexNumber.toLowerCase() === lower ||
+      acc.id.toLowerCase() === lower
+    ) {
+      return acc;
+    }
+  }
+  return undefined;
+}
+
+loadPersistedSessions();
 
 // Password Reset Tokens: token -> { identifier, expiresAt }
 export const RESET_TOKENS: Map<string, { identifier: string; expiresAt: number; code: string }> = new Map();

@@ -53,8 +53,10 @@ export const Navbar: React.FC = () => {
             <button
               onClick={() => handleNav('elections_directory')}
               className={`hover:text-[#123B70] transition-colors whitespace-nowrap cursor-pointer ${
-                activeView === 'elections_directory' || activeView === 'election_details' 
-                  ? 'text-[#123B70] font-semibold' 
+                activeView === 'elections_directory' ||
+                activeView === 'domain_elections' ||
+                activeView === 'election_details'
+                  ? 'text-[#123B70] font-semibold'
                   : ''
               }`}
             >

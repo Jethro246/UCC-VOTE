@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { electionClient, EligibilityResult } from '../../services/electionClient';
 import { Candidate, Election, Position, VoteConfirmationReceipt } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import {
   Vote,
   CheckCircle2,
@@ -51,13 +52,21 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     submitBallotAction,
     student,
     userRole,
+    sessionChecked,
+    sessionExpiredReason,
+    setPostLoginView,
     recentVoteReceipt
   } = useApp();
 
   const fallbackElection = elections.find((e) => e.id === selectedElectionId) || elections[0];
 
   const [isLoadingBallot, setIsLoadingBallot] = useState(true);
-  const [ballotError, setBallotError] = useState<{ code?: string; message: string } | null>(null);
+  const [ballotError, setBallotError] = useState<{
+    code?: string;
+    message: string;
+    opensAt?: string;
+    closesAt?: string;
+  } | null>(null);
   const [serverElection, setServerElection] = useState<Election | null>(null);
   const [eligibilityInfo, setEligibilityInfo] = useState<EligibilityResult | null>(null);
   const [ballotPositions, setBallotPositions] = useState<DynamicBallotPosition[]>([]);
@@ -90,16 +99,30 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   const election = serverElection || fallbackElection;
 
   const loadAuthorizedBallot = async () => {
+    if (!sessionChecked) {
+      setIsLoadingBallot(true);
+      return;
+    }
+
     setIsLoadingBallot(true);
     setBallotError(null);
     setAlreadyVotedReceipt(null);
 
+    if (userRole === 'admin') {
+      setBallotError({
+        code: 'ADMIN_VOTING_FORBIDDEN',
+        message:
+          'Electoral Commission administrators are prohibited from accessing student voting ballots.'
+      });
+      setIsLoadingBallot(false);
+      return;
+    }
+
     if (userRole === 'guest' || !student) {
-      if (userRole === 'admin') {
+      if (sessionExpiredReason) {
         setBallotError({
-          code: 'ADMIN_VOTING_FORBIDDEN',
-          message:
-            'Electoral Commission administrators are prohibited from accessing student voting ballots.'
+          code: 'SESSION_EXPIRED',
+          message: 'Your session has expired. Please log in again to continue.'
         });
       } else {
         setBallotError({
@@ -130,7 +153,9 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     if (!res.success) {
       setBallotError({
         code: res.code,
-        message: res.error || 'Unable to load authorized digital ballot.'
+        message: res.error || 'Unable to load authorized digital ballot.',
+        opensAt: res.opensAt || res.election?.startDate,
+        closesAt: res.closesAt || res.election?.endDate
       });
       setIsLoadingBallot(false);
       return;
@@ -143,7 +168,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Reset local state when switching elections or user
+    if (!sessionChecked) {
+      setIsLoadingBallot(true);
+      return;
+    }
+    // Reset local ballot state when switching elections, user, or once session settles
     resetBallot();
     setConfirmedReceipt(null);
     setSubmitError(null);
@@ -151,7 +180,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     setConfirmNoticeAgreed(false);
     idempotencyKeyRef.current = `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     loadAuthorizedBallot();
-  }, [selectedElectionId, userRole, student?.id]);
+  }, [selectedElectionId, sessionChecked, userRole, student?.id, sessionExpiredReason]);
 
   useEffect(() => {
     if (!election?.endDate) return;
@@ -254,11 +283,15 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   // =========================================================================
   // LOADING STATE
   // =========================================================================
-  if (isLoadingBallot) {
+  if (!sessionChecked || isLoadingBallot) {
     return (
       <BrandedLoadingScreen
-        title="Verifying Voter Eligibility & Loading Official Ballot"
-        subtitle="Checking student standing, polling window, and approved candidate roster with the UCC Electoral Commission server..."
+        title={
+          !sessionChecked
+            ? 'Verifying your secure voting session...'
+            : 'Verifying Voter Eligibility & Loading Official Ballot'
+        }
+        subtitle="Checking your authenticated UCC student session, polling window, and approved candidate roster..."
       />
     );
   }
@@ -399,12 +432,29 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   }
 
   // =========================================================================
-  // ACCESS DENIED / AUTH REQUIRED / ELECTION CLOSED OR SUSPENDED / ERROR STATE
+  // ACCESS DENIED / AUTH REQUIRED / EXPIRED / ELECTION STATUS / ERROR STATE
   // =========================================================================
   if (ballotError) {
-    const isAuthIssue = ballotError.code === 'AUTH_REQUIRED';
-    const isNetworkIssue = ballotError.code === 'NETWORK_ERROR';
+    const isSessionExpired =
+      ballotError.code === 'SESSION_EXPIRED' || ballotError.code === 'TOKEN_EXPIRED';
+    const isAuthRequired = ballotError.code === 'AUTH_REQUIRED';
+    const isAuthIssue = isSessionExpired || isAuthRequired;
+    const isTransientIssue =
+      ballotError.code === 'NETWORK_ERROR' || ballotError.code === 'SERVER_ERROR';
     const isAdminBlocked = ballotError.code === 'ADMIN_VOTING_FORBIDDEN';
+    const isNotOpenYet =
+      ballotError.code === 'ELECTION_NOT_OPEN' || ballotError.code === 'ELECTION_NOT_STARTED';
+    const isClosed =
+      ballotError.code === 'ELECTION_CLOSED' || ballotError.code === 'ELECTION_ARCHIVED';
+
+    const formattedOpening =
+      ballotError.opensAt && !isNaN(new Date(ballotError.opensAt).getTime())
+        ? `${new Date(ballotError.opensAt).toLocaleString('en-GB', {
+            dateStyle: 'full',
+            timeStyle: 'short',
+            timeZone: 'UTC'
+          })} GMT`
+        : null;
 
     return (
       <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
@@ -412,17 +462,21 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="flex items-start gap-4">
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                isAuthIssue
+                isAuthRequired
                   ? 'bg-[#EAF2FA] text-[#123B70]'
-                  : isAdminBlocked || ballotError.code === 'ELECTION_SUSPENDED'
+                  : isAdminBlocked ||
+                    ballotError.code === 'ELECTION_SUSPENDED' ||
+                    ballotError.code === 'ACCOUNT_SUSPENDED'
                   ? 'bg-red-100 text-[#C62828]'
                   : 'bg-amber-100 text-amber-700'
               }`}
             >
               {isAuthIssue ? (
                 <LogIn className="w-6 h-6" />
-              ) : isAdminBlocked ? (
+              ) : isAdminBlocked || ballotError.code === 'ACCOUNT_SUSPENDED' ? (
                 <ShieldAlert className="w-6 h-6" />
+              ) : isNotOpenYet || isClosed ? (
+                <Clock className="w-6 h-6" />
               ) : (
                 <AlertTriangle className="w-6 h-6" />
               )}
@@ -436,23 +490,40 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 </span>
               </div>
               <h1 className="text-xl font-extrabold text-slate-900">
-                {isAuthIssue
+                {isSessionExpired
+                  ? 'Your Session Has Expired'
+                  : isAuthRequired
                   ? 'Student Authentication Required'
                   : isAdminBlocked
                   ? 'Administrative Role Cannot Cast Voter Ballots'
-                  : ballotError.code === 'ELECTION_CLOSED'
+                  : isNotOpenYet
+                  ? 'Voting Has Not Opened Yet'
+                  : isClosed
                   ? 'Polling Has Officially Closed'
                   : ballotError.code === 'ELECTION_SUSPENDED'
                   ? 'Election Temporarily Suspended'
+                  : ballotError.code === 'ACCOUNT_SUSPENDED'
+                  ? 'Voter Account Suspended'
                   : ballotError.code === 'INELIGIBLE_VOTER'
                   ? 'Voter Eligibility Check Not Satisfied'
-                  : isNetworkIssue
+                  : ballotError.code === 'SERVER_ERROR'
+                  ? 'Voting Service Temporarily Unavailable'
+                  : ballotError.code === 'NETWORK_ERROR'
                   ? 'Connection Interrupted'
                   : 'Ballot Currently Unavailable'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                {ballotError.message}
+                {isSessionExpired
+                  ? 'Your session has expired. Please log in again to continue.'
+                  : ballotError.message}
               </p>
+
+              {isNotOpenYet && formattedOpening && (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAF2FA] border border-blue-200 text-xs text-[#123B70] font-semibold">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>Scheduled Opening: {formattedOpening}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -481,15 +552,18 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
             {isAuthIssue && (
               <button
-                onClick={() => navigateTo('student_login')}
+                onClick={() => {
+                  setPostLoginView('digital_ballot');
+                  navigateTo('student_login');
+                }}
                 className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Sign In as Verified Student</span>
+                <span>{isSessionExpired ? 'Log In Again' : 'Sign In as Verified Student'}</span>
               </button>
             )}
 
-            {isNetworkIssue && (
+            {isTransientIssue && (
               <button
                 onClick={loadAuthorizedBallot}
                 className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
@@ -508,7 +582,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               {userRole === 'admin' ? 'Return to Admin Console' : 'Back to Elections Directory'}
             </button>
 
-            {election && (election.status === 'closed' || election.status === 'results_published') && (
+            {election && (isClosed || election.status === 'closed' || election.status === 'results_published') && (
               <button
                 onClick={() => navigateTo('election_results', { electionId: election.id })}
                 className="px-4 py-2.5 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
@@ -637,10 +711,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                       <div className="space-y-2">
                         {selectedCandidates.map((cand) => (
                           <div key={cand.id} className="flex items-center gap-3">
-                            <img
+                            <CandidateAvatar
                               src={cand.photoUrl}
                               alt={cand.fullName}
-                              className="w-10 h-10 rounded-lg object-cover border border-slate-300"
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-300 shrink-0"
                             />
                             <div>
                               <p className="text-sm font-bold text-slate-900">{cand.fullName}</p>
@@ -911,7 +985,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
-                  Position {activePositionIndex + 1} of {ballotPositions.length}
+                  Position {activePositionIndex + 1} of {ballotPositions.length} · {election.category}
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -977,7 +1051,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   >
                     <div className="space-y-3">
                       <div className="flex items-start gap-4">
-                        <img
+                        <CandidateAvatar
                           src={cand.photoUrl}
                           alt={cand.fullName}
                           className="w-16 h-16 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -1111,10 +1185,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 max-w-xl w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl space-y-5">
             <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <img
+                <CandidateAvatar
                   src={manifestoCandidate.photoUrl}
                   alt={manifestoCandidate.fullName}
-                  className="w-14 h-14 rounded-xl object-cover object-top border border-slate-200"
+                  className="w-14 h-14 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                 />
                 <div>
                   <h3 className="text-lg font-extrabold text-slate-900">

@@ -1,6 +1,26 @@
 export type UserRole = 'guest' | 'student' | 'admin';
 
-export type AdminRoleType = 'Super Administrator' | 'Electoral Commissioner' | 'Returning Officer' | 'Results Auditor';
+export type BuiltInDomainId =
+  | 'src'
+  | 'jcrc_hall'
+  | 'grasag'
+  | 'local_nugs'
+  | 'departmental'
+  | 'faculty_school';
+
+export type DomainId = BuiltInDomainId | (string & {});
+
+export type AdminRoleType =
+  | 'Super Administrator'
+  | 'Electoral Commissioner'
+  | 'SRC Election Administrator'
+  | 'Hall Election Administrator'
+  | 'GRASAG Election Administrator'
+  | 'Local NUGS Election Administrator'
+  | 'Departmental Election Administrator'
+  | 'Faculty/School Election Administrator'
+  | 'Returning Officer'
+  | 'Results Auditor';
 
 export interface StudentProfile {
   id: string;
@@ -24,6 +44,7 @@ export interface StudentProfile {
     resultsAnnouncements: boolean;
   };
   hasVotedElections: string[]; // election IDs
+  isDemoAccount?: boolean;
 }
 
 export interface AdminProfile {
@@ -34,11 +55,63 @@ export interface AdminProfile {
   role: AdminRoleType;
   department: string;
   permissions: string[];
+  managedDomainIds?: DomainId[];
+  managedHalls?: string[];
+  managedFaculties?: string[];
+  managedDepartments?: string[];
+  isDemoAccount?: boolean;
 }
 
-export type ElectionCategory = 'SRC' | 'JCR / Hall' | 'Departmental' | 'Faculty / School' | 'GRASAG' | 'Other';
+export type ElectionCategory =
+  | 'SRC'
+  | 'JCR / Hall'
+  | 'GRASAG'
+  | 'Local NUGS'
+  | 'Departmental'
+  | 'Faculty / School'
+  | 'Other';
 
-export type ElectionStatus = 
+export interface HallUnit {
+  id: string;
+  name: string;
+  shortName: string;
+  motto?: string;
+  affiliationNote?: string;
+}
+
+export interface FacultyUnit {
+  id: string;
+  name: string;
+  code: string;
+  college: string;
+}
+
+export interface DepartmentUnit {
+  id: string;
+  name: string;
+  code: string;
+  facultyId: string;
+  facultyName: string;
+  programmes: string[];
+}
+
+export interface DomainRegistryItem {
+  id: DomainId;
+  name: string;
+  shortName: string;
+  category: ElectionCategory;
+  description: string;
+  governanceScope: string;
+  eligibilityRuleSummary: string;
+  positionsPolicyNote: string;
+  adminRole: AdminRoleType;
+  supportsSubdomains: boolean;
+  subdomainType: 'hall' | 'department' | 'faculty' | 'none';
+  isBuiltIn: boolean;
+  displayOrder: number;
+}
+
+export type ElectionStatus =
   | 'draft'
   | 'pending_approval'
   | 'scheduled'
@@ -50,18 +123,22 @@ export type ElectionStatus =
   | 'results_published'
   | 'archived';
 
-export type CandidateApplicationStatus = 
-  | 'Draft' 
-  | 'Submitted' 
-  | 'Under review' 
-  | 'Approved' 
-  | 'Rejected' 
+export type CandidateApplicationStatus =
+  | 'Draft'
+  | 'Submitted'
+  | 'Under review'
+  | 'Approved'
+  | 'Rejected'
   | 'Withdrawn';
 
 export interface Candidate {
   id: string;
   electionId: string;
   positionId: string;
+  domainId?: DomainId;
+  hallId?: string;
+  facultyId?: string;
+  departmentId?: string;
   fullName: string;
   studentId: string;
   nickname?: string;
@@ -106,6 +183,10 @@ export interface Candidate {
 export interface Position {
   id: string;
   electionId: string;
+  domainId?: DomainId;
+  hallId?: string;
+  facultyId?: string;
+  departmentId?: string;
   title: string;
   description: string;
   maxSelections: number;
@@ -122,6 +203,11 @@ export interface Election {
   code: string;
   description: string;
   category: ElectionCategory;
+  domainId?: DomainId;
+  hallId?: string;
+  facultyId?: string;
+  departmentId?: string;
+  subdomainLabel?: string;
   academicYear: string;
   status: ElectionStatus;
   startDate: string;
@@ -147,6 +233,7 @@ export interface Election {
   createdAt?: string;
   updatedAt?: string;
   approvedBy?: string;
+  isDemoRecord?: boolean;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;
@@ -157,6 +244,7 @@ export interface VoteConfirmationReceipt {
   electionId: string;
   electionTitle: string;
   electionCategory: ElectionCategory;
+  domainId?: DomainId;
   submittedAt: string;
   positionsCompleted: {
     id: string;
@@ -171,6 +259,7 @@ export interface NotificationItem {
   title: string;
   message: string;
   category: 'election' | 'security' | 'deadline' | 'results';
+  domainId?: DomainId;
   timestamp: string;
   read: boolean;
   linkAction?: string;
@@ -180,6 +269,8 @@ export interface CalendarEvent {
   id: string;
   title: string;
   electionCategory: ElectionCategory;
+  domainId?: DomainId;
+  subdomainLabel?: string;
   startDate: string;
   endDate: string;
   type: 'nomination' | 'vetting' | 'campaign' | 'voting' | 'results';
@@ -192,6 +283,7 @@ export interface ComplaintTicket {
   ticketNumber: string;
   studentName: string;
   studentId: string;
+  domainId?: DomainId;
   category: 'technical' | 'eligibility' | 'irregularity' | 'general';
   subject: string;
   description: string;
@@ -278,6 +370,8 @@ export interface ElectionResultsPayload {
   electionTitle: string;
   electionCode: string;
   category: ElectionCategory;
+  domainId?: DomainId;
+  subdomainLabel?: string;
   status: ElectionStatus;
   academicYear: string;
   organizingBody: string;
@@ -312,13 +406,14 @@ export interface AuditLogItem {
   status: 'success' | 'flagged' | 'warning';
 }
 
-export type ActiveView = 
+export type ActiveView =
   | 'landing'
   | 'student_login'
   | 'student_register'
   | 'forgot_password'
   | 'student_dashboard'
   | 'elections_directory'
+  | 'domain_elections'
   | 'election_details'
   | 'candidate_directory'
   | 'candidate_profile'

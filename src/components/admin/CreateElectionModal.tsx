@@ -1,82 +1,157 @@
-import React, { useState } from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  Calendar, 
-  Clock, 
-  ShieldCheck, 
-  Users, 
-  HelpCircle, 
+import React, { useState, useEffect } from 'react';
+import {
+  Plus,
+  Trash2,
+  Calendar,
+  Clock,
+  ShieldCheck,
+  Users,
   AlertCircle,
-  FileText,
   CheckCircle2,
-  X
+  X,
+  Edit3
 } from 'lucide-react';
-import { ElectionCategory, ElectionStatus } from '../../types';
+import { DomainId, ElectionCategory } from '../../types';
 import { CreateElectionPayload, electionClient } from '../../services/electionClient';
+import { useApp } from '../../context/AppContext';
 
 interface CreateElectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (newElection: any) => void;
+  defaultDomainId?: DomainId;
 }
 
-const UCC_FACULTIES = [
-  'School of Physical Sciences',
-  'School of Biological Sciences',
-  'School of Business',
-  'Faculty of Arts & Social Sciences',
-  'Faculty of Educational Foundations',
-  'Faculty of Humanities and Social Sciences Education',
-  'School of Medical Sciences',
-  'School of Nursing and Midwifery',
-  'School of Allied Health Sciences',
-  'School of Agriculture',
-  'School of Graduate Studies'
-];
-
-const UCC_DEPARTMENTS = [
-  'Computer Science & Information Technology',
-  'Physics',
-  'Chemistry',
-  'Mathematics & Statistics',
-  'Accounting',
-  'Finance',
-  'Marketing & Supply Chain',
-  'Management',
-  'History & Diplomatic Studies',
-  'Communication Studies',
-  'English',
-  'Psychology & Education',
-  'Basic Education'
-];
-
-const UCC_HALLS = [
-  'Casely Hayford Hall',
-  'Valco Hall',
-  'Oguaa Hall',
-  'Kwame Nkrumah Hall',
-  'Atlantic Hall',
-  'Adehye Hall',
-  'Superannuation Hall (SRC Hostel)',
-  'UCC Diaspora / Private Hostels'
-];
-
 const UCC_LEVELS = ['100', '200', '300', '400', 'Postgraduate'];
+
+interface PositionDraft {
+  title: string;
+  description: string;
+  maxSelections: number;
+  allowsSkip: boolean;
+  candidateEligibilityRules: string;
+  votingRules: string;
+}
+
+function getStarterPositionsForDomain(domainId: DomainId): PositionDraft[] {
+  if (domainId === 'jcrc_hall') {
+    return [
+      {
+        title: 'JCRC President',
+        description: 'Executive head of the Hall Junior Common Room Council',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Registered resident or affiliate of the hall in good standing, CGPA >= 3.0.',
+        votingRules: 'Single candidate preference.'
+      },
+      {
+        title: 'JCRC General Secretary',
+        description: 'Custodian of hall minutes, notices, and administrative correspondence',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Registered hall member, CGPA >= 3.0.',
+        votingRules: 'Single candidate preference.'
+      },
+      {
+        title: 'JCRC Financial Secretary',
+        description: 'Oversees hall dues accounting, subventions, and expenditure transparency',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Registered hall member, CGPA >= 3.0.',
+        votingRules: 'Single candidate preference.'
+      }
+    ];
+  }
+  if (domainId === 'local_nugs') {
+    return [
+      {
+        title: 'Local NUGS President',
+        description: 'Chief UCC chapter liaison to National Union of Ghana Students (customizable)',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Accredited UCC student, CGPA >= 3.0.',
+        votingRules: 'Single candidate preference.'
+      },
+      {
+        title: 'Local NUGS Secretary',
+        description: 'Chapter secretariat, scholarship clinics & communications (customizable)',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Accredited UCC student, CGPA >= 3.0.',
+        votingRules: 'Single candidate preference.'
+      }
+    ];
+  }
+  if (domainId === 'grasag') {
+    return [
+      {
+        title: 'GRASAG President',
+        description: 'Executive head of the UCC Graduate Students Association',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Registered Postgraduate student at UCC School of Graduate Studies.',
+        votingRules: 'Single candidate preference.'
+      },
+      {
+        title: 'GRASAG General Secretary',
+        description: 'Graduate senate documentation and research fellowship dispatches',
+        maxSelections: 1,
+        allowsSkip: false,
+        candidateEligibilityRules: 'Registered Postgraduate student.',
+        votingRules: 'Single candidate preference.'
+      }
+    ];
+  }
+  return [
+    {
+      title: 'President & Vice-President',
+      description: 'Executive Council leadership portfolio',
+      maxSelections: 1,
+      allowsSkip: false,
+      candidateEligibilityRules: 'Cumulative GPA >= 3.0, verified enrollment and good standing.',
+      votingRules: 'Single candidate preference.'
+    },
+    {
+      title: 'General Secretary',
+      description: 'Chief administrative officer and custodian of official council records',
+      maxSelections: 1,
+      allowsSkip: false,
+      candidateEligibilityRules: 'Cumulative GPA >= 3.0, accredited in good standing.',
+      votingRules: 'Single candidate preference.'
+    }
+  ];
+}
 
 export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  defaultDomainId
 }) => {
+  const { domains, halls, faculties, departments, admin, refreshDomains } = useApp();
+
+  const allowedDomains = admin?.managedDomainIds?.length
+    ? domains.filter((d) => admin.managedDomainIds!.includes(d.id))
+    : domains;
+
+  const initialDomain =
+    (defaultDomainId && allowedDomains.some((d) => d.id === defaultDomainId)
+      ? defaultDomainId
+      : allowedDomains[0]?.id) || 'src';
+
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Step 1: Basic Information
+  // Step 1: Domain, Subdomain & Basic Info
+  const [domainId, setDomainId] = useState<DomainId>(initialDomain);
+  const [category, setCategory] = useState<ElectionCategory>('SRC');
+  const [selectedHallId, setSelectedHallId] = useState<string>('');
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
+  const [subdomainLabel, setSubdomainLabel] = useState<string>('');
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
-  const [category, setCategory] = useState<ElectionCategory>('SRC');
   const [academicYear, setAcademicYear] = useState('2026/2027');
   const [organizingBody, setOrganizingBody] = useState('UCC Electoral Commission (EC-UCC)');
   const [description, setDescription] = useState('');
@@ -90,6 +165,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   // Step 3: Eligibility Rules
   const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedProgrammes, setSelectedProgrammes] = useState<string[]>([]);
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['100', '200', '300', '400']);
   const [selectedHalls, setSelectedHalls] = useState<string[]>([]);
   const [rules, setRules] = useState<string[]>([
@@ -100,78 +176,177 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [newRuleInput, setNewRuleInput] = useState('');
 
   // Step 4: Contested Positions
-  const [positions, setPositions] = useState<
-    {
-      title: string;
-      description: string;
-      maxSelections: number;
-      allowsSkip: boolean;
-      candidateEligibilityRules: string;
-      votingRules: string;
-    }[]
-  >([
-    {
-      title: 'President & Vice-President',
-      description: 'Executive Council joint presidential slate leadership portfolio',
-      maxSelections: 1,
-      allowsSkip: false,
-      candidateEligibilityRules: 'Cumulative GPA >= 3.0, Level 300 or 400 student, verified conduct.',
-      votingRules: 'Single joint-ticket preference.'
-    },
-    {
-      title: 'General Secretary',
-      description: 'Chief administrative officer and executive custodian of records',
-      maxSelections: 1,
-      allowsSkip: false,
-      candidateEligibilityRules: 'Cumulative GPA >= 3.0, accredited in good standing.',
-      votingRules: 'Single candidate preference.'
-    }
-  ]);
-
+  const [positions, setPositions] = useState<PositionDraft[]>(() =>
+    getStarterPositionsForDomain(initialDomain)
+  );
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [newPosTitle, setNewPosTitle] = useState('');
   const [newPosDesc, setNewPosDesc] = useState('');
   const [newPosMax, setNewPosMax] = useState(1);
   const [newPosSkip, setNewPosSkip] = useState(false);
 
+  const applyDomainDefaults = (targetDomainId: DomainId) => {
+    setDomainId(targetDomainId);
+    const domainObj = domains.find((d) => d.id === targetDomainId);
+    if (domainObj) {
+      setCategory(domainObj.category);
+    }
+
+    setPositions(getStarterPositionsForDomain(targetDomainId));
+    setEditingIdx(null);
+
+    if (targetDomainId === 'grasag') {
+      setSelectedLevels(['Postgraduate']);
+      setSelectedHalls([]);
+      setSelectedFaculties([]);
+      setSelectedDepartments([]);
+      setSelectedProgrammes([]);
+      setSelectedHallId('');
+      setSelectedFacultyId('');
+      setSelectedDepartmentId('');
+      setSubdomainLabel('School of Graduate Studies');
+      setOrganizingBody('GRASAG-UCC Electoral Board');
+    } else if (targetDomainId === 'jcrc_hall') {
+      const scopedHallName = admin?.managedHalls?.[0];
+      const defaultHall =
+        (scopedHallName && halls.find((h) => h.name === scopedHallName)) || halls[0];
+      setSelectedLevels(['100', '200', '300', '400']);
+      setSelectedFaculties([]);
+      setSelectedDepartments([]);
+      setSelectedProgrammes([]);
+      setSelectedFacultyId('');
+      setSelectedDepartmentId('');
+      if (defaultHall) {
+        setSelectedHallId(defaultHall.id);
+        setSelectedHalls([defaultHall.name]);
+        setSubdomainLabel(defaultHall.name);
+        setOrganizingBody(`${defaultHall.name} Electoral Committee`);
+      }
+    } else if (targetDomainId === 'faculty_school') {
+      const scopedFacName = admin?.managedFaculties?.[0];
+      const defaultFac =
+        (scopedFacName && faculties.find((f) => f.name === scopedFacName)) || faculties[0];
+      setSelectedLevels(['100', '200', '300', '400']);
+      setSelectedHalls([]);
+      setSelectedDepartments([]);
+      setSelectedProgrammes([]);
+      setSelectedHallId('');
+      setSelectedDepartmentId('');
+      if (defaultFac) {
+        setSelectedFacultyId(defaultFac.id);
+        setSelectedFaculties([defaultFac.name]);
+        setSubdomainLabel(defaultFac.name);
+        setOrganizingBody(`${defaultFac.name} Electoral Committee`);
+      }
+    } else if (targetDomainId === 'departmental') {
+      const scopedDeptName = admin?.managedDepartments?.[0];
+      const defaultDept =
+        (scopedDeptName && departments.find((d) => d.name === scopedDeptName)) || departments[0];
+      setSelectedLevels(['100', '200', '300', '400']);
+      setSelectedHalls([]);
+      setSelectedHallId('');
+      if (defaultDept) {
+        setSelectedFacultyId(defaultDept.facultyId);
+        setSelectedDepartmentId(defaultDept.id);
+        setSelectedFaculties([defaultDept.facultyName]);
+        setSelectedDepartments([defaultDept.name]);
+        setSelectedProgrammes([]);
+        setSubdomainLabel(defaultDept.name);
+        setOrganizingBody(`${defaultDept.name} Electoral Board`);
+      }
+    } else if (targetDomainId === 'local_nugs') {
+      setSelectedLevels(['100', '200', '300', '400', 'Postgraduate']);
+      setSelectedHalls([]);
+      setSelectedFaculties([]);
+      setSelectedDepartments([]);
+      setSelectedProgrammes([]);
+      setSelectedHallId('');
+      setSelectedFacultyId('');
+      setSelectedDepartmentId('');
+      setSubdomainLabel('UCC Local NUGS Chapter');
+      setOrganizingBody('UCC Local NUGS Electoral Committee');
+    } else {
+      setSelectedLevels(['100', '200', '300', '400']);
+      setSelectedHalls([]);
+      setSelectedFaculties([]);
+      setSelectedDepartments([]);
+      setSelectedProgrammes([]);
+      setSelectedHallId('');
+      setSelectedFacultyId('');
+      setSelectedDepartmentId('');
+      setSubdomainLabel(domainObj?.name || 'Central SRC Constituency');
+      setOrganizingBody('UCC Electoral Commission (EC-UCC)');
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveStep(1);
+      setErrorMsg('');
+      applyDomainDefaults(initialDomain);
+    }
+  }, [isOpen, defaultDomainId]);
+
   if (!isOpen) return null;
 
+  const availableHalls = admin?.managedHalls?.length
+    ? halls.filter((h) => admin.managedHalls!.includes(h.name))
+    : halls;
+
+  const availableFaculties = admin?.managedFaculties?.length
+    ? faculties.filter((f) => admin.managedFaculties!.includes(f.name))
+    : faculties;
+
+  const availableDepartments = departments.filter((d) => {
+    if (admin?.managedDepartments?.length && !admin.managedDepartments.includes(d.name)) {
+      return false;
+    }
+    if (selectedFacultyId && d.facultyId !== selectedFacultyId) {
+      return false;
+    }
+    return true;
+  });
+
+  const activeDepartmentObj = departments.find((d) => d.id === selectedDepartmentId);
+
   const handleToggleLevel = (lvl: string) => {
-    setSelectedLevels(prev => 
-      prev.includes(lvl) ? prev.filter(l => l !== lvl) : [...prev, lvl]
+    if (domainId === 'grasag') return; // GRASAG strictly locked to Postgraduate
+    setSelectedLevels((prev) =>
+      prev.includes(lvl) ? prev.filter((l) => l !== lvl) : [...prev, lvl]
     );
   };
 
-  const handleToggleFaculty = (f: string) => {
-    setSelectedFaculties(prev => 
-      prev.includes(f) ? prev.filter(item => item !== f) : [...prev, f]
+  const handleToggleProgramme = (prog: string) => {
+    setSelectedProgrammes((prev) =>
+      prev.includes(prog) ? prev.filter((p) => p !== prog) : [...prev, prog]
     );
   };
 
-  const handleToggleDepartment = (d: string) => {
-    setSelectedDepartments(prev => 
-      prev.includes(d) ? prev.filter(item => item !== d) : [...prev, d]
+  const handleToggleHall = (hName: string) => {
+    setSelectedHalls((prev) =>
+      prev.includes(hName) ? prev.filter((item) => item !== hName) : [...prev, hName]
     );
   };
 
-  const handleToggleHall = (h: string) => {
-    setSelectedHalls(prev => 
-      prev.includes(h) ? prev.filter(item => item !== h) : [...prev, h]
+  const handleToggleFaculty = (fName: string) => {
+    setSelectedFaculties((prev) =>
+      prev.includes(fName) ? prev.filter((item) => item !== fName) : [...prev, fName]
     );
   };
 
   const handleAddRule = () => {
     if (!newRuleInput.trim()) return;
-    setRules(prev => [...prev, newRuleInput.trim()]);
+    setRules((prev) => [...prev, newRuleInput.trim()]);
     setNewRuleInput('');
   };
 
   const handleRemoveRule = (idx: number) => {
-    setRules(prev => prev.filter((_, i) => i !== idx));
+    setRules((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleAddPosition = () => {
     if (!newPosTitle.trim()) return;
-    setPositions(prev => [
+    setPositions((prev) => [
       ...prev,
       {
         title: newPosTitle.trim(),
@@ -179,7 +354,8 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         maxSelections: newPosMax,
         allowsSkip: newPosSkip,
         candidateEligibilityRules: 'Accredited student in good standing, GPA >= 3.0.',
-        votingRules: newPosMax > 1 ? `Multi-choice up to ${newPosMax} candidates` : 'Single candidate preference'
+        votingRules:
+          newPosMax > 1 ? `Multi-choice up to ${newPosMax} candidates` : 'Single candidate preference'
       }
     ]);
     setNewPosTitle('');
@@ -188,17 +364,41 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setNewPosSkip(false);
   };
 
+  const handleUpdatePositionField = (idx: number, field: keyof PositionDraft, value: any) => {
+    setPositions((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p))
+    );
+  };
+
   const handleRemovePosition = (idx: number) => {
-    setPositions(prev => prev.filter((_, i) => i !== idx));
+    setPositions((prev) => prev.filter((_, i) => i !== idx));
+    if (editingIdx === idx) setEditingIdx(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Validation
     if (!title.trim()) {
       setErrorMsg('Election title is mandatory.');
+      setActiveStep(1);
+      return;
+    }
+
+    if (domainId === 'jcrc_hall' && !selectedHallId) {
+      setErrorMsg('Please select the participating Hall of Residence for this JCRC election.');
+      setActiveStep(1);
+      return;
+    }
+
+    if (domainId === 'faculty_school' && !selectedFacultyId) {
+      setErrorMsg('Please select a Faculty or School.');
+      setActiveStep(1);
+      return;
+    }
+
+    if (domainId === 'departmental' && !selectedDepartmentId) {
+      setErrorMsg('Please select a Department.');
       setActiveStep(1);
       return;
     }
@@ -206,14 +406,8 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     const startDateTime = new Date(`${startDate}T${startTime}:00Z`).getTime();
     const endDateTime = new Date(`${endDate}T${endTime}:00Z`).getTime();
 
-    if (isNaN(startDateTime) || isNaN(endDateTime)) {
-      setErrorMsg('Invalid schedule dates or times.');
-      setActiveStep(2);
-      return;
-    }
-
-    if (endDateTime <= startDateTime) {
-      setErrorMsg('Election closing date/time must be strictly after the start date/time.');
+    if (isNaN(startDateTime) || isNaN(endDateTime) || endDateTime <= startDateTime) {
+      setErrorMsg('Election closing date/time must be strictly after the opening date/time.');
       setActiveStep(2);
       return;
     }
@@ -229,8 +423,17 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     const payload: CreateElectionPayload = {
       title: title.trim(),
       code: code.trim().toUpperCase() || undefined,
-      description: description.trim() || `Official ${category} election for academic year ${academicYear}.`,
+      description:
+        description.trim() || `Official ${category} election for academic year ${academicYear}.`,
       category,
+      domainId,
+      hallId: domainId === 'jcrc_hall' ? selectedHallId : undefined,
+      facultyId:
+        domainId === 'faculty_school' || domainId === 'departmental'
+          ? selectedFacultyId
+          : undefined,
+      departmentId: domainId === 'departmental' ? selectedDepartmentId : undefined,
+      subdomainLabel: subdomainLabel.trim() || undefined,
       academicYear,
       startDate: `${startDate}T${startTime}:00Z`,
       endDate: `${endDate}T${endTime}:00Z`,
@@ -241,7 +444,8 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
       eligibilityCriteria: {
         faculties: selectedFaculties,
         departments: selectedDepartments,
-        levels: selectedLevels,
+        programmes: selectedProgrammes,
+        levels: domainId === 'grasag' ? ['Postgraduate'] : selectedLevels,
         halls: selectedHalls
       },
       positions
@@ -251,6 +455,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setSubmitting(false);
 
     if (res.success && res.election) {
+      await refreshDomains();
       onSuccess(res.election);
       onClose();
     } else {
@@ -259,26 +464,26 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto animate-in fade-in">
-      <div className="bg-white rounded-3xl border border-slate-200 max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-xl my-8">
+
         {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-slate-200">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold mb-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#123B70] mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
-              <span>EC-UCC Centralized Election Provisioning</span>
+              <span>EC-UCC Multi-Domain Election Provisioning</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Create New University Election
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Configure parameters, multi-tier eligibility rules, timelines, and ballot portfolios.
+              Assign election domain, subdomain scope, eligibility criteria, timelines, and configurable portfolios.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -287,7 +492,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         {/* Step Indicator */}
         <div className="grid grid-cols-4 gap-2 text-xs">
           {[
-            { step: 1, label: '1. Basic Info' },
+            { step: 1, label: '1. Domain & Info' },
             { step: 2, label: '2. Schedule' },
             { step: 3, label: '3. Eligibility' },
             { step: 4, label: '4. Portfolios' }
@@ -296,9 +501,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               key={item.step}
               type="button"
               onClick={() => setActiveStep(item.step as any)}
-              className={`py-2 px-3 rounded-xl font-bold text-center transition-all ${
+              className={`py-2 px-3 rounded-xl font-bold text-center transition-colors cursor-pointer whitespace-nowrap ${
                 activeStep === item.step
-                  ? 'bg-[#123B70] text-white shadow-xs'
+                  ? 'bg-[#123B70] text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -307,7 +512,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
           ))}
         </div>
 
-        {/* Error Alert */}
         {errorMsg && (
           <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
@@ -316,40 +520,25 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* STEP 1: Basic Information */}
-          {activeStep === 1 && (
-            <div className="space-y-4 text-xs animate-in fade-in">
-              <div>
-                <label className="block font-bold text-slate-800 mb-1">
-                  Election Title <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 65th Students' Representative Council (SRC) General Elections"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
-                />
-              </div>
 
+          {/* STEP 1: Domain, Subdomain & Basic Information */}
+          {activeStep === 1 && (
+            <div className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-800 mb-1">
-                    Election Category <span className="text-red-600">*</span>
+                    Election Domain <span className="text-red-600">*</span>
                   </label>
                   <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as ElectionCategory)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-medium"
+                    value={domainId}
+                    onChange={(e) => applyDomainDefaults(e.target.value as DomainId)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-semibold"
                   >
-                    <option value="SRC">SRC (Students' Representative Council)</option>
-                    <option value="JCR / Hall">JCR / Hall of Residence</option>
-                    <option value="Departmental">Departmental Association</option>
-                    <option value="Faculty / School">Faculty / School Society</option>
-                    <option value="GRASAG">GRASAG (Graduate Students Association)</option>
-                    <option value="Other">Other Approved Student Body</option>
+                    {allowedDomains.map((dom) => (
+                      <option key={dom.id} value={dom.id}>
+                        {dom.name} ({dom.category})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -367,6 +556,115 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 </div>
               </div>
 
+              {/* Dynamic Subdomain Selectors */}
+              {domainId === 'jcrc_hall' && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <label className="block font-bold text-slate-800">
+                    Participating Hall Subdomain <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={selectedHallId}
+                    onChange={(e) => {
+                      const hallObj = halls.find((h) => h.id === e.target.value);
+                      setSelectedHallId(e.target.value);
+                      if (hallObj) {
+                        setSelectedHalls([hallObj.name]);
+                        setSubdomainLabel(hallObj.name);
+                        setOrganizingBody(`${hallObj.name} Electoral Committee`);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-medium text-slate-900"
+                  >
+                    <option value="">Select Residential Hall...</option>
+                    {availableHalls.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(domainId === 'faculty_school' || domainId === 'departmental') && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-800 mb-1">
+                      Faculty / School <span className="text-red-600">*</span>
+                    </label>
+                    <select
+                      value={selectedFacultyId}
+                      onChange={(e) => {
+                        const facObj = faculties.find((f) => f.id === e.target.value);
+                        setSelectedFacultyId(e.target.value);
+                        setSelectedDepartmentId('');
+                        setSelectedDepartments([]);
+                        setSelectedProgrammes([]);
+                        if (facObj) {
+                          setSelectedFaculties([facObj.name]);
+                          if (domainId === 'faculty_school') {
+                            setSubdomainLabel(facObj.name);
+                            setOrganizingBody(`${facObj.name} Electoral Committee`);
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900"
+                    >
+                      <option value="">Select Faculty / School...</option>
+                      {availableFaculties.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {domainId === 'departmental' && (
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        Department Subdomain <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={selectedDepartmentId}
+                        onChange={(e) => {
+                          const deptObj = departments.find((d) => d.id === e.target.value);
+                          setSelectedDepartmentId(e.target.value);
+                          setSelectedProgrammes([]);
+                          if (deptObj) {
+                            setSelectedFacultyId(deptObj.facultyId);
+                            setSelectedFaculties([deptObj.facultyName]);
+                            setSelectedDepartments([deptObj.name]);
+                            setSubdomainLabel(deptObj.name);
+                            setOrganizingBody(`${deptObj.name} Electoral Board`);
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900"
+                      >
+                        <option value="">Select Department...</option>
+                        {availableDepartments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Election Title <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Oguaa Hall JCRC Executive Elections 2026/2027"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-800 mb-1">
@@ -376,7 +674,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="e.g. SRC-2026-MAIN (Auto-generated if blank)"
+                    placeholder="Auto-generated if left blank"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-mono uppercase"
                   />
                 </div>
@@ -389,7 +687,6 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                     type="text"
                     value={organizingBody}
                     onChange={(e) => setOrganizingBody(e.target.value)}
-                    placeholder="e.g. UCC Electoral Commission (EC-UCC)"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                   />
                 </div>
@@ -403,7 +700,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Detail the constitutional background, scope, and purpose of this election..."
+                  placeholder="Detail constitutional mandate, domain constituency, and scope..."
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                 />
               </div>
@@ -412,11 +709,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 2: Schedule & Timeline */}
           {activeStep === 2 && (
-            <div className="space-y-4 text-xs animate-in fade-in">
+            <div className="space-y-4 text-xs">
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-[#123B70] flex items-center gap-2">
                 <Clock className="w-4 h-4 shrink-0" />
                 <span>
-                  Official voting portals open automatically at start time and close strictly at closing time. Invalid or overlapping date ranges will be blocked.
+                  Official voting portals enforce scheduled open and close windows.
                 </span>
               </div>
 
@@ -480,11 +777,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 3: Multi-Tier Eligibility Rules */}
           {activeStep === 3 && (
-            <div className="space-y-5 text-xs animate-in fade-in">
+            <div className="space-y-5 text-xs">
               <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0 text-amber-700" />
                 <span>
-                  Eligibility Engine matches verified DAA student records against these criteria on the server. If no restrictions are checked, all students in good standing can vote.
+                  {domainId === 'grasag'
+                    ? 'GRASAG Domain Rule: Automatically restricted to accredited Postgraduate students only.'
+                    : 'Server-side Eligibility Engine enforces these criteria for every student ballot request.'}
                 </span>
               </div>
 
@@ -496,44 +795,74 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <div className="flex flex-wrap gap-2">
                   {UCC_LEVELS.map((lvl) => {
                     const isSelected = selectedLevels.includes(lvl);
+                    const lockedOut = domainId === 'grasag' && lvl !== 'Postgraduate';
                     return (
                       <button
                         key={lvl}
                         type="button"
+                        disabled={lockedOut || domainId === 'grasag'}
                         onClick={() => handleToggleLevel(lvl)}
-                        className={`px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                        className={`px-3 py-1.5 rounded-xl font-bold border transition-colors cursor-pointer disabled:opacity-50 ${
                           isSelected
                             ? 'bg-[#123B70] text-white border-[#123B70]'
                             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                         }`}
                       >
-                        Level {lvl}
+                        {lvl === 'Postgraduate' ? 'Postgraduate' : `Level ${lvl}`}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Halls (for JCR) */}
+              {/* Academic Programmes (for Departmental elections) */}
+              {domainId === 'departmental' && activeDepartmentObj && (
+                <div>
+                  <label className="block font-bold text-slate-800 mb-2">
+                    Restrict to Specific Academic Programmes (Leave unchecked for entire {activeDepartmentObj.name})
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {activeDepartmentObj.programmes.map((prog) => {
+                      const isSel = selectedProgrammes.includes(prog);
+                      return (
+                        <button
+                          key={prog}
+                          type="button"
+                          onClick={() => handleToggleProgramme(prog)}
+                          className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer ${
+                            isSel
+                              ? 'bg-[#123B70] text-white border-[#123B70]'
+                              : 'bg-white text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {prog}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Halls */}
               <div>
                 <label className="block font-bold text-slate-800 mb-2">
-                  Eligible Hall Affiliations (Crucial for JCR elections)
+                  Eligible Hall Affiliations (Required for JCRC / Hall elections)
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {UCC_HALLS.map((h) => {
-                    const isSelected = selectedHalls.includes(h);
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {availableHalls.map((h) => {
+                    const isSelected = selectedHalls.includes(h.name);
                     return (
                       <button
-                        key={h}
+                        key={h.id}
                         type="button"
-                        onClick={() => handleToggleHall(h)}
-                        className={`p-2 rounded-xl text-left font-medium border text-[11px] transition-all ${
+                        onClick={() => handleToggleHall(h.name)}
+                        className={`p-2 rounded-xl text-left font-medium border text-[11px] transition-colors cursor-pointer ${
                           isSelected
                             ? 'bg-red-50 text-red-900 border-red-300 font-bold'
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                         }`}
                       >
-                        {h}
+                        {h.name}
                       </button>
                     );
                   })}
@@ -543,20 +872,20 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               {/* Faculties */}
               <div>
                 <label className="block font-bold text-slate-800 mb-2">
-                  Eligible Faculties / Schools (Optional Filter)
+                  Eligible Faculties / Schools
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  {UCC_FACULTIES.map((f) => {
-                    const isSelected = selectedFaculties.includes(f);
+                  {availableFaculties.map((f) => {
+                    const isSelected = selectedFaculties.includes(f.name);
                     return (
-                      <label key={f} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white text-[11px] cursor-pointer">
+                      <label key={f.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white text-[11px] cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => handleToggleFaculty(f)}
+                          onChange={() => handleToggleFaculty(f.name)}
                           className="rounded text-[#123B70] focus:ring-0"
                         />
-                        <span className="truncate text-slate-800">{f}</span>
+                        <span className="truncate text-slate-800">{f.name}</span>
                       </label>
                     );
                   })}
@@ -575,7 +904,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveRule(idx)}
-                        className="text-red-500 hover:text-red-700 ml-2"
+                        className="text-red-500 hover:text-red-700 ml-2 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -593,7 +922,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddRule}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-900"
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-900 cursor-pointer"
                   >
                     Add Rule
                   </button>
@@ -604,38 +933,110 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 4: Contested Positions / Portfolios */}
           {activeStep === 4 && (
-            <div className="space-y-4 text-xs animate-in fade-in">
+            <div className="space-y-4 text-xs">
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>
-                  Configure the official executive and legislative positions that will appear on the digital ballot interface.
+                  {domainId === 'local_nugs'
+                    ? 'Local NUGS portfolios are fully admin-configurable—edit, rename, remove, or add positions freely.'
+                    : domainId === 'jcrc_hall'
+                    ? 'Customize portfolios to match this hall constitution—different halls need not use identical offices.'
+                    : 'Configure the official executive and legislative portfolios for this ballot.'}
                 </span>
               </div>
 
-              {/* List of positions */}
-              <div className="space-y-2 max-h-56 overflow-y-auto">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {positions.map((pos, idx) => (
-                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-[#123B70] text-white font-mono font-bold text-[10px]">
-                          #{idx + 1}
-                        </span>
-                        <h4 className="font-bold text-slate-900">{pos.title}</h4>
+                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                    {editingIdx === idx ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={pos.title}
+                            onChange={(e) => handleUpdatePositionField(idx, 'title', e.target.value)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold"
+                            placeholder="Portfolio Title"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            value={pos.maxSelections}
+                            onChange={(e) =>
+                              handleUpdatePositionField(
+                                idx,
+                                'maxSelections',
+                                parseInt(e.target.value, 10) || 1
+                              )
+                            }
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={pos.description}
+                          onChange={(e) =>
+                            handleUpdatePositionField(idx, 'description', e.target.value)
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          placeholder="Portfolio description"
+                        />
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pos.allowsSkip}
+                              onChange={(e) =>
+                                handleUpdatePositionField(idx, 'allowsSkip', e.target.checked)
+                              }
+                            />
+                            <span>Allow abstain</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setEditingIdx(null)}
+                            className="px-3 py-1 rounded-lg bg-[#123B70] text-white font-bold cursor-pointer"
+                          >
+                            Done
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-600">{pos.description}</p>
-                      <div className="flex gap-3 text-[10px] text-slate-500 font-mono pt-1">
-                        <span>Max selections: {pos.maxSelections}</span>
-                        <span>Allows skip: {pos.allowsSkip ? 'YES' : 'NO'}</span>
+                    ) : (
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-[#123B70] text-white font-mono font-bold text-[10px]">
+                              #{idx + 1}
+                            </span>
+                            <h4 className="font-bold text-slate-900">{pos.title}</h4>
+                          </div>
+                          <p className="text-[11px] text-slate-600">{pos.description}</p>
+                          <div className="flex gap-3 text-[10px] text-slate-500 font-mono pt-0.5">
+                            <span>Max selections: {pos.maxSelections}</span>
+                            <span>Allows skip: {pos.allowsSkip ? 'YES' : 'NO'}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingIdx(idx)}
+                            className="text-[#123B70] hover:bg-blue-50 p-1 rounded cursor-pointer"
+                            title="Edit Position"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePosition(idx)}
+                            className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                            title="Remove Position"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePosition(idx)}
-                      className="text-red-500 hover:text-red-700 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -644,14 +1045,14 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-3">
                 <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
                   <Plus className="w-3.5 h-3.5 text-[#123B70]" />
-                  <span>Add Contested Position</span>
+                  <span>Add Custom Contested Position</span>
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-slate-600 mb-1">Portfolio Title</label>
                     <input
                       type="text"
-                      placeholder="e.g. Women's Commissioner or Secretary"
+                      placeholder="e.g. Women's Commissioner or Hall Organizer"
                       value={newPosTitle}
                       onChange={(e) => setNewPosTitle(e.target.value)}
                       className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
@@ -681,7 +1082,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-slate-700">
                     <input
                       type="checkbox"
@@ -689,12 +1090,12 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       onChange={(e) => setNewPosSkip(e.target.checked)}
                       className="rounded text-[#123B70]"
                     />
-                    <span>Allow voters to abstain/skip this portfolio on the ballot</span>
+                    <span>Allow voters to abstain/skip this portfolio</span>
                   </label>
                   <button
                     type="button"
                     onClick={handleAddPosition}
-                    className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A]"
+                    className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] cursor-pointer whitespace-nowrap"
                   >
                     Add Portfolio
                   </button>
@@ -711,7 +1112,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 if (activeStep > 1) setActiveStep((prev) => (prev - 1) as any);
                 else onClose();
               }}
-              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors"
+              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
             >
               {activeStep === 1 ? 'Cancel' : 'Previous Step'}
             </button>
@@ -721,7 +1122,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveStep((prev) => (prev + 1) as any)}
-                  className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors"
+                  className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer"
                 >
                   Continue
                 </button>
@@ -729,7 +1130,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white font-bold hover:bg-red-800 transition-colors shadow-md disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white font-bold hover:bg-red-800 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? 'Provisioning Election...' : 'Provision & Save Election'}
                 </button>

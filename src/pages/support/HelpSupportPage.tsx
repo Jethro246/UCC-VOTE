@@ -17,10 +17,11 @@ import {
 import { ComplaintTicket } from '../../types';
 
 export const HelpSupportPage: React.FC = () => {
-  const { complaints, submitComplaint, student } = useApp();
+  const { complaints, domains, submitComplaint } = useApp();
 
   const [activeTab, setActiveTab] = useState<'submit' | 'track' | 'faq'>('submit');
   const [category, setCategory] = useState<ComplaintTicket['category']>('technical');
+  const [domainId, setDomainId] = useState<string>('src');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [generatedTicketNumber, setGeneratedTicketNumber] = useState('');
@@ -31,7 +32,7 @@ export const HelpSupportPage: React.FC = () => {
     e.preventDefault();
     if (!subject.trim() || !description.trim()) return;
 
-    const ticketNo = submitComplaint({ category, subject, description });
+    const ticketNo = submitComplaint({ category, subject, description, domainId });
     setGeneratedTicketNumber(ticketNo);
     setSubject('');
     setDescription('');
@@ -119,20 +120,39 @@ export const HelpSupportPage: React.FC = () => {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Complaint / Inquiry Category
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
-                >
-                  <option value="technical">Technical Difficulty (e.g. login issue, network timeout, OTP delay)</option>
-                  <option value="eligibility">Voter Roll Eligibility Query (e.g. wrong hall or department recorded)</option>
-                  <option value="irregularity">Electoral Irregularity or Campaign Violation Report</option>
-                  <option value="general">General Commission Inquiry</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    Complaint / Inquiry Category
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
+                  >
+                    <option value="technical">Technical Difficulty (e.g. login issue, OTP delay)</option>
+                    <option value="eligibility">Voter Roll Eligibility Query (e.g. hall/dept mismatch)</option>
+                    <option value="irregularity">Electoral Irregularity or Campaign Violation</option>
+                    <option value="general">General Commission Inquiry</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    Related Election Domain
+                  </label>
+                  <select
+                    value={domainId}
+                    onChange={(e) => setDomainId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
+                  >
+                    {domains.map((dom) => (
+                      <option key={dom.id} value={dom.id}>
+                        {dom.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>

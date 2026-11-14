@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
-import { requireAdminRole } from './adminRoutes.ts';
+import { canAdminManageElection, requireAdminRole } from './adminRoutes.ts';
 import { logAuditEvent } from './authStore.ts';
 import type { SessionData } from './authStore.ts';
 import { ELECTIONS_STORE, POSITIONS_STORE } from './electionStore.ts';
@@ -34,6 +34,8 @@ votingRouter.get('/ballot/:electionId', authenticateToken, (req: Request, res: R
     success: result.success,
     code: result.code,
     error: result.error,
+    opensAt: result.opensAt,
+    closesAt: result.closesAt,
     alreadyVoted: result.alreadyVoted,
     receipt: result.receipt,
     election: result.election,
@@ -174,10 +176,20 @@ votingRouter.get(
   requireAdminRole(),
   (req: Request, res: Response) => {
     const { electionId } = req.params;
+    const session: SessionData = (req as any).session;
     const election = ELECTIONS_STORE.get(electionId);
 
     if (!election) {
       return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, election, { allowAuditorRead: true });
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
     }
 
     const positions = POSITIONS_STORE.get(electionId) || [];

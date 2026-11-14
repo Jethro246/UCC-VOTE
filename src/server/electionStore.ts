@@ -1,6 +1,12 @@
 import type { Election, ElectionStatus, Position, Candidate } from '../types/index.ts';
 import { MOCK_ELECTIONS, MOCK_POSITIONS, MOCK_CANDIDATES } from '../data/mockData.ts';
-import { logAuditEvent, OFFICIAL_UCC_STUDENT_REGISTRY } from './authStore.ts';
+import { OFFICIAL_UCC_STUDENT_REGISTRY } from './authStore.ts';
+import {
+  categoryToDomainId,
+  matchesHallName,
+  normalizeText,
+  runRelationalDomainMigration
+} from './domainStore.ts';
 
 // In-Memory Election Store (Thread-safe state for server runtime)
 export const ELECTIONS_STORE: Map<string, Election> = new Map();
@@ -24,6 +30,13 @@ Object.entries(MOCK_POSITIONS).forEach(([electionId, positions]) => {
 // Initialize with candidates
 Object.entries(MOCK_CANDIDATES).forEach(([candId, candidate]) => {
   CANDIDATES_STORE.set(candId, { ...candidate });
+});
+
+// Idempotent relational domain/subdomain migration ensuring every record has domainId & unit FKs
+runRelationalDomainMigration({
+  elections: ELECTIONS_STORE,
+  positions: POSITIONS_STORE,
+  candidates: CANDIDATES_STORE
 });
 
 /**
@@ -54,13 +67,8 @@ export function isValidTransition(from: ElectionStatus, to: ElectionStatus): boo
 
 /**
  * Server-Side Student Eligibility Verification Engine
- * Checks verified student credentials against multi-tier election criteria:
- * - Student status: must be active (not suspended or unverified)
- * - Levels: e.g. ['100', '200', '300', '400'] or ['Postgraduate']
- * - Faculties: e.g. ['School of Physical Sciences']
- * - Departments: e.g. ['Computer Science & Information Technology']
- * - Programmes: e.g. ['B.Sc. Computer Science']
- * - Halls: e.g. ['Casely Hayford Hall']
+ * Enforces both domain-level constitutional isolation (GRASAG = Postgraduate, JCRC = Hall,
+ * Departmental = Department/Programme, Faculty/School = Faculty) and explicit election criteria.
  */
 export function verifyStudentEligibility(
   student: {
@@ -76,6 +84,7 @@ export function verifyStudentEligibility(
 ): { isEligible: boolean; reason?: string; checks: Record<string, boolean> } {
   const checks: Record<string, boolean> = {
     accountActive: true,
+    domainIsolation: true,
     levelMatch: true,
     facultyMatch: true,
     departmentMatch: true,
@@ -93,14 +102,29 @@ export function verifyStudentEligibility(
     };
   }
 
+  const domainId = election.domainId || categoryToDomainId(election.category);
+
+  // 2. Domain-level constitutional rules
+  if (domainId === 'grasag' || election.category === 'GRASAG') {
+    if (normalizeText(student.level) !== 'postgraduate') {
+      checks.domainIsolation = false;
+      checks.levelMatch = false;
+      return {
+        isEligible: false,
+        reason: `GRASAG elections are strictly restricted to registered UCC Postgraduate (Masters & Doctoral) students. Your academic level is Level ${student.level}.`,
+        checks
+      };
+    }
+  }
+
   const crit = election.eligibilityCriteria;
   if (!crit) {
     return { isEligible: true, checks };
   }
 
-  // 2. Academic Level check
+  // 3. Academic Level check
   if (crit.levels && crit.levels.length > 0) {
-    const levelMatch = crit.levels.includes(student.level);
+    const levelMatch = crit.levels.some((l) => normalizeText(l) === normalizeText(student.level));
     checks.levelMatch = levelMatch;
     if (!levelMatch) {
       return {
@@ -111,10 +135,10 @@ export function verifyStudentEligibility(
     }
   }
 
-  // 3. Faculty / School check
+  // 4. Faculty / School check
   if (crit.faculties && crit.faculties.length > 0) {
     const facultyMatch = crit.faculties.some((f) =>
-      student.faculty?.toLowerCase().includes(f.toLowerCase())
+      normalizeText(student.faculty).includes(normalizeText(f))
     );
     checks.facultyMatch = facultyMatch;
     if (!facultyMatch) {
@@ -126,10 +150,10 @@ export function verifyStudentEligibility(
     }
   }
 
-  // 4. Department check
+  // 5. Department check
   if (crit.departments && crit.departments.length > 0) {
     const departmentMatch = crit.departments.some((d) =>
-      student.department?.toLowerCase().includes(d.toLowerCase())
+      normalizeText(student.department).includes(normalizeText(d))
     );
     checks.departmentMatch = departmentMatch;
     if (!departmentMatch) {
@@ -141,10 +165,10 @@ export function verifyStudentEligibility(
     }
   }
 
-  // 5. Programme check
+  // 6. Programme check
   if (crit.programmes && crit.programmes.length > 0 && student.programme) {
     const programmeMatch = crit.programmes.some((p) =>
-      student.programme?.toLowerCase().includes(p.toLowerCase())
+      normalizeText(student.programme).includes(normalizeText(p))
     );
     checks.programmeMatch = programmeMatch;
     if (!programmeMatch) {
@@ -156,11 +180,9 @@ export function verifyStudentEligibility(
     }
   }
 
-  // 6. Hall of Residence check
+  // 7. Hall of Residence check (strict full/alias hall matching)
   if (crit.halls && crit.halls.length > 0) {
-    const hallMatch = crit.halls.some((h) =>
-      student.hall?.toLowerCase().includes(h.toLowerCase().split(' ')[0])
-    );
+    const hallMatch = crit.halls.some((h) => matchesHallName(student.hall, h));
     checks.hallMatch = hallMatch;
     if (!hallMatch) {
       return {
@@ -186,25 +208,36 @@ export function calculateEligibleVoterCount(criteria: Election['eligibilityCrite
     if (criteria.levels && criteria.levels.length > 0 && !criteria.levels.includes(s.level)) {
       eligible = false;
     }
-    if (criteria.faculties && criteria.faculties.length > 0 && !criteria.faculties.some(f => s.faculty.toLowerCase().includes(f.toLowerCase()))) {
+    if (
+      criteria.faculties &&
+      criteria.faculties.length > 0 &&
+      !criteria.faculties.some((f) => normalizeText(s.faculty).includes(normalizeText(f)))
+    ) {
       eligible = false;
     }
-    if (criteria.departments && criteria.departments.length > 0 && !criteria.departments.some(d => s.department.toLowerCase().includes(d.toLowerCase()))) {
+    if (
+      criteria.departments &&
+      criteria.departments.length > 0 &&
+      !criteria.departments.some((d) => normalizeText(s.department).includes(normalizeText(d)))
+    ) {
       eligible = false;
     }
-    if (criteria.halls && criteria.halls.length > 0 && !criteria.halls.some(h => s.hall.toLowerCase().includes(h.toLowerCase().split(' ')[0]))) {
+    if (
+      criteria.halls &&
+      criteria.halls.length > 0 &&
+      !criteria.halls.some((h) => matchesHallName(s.hall, h))
+    ) {
       eligible = false;
     }
     if (eligible) count++;
   }
 
-  // If mock registry is small, provide a realistic university-scale baseline
   return Math.max(count * 1500, 1200);
 }
 
 /**
  * Server-Side Candidate Vetting & Eligibility Verification Engine
- * Validates candidate standing against Official UCC Student Registry and Election Criteria.
+ * Validates candidate standing against Official UCC Student Registry, Domain Rules, and Election Criteria.
  */
 export function verifyCandidateCandidacyEligibility(
   candidate: {
@@ -213,6 +246,7 @@ export function verifyCandidateCandidacyEligibility(
     level?: string;
     faculty?: string;
     department?: string;
+    programme?: string;
     hall?: string;
   },
   election: Election
@@ -240,14 +274,16 @@ export function verifyCandidateCandidacyEligibility(
   };
 
   if (!regStudent) {
-    // If not found in primary small sample registry, allow verified fallback if studentId has proper UCC format
-    const isValidFormat = /^[A-Z]{2}\/[A-Z0-9]{3,4}\/\d{2}\/\d{4}$/.test(candidate.studentId);
+    const isValidFormat = /^[A-Z]{2,3}\/[A-Z0-9]{3,4}\/\d{2}\/\d{4}$/.test(candidate.studentId);
     if (!isValidFormat) {
       details.isEnrolled = false;
       return {
         isEligible: false,
         reason: `Student ID "${candidate.studentId}" does not conform to the official UCC indexing format (e.g., PS/CSC/22/0089).`,
-        details: { ...details, summary: 'Invalid Student ID format according to UCC Academic Directorate guidelines.' }
+        details: {
+          ...details,
+          summary: 'Invalid Student ID format according to UCC Academic Directorate guidelines.'
+        }
       };
     }
   } else {
@@ -255,7 +291,8 @@ export function verifyCandidateCandidacyEligibility(
       details.isEnrolled = false;
       return {
         isEligible: false,
-        reason: 'Student is currently not enrolled for the active academic semester at University of Cape Coast.',
+        reason:
+          'Student is currently not enrolled for the active academic semester at University of Cape Coast.',
         details: { ...details, summary: 'Student enrollment registration incomplete or lapsed.' }
       };
     }
@@ -264,20 +301,35 @@ export function verifyCandidateCandidacyEligibility(
       details.cgpaQualified = false;
       return {
         isEligible: false,
-        reason: 'Candidate does not meet the minimum CGPA requirement (3.00 minimum required for executive candidacy).',
-        details: { ...details, summary: 'Academic Standing Check Failed: CGPA does not meet the constitutional vetting threshold.' }
+        reason:
+          'Candidate does not meet the minimum CGPA requirement (3.00 minimum required for executive candidacy).',
+        details: {
+          ...details,
+          summary:
+            'Academic Standing Check Failed: CGPA does not meet the constitutional vetting threshold.'
+        }
       };
     }
   }
 
-  // Check election constraints
-  const crit = election.eligibilityCriteria;
+  const domainId = election.domainId || categoryToDomainId(election.category);
+  const crit = election.eligibilityCriteria || {};
   const levelToCheck = candidate.level || (regStudent ? regStudent.level : '');
   const facultyToCheck = candidate.faculty || (regStudent ? regStudent.faculty : '');
+  const deptToCheck = candidate.department || (regStudent ? regStudent.department : '');
   const hallToCheck = candidate.hall || (regStudent ? regStudent.hall : '');
 
+  if (domainId === 'grasag' && levelToCheck && normalizeText(levelToCheck) !== 'postgraduate') {
+    details.levelMatch = false;
+    return {
+      isEligible: false,
+      reason: `GRASAG candidacy is strictly limited to Postgraduate students. Candidate level is ${levelToCheck}.`,
+      details: { ...details, summary: 'GRASAG Postgraduate-only requirement failed.' }
+    };
+  }
+
   if (crit.levels && crit.levels.length > 0 && levelToCheck) {
-    if (!crit.levels.includes(levelToCheck)) {
+    if (!crit.levels.some((l) => normalizeText(l) === normalizeText(levelToCheck))) {
       details.levelMatch = false;
       return {
         isEligible: false,
@@ -288,7 +340,7 @@ export function verifyCandidateCandidacyEligibility(
   }
 
   if (crit.faculties && crit.faculties.length > 0 && facultyToCheck) {
-    const match = crit.faculties.some(f => facultyToCheck.toLowerCase().includes(f.toLowerCase()));
+    const match = crit.faculties.some((f) => normalizeText(facultyToCheck).includes(normalizeText(f)));
     if (!match) {
       details.facultyMatch = false;
       return {
@@ -299,8 +351,20 @@ export function verifyCandidateCandidacyEligibility(
     }
   }
 
+  if (crit.departments && crit.departments.length > 0 && deptToCheck) {
+    const match = crit.departments.some((d) => normalizeText(deptToCheck).includes(normalizeText(d)));
+    if (!match) {
+      details.facultyMatch = false;
+      return {
+        isEligible: false,
+        reason: `Election is restricted to ${crit.departments.join(', ')}. Candidate department is ${deptToCheck}.`,
+        details: { ...details, summary: `Department mismatch: Requires ${crit.departments.join(', ')}.` }
+      };
+    }
+  }
+
   if (crit.halls && crit.halls.length > 0 && hallToCheck) {
-    const match = crit.halls.some(h => hallToCheck.toLowerCase().includes(h.toLowerCase().split(' ')[0]));
+    const match = crit.halls.some((h) => matchesHallName(hallToCheck, h));
     if (!match) {
       details.hallMatch = false;
       return {
@@ -311,7 +375,8 @@ export function verifyCandidateCandidacyEligibility(
     }
   }
 
-  details.summary = 'All verification gates passed: Active enrollment, CGPA clearance, and constituency alignment confirmed.';
+  details.summary =
+    'All verification gates passed: Active enrollment, CGPA clearance, and domain constituency alignment confirmed.';
   return {
     isEligible: true,
     details

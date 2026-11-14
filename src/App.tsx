@@ -16,6 +16,7 @@ import { AdminLoginPage } from './pages/auth/AdminLoginPage';
 
 import { StudentDashboard } from './pages/dashboard/StudentDashboard';
 import { ElectionsDirectoryPage } from './pages/elections/ElectionsDirectoryPage';
+import { DomainElectionsPage } from './pages/elections/DomainElectionsPage';
 import { ElectionDetailsPage } from './pages/elections/ElectionDetailsPage';
 import { CandidateDirectoryPage } from './pages/candidates/CandidateDirectoryPage';
 import { CandidateProfilePage } from './pages/candidates/CandidateProfilePage';
@@ -52,6 +53,8 @@ const AppContent: React.FC = () => {
         return <StudentDashboard />;
       case 'elections_directory':
         return <ElectionsDirectoryPage />;
+      case 'domain_elections':
+        return <DomainElectionsPage />;
       case 'election_details':
         return <ElectionDetailsPage />;
       case 'candidate_directory':

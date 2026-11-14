@@ -1,25 +1,51 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
-import { requireAdminRole } from './adminRoutes.ts';
-import { 
-  ELECTIONS_STORE, 
-  POSITIONS_STORE, 
+import {
+  ALL_MANAGING_ADMIN_ROLES,
+  canAdminManageElection,
+  requireAdminRole
+} from './adminRoutes.ts';
+import {
+  ELECTIONS_STORE,
+  POSITIONS_STORE,
   CANDIDATES_STORE,
-  verifyCandidateCandidacyEligibility 
+  verifyCandidateCandidacyEligibility
 } from './electionStore.ts';
-import { logAuditEvent } from './authStore.ts';
+import { categoryToDomainId, matchesHallName } from './domainStore.ts';
+import { ACTIVE_SESSIONS, logAuditEvent } from './authStore.ts';
+import type { SessionData } from './authStore.ts';
 import type { Candidate, CandidateApplicationStatus } from '../types/index.ts';
 
 export const candidateRouter = Router();
 
+function getOptionalSession(req: Request): SessionData | null {
+  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
+  if (!token && req.cookies && req.cookies.ucc_session) {
+    token = req.cookies.ucc_session;
+  }
+  if (!token) return null;
+  const session = ACTIVE_SESSIONS.get(token);
+  if (!session || Date.now() > session.expiresAt) return null;
+  return session;
+}
+
 /**
  * GET /api/candidates or /api/elections/candidates
- * Retrieve candidates list with optional filtering
+ * Retrieve candidates list strictly tagged and filterable by domain, election, and position
  */
 candidateRouter.get('/', (req: Request, res: Response) => {
-  const { electionId, positionId, status, approvedOnly, search, department, faculty } = req.query;
+  const { domainId, electionId, positionId, status, approvedOnly, search, department, faculty, hall } =
+    req.query;
   let list = Array.from(CANDIDATES_STORE.values());
+
+  if (domainId && typeof domainId === 'string' && domainId !== 'All') {
+    list = list.filter((c) => {
+      const candDomain =
+        c.domainId || categoryToDomainId(ELECTIONS_STORE.get(c.electionId)?.category);
+      return candDomain === domainId;
+    });
+  }
 
   if (electionId && electionId !== 'All') {
     list = list.filter((c) => c.electionId === electionId);
@@ -38,11 +64,17 @@ candidateRouter.get('/', (req: Request, res: Response) => {
   }
 
   if (department && department !== 'All') {
-    list = list.filter((c) => c.department.toLowerCase().includes((department as string).toLowerCase()));
+    list = list.filter((c) =>
+      c.department.toLowerCase().includes((department as string).toLowerCase())
+    );
   }
 
   if (faculty && faculty !== 'All') {
     list = list.filter((c) => c.faculty.toLowerCase().includes((faculty as string).toLowerCase()));
+  }
+
+  if (hall && hall !== 'All') {
+    list = list.filter((c) => matchesHallName(c.hall, hall as string));
   }
 
   if (search && typeof search === 'string') {
@@ -85,9 +117,13 @@ candidateRouter.get('/:id', (req: Request, res: Response) => {
 
 /**
  * POST /api/candidates
- * Register candidate nomination application
+ * Register candidate nomination application (strictly bound to electionId & positionId within same election/domain)
  */
 candidateRouter.post('/', (req: Request, res: Response) => {
+  const session = getOptionalSession(req);
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
   const {
     fullName,
     studentId,
@@ -108,12 +144,13 @@ candidateRouter.post('/', (req: Request, res: Response) => {
     videoUrl,
     isDraft,
     nickname
-  } = req.body;
+  } = req.body || {};
 
   if (!fullName || !studentId || !electionId || !positionId) {
     return res.status(400).json({
       success: false,
-      error: 'Missing mandatory candidate details: Full Name, Student ID, Election, and Position are required.'
+      error:
+        'Missing mandatory candidate details: Full Name, Student ID, Election, and Position are required.'
     });
   }
 
@@ -122,19 +159,48 @@ candidateRouter.post('/', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Target election does not exist.' });
   }
 
+  // If submitted by an admin session, enforce domain/subdomain RBAC
+  if (session && session.userType === 'admin') {
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: electionId,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked candidate nomination creation in ${electionId}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+  }
+
   const positions = POSITIONS_STORE.get(electionId) || [];
-  const pos = positions.find((p) => p.id === positionId);
+  const pos = positions.find((p) => p.id === positionId && p.electionId === electionId);
   if (!pos) {
-    return res.status(400).json({ success: false, error: 'Target position does not exist for this election.' });
+    return res.status(400).json({
+      success: false,
+      error: 'Target position does not exist for this election. Cross-election or cross-domain candidate assignments are prohibited.'
+    });
   }
 
   const newId = `cand-${Date.now()}`;
   const initialStatus: CandidateApplicationStatus = isDraft ? 'Draft' : 'Submitted';
+  const domId = election.domainId || categoryToDomainId(election.category);
 
   const candidate: Candidate = {
     id: newId,
     electionId,
     positionId,
+    domainId: domId,
+    hallId: election.hallId,
+    facultyId: election.facultyId,
+    departmentId: election.departmentId,
     fullName: fullName.trim(),
     studentId: studentId.trim().toUpperCase(),
     nickname: nickname ? nickname.trim() : undefined,
@@ -142,11 +208,13 @@ candidateRouter.post('/', (req: Request, res: Response) => {
     department: department ? department.trim() : 'General Studies',
     faculty: faculty ? faculty.trim() : 'University of Cape Coast',
     programme: programme ? programme.trim() : 'Undergraduate Degree',
-    level: level || '300',
+    level: level || (domId === 'grasag' ? 'Postgraduate' : '300'),
     hall: hall || 'Casely Hayford Hall',
     photoUrl: photoUrl || '/src/assets/images/candidate_male_glasses_1794364322323.jpg',
     biography: biography ? biography.trim() : '',
-    manifestoSummary: manifestoSummary ? manifestoSummary.trim() : 'Committed to student welfare and academic excellence.',
+    manifestoSummary: manifestoSummary
+      ? manifestoSummary.trim()
+      : 'Committed to student welfare and academic excellence.',
     fullManifesto: Array.isArray(fullManifesto)
       ? fullManifesto
       : fullManifesto
@@ -167,27 +235,27 @@ candidateRouter.post('/', (req: Request, res: Response) => {
     submittedAt: isDraft ? undefined : new Date().toISOString()
   };
 
-  // Run initial eligibility check against student registry
   const eligibilityResult = verifyCandidateCandidacyEligibility(candidate, election);
   candidate.eligibilityVerified = eligibilityResult.isEligible;
   candidate.eligibilityDetails = eligibilityResult.details;
 
   CANDIDATES_STORE.set(newId, candidate);
 
-  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
   logAuditEvent({
     eventType: 'SUBMIT_CANDIDATE_APPLICATION',
-    userId: studentId,
+    userId: session?.userId || studentId,
     identifier: studentId,
-    role: 'student',
+    role: session?.role || 'student',
     ipAddress,
     status: 'SUCCESS',
-    details: `Candidate nomination registered for ${fullName} (${newId}) in election ${election.code} as ${initialStatus}.`
+    details: `Candidate nomination registered for ${fullName} (${newId}) in election ${election.code} [${domId}] as ${initialStatus}.`
   });
 
   return res.status(201).json({
     success: true,
-    message: isDraft ? 'Candidate application saved as draft.' : 'Candidate application submitted successfully for vetting.',
+    message: isDraft
+      ? 'Candidate application saved as draft.'
+      : 'Candidate application submitted successfully for vetting.',
     candidate
   });
 });
@@ -204,16 +272,35 @@ candidateRouter.put('/:id', (req: Request, res: Response) => {
     return res.status(404).json({ success: false, error: 'Candidate not found.' });
   }
 
-  const updates = req.body;
+  const updates = req.body || {};
+  const targetElectionId = updates.electionId || existing.electionId;
+  const targetPositionId = updates.positionId || existing.positionId;
+
+  const targetElection = ELECTIONS_STORE.get(targetElectionId);
+  if (!targetElection) {
+    return res.status(400).json({ success: false, error: 'Target election does not exist.' });
+  }
+
+  const targetPositions = POSITIONS_STORE.get(targetElectionId) || [];
+  if (!targetPositions.some((p) => p.id === targetPositionId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Target position does not belong to the specified election.'
+    });
+  }
+
   const updated: Candidate = {
     ...existing,
     ...updates,
-    id, // protect immutable ID
-    electionId: updates.electionId || existing.electionId,
-    positionId: updates.positionId || existing.positionId
+    id,
+    electionId: targetElectionId,
+    positionId: targetPositionId,
+    domainId: targetElection.domainId || categoryToDomainId(targetElection.category),
+    hallId: targetElection.hallId,
+    facultyId: targetElection.facultyId,
+    departmentId: targetElection.departmentId
   };
 
-  // If status is moved back to submitted from draft or rejected
   if (updates.resubmit) {
     updated.applicationStatus = 'Submitted';
     updated.submittedAt = new Date().toISOString();
@@ -223,7 +310,8 @@ candidateRouter.put('/:id', (req: Request, res: Response) => {
 
   CANDIDATES_STORE.set(id, updated);
 
-  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
   logAuditEvent({
     eventType: 'UPDATE_CANDIDATE_PROFILE',
     userId: updated.studentId,
@@ -274,16 +362,17 @@ candidateRouter.post('/:id/verify-eligibility', (req: Request, res: Response) =>
 
 /**
  * POST /api/candidates/:id/approve
- * Administrator approval of candidate nomination
+ * Administrator approval of candidate nomination (Scoped by domain/subdomain RBAC)
  */
 candidateRouter.post(
   '/:id/approve',
   authenticateToken,
-  requireAdminRole(),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const candidate = CANDIDATES_STORE.get(id);
     if (!candidate) {
@@ -295,22 +384,40 @@ candidateRouter.post(
       return res.status(404).json({ success: false, error: 'Associated election not found.' });
     }
 
-    // Verify position
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: candidate.id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked candidate approval for ${candidate.id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
     const positions = POSITIONS_STORE.get(candidate.electionId) || [];
     const pos = positions.find((p) => p.id === candidate.positionId);
     if (!pos) {
-      return res.status(400).json({ success: false, error: 'Position not found for candidate in this election.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Position not found for candidate in this election.'
+      });
     }
 
-    // Approve candidate
     candidate.applicationStatus = 'Approved';
     candidate.reviewedAt = new Date().toISOString();
-    candidate.reviewedBy = session.fullName || session.userId || 'Electoral Commission Vetting Committee';
+    candidate.reviewedBy = session.userId || 'Electoral Commission Vetting Committee';
     candidate.rejectionReason = undefined;
     candidate.correctionNotes = undefined;
     candidate.eligibilityVerified = true;
 
-    // Add candidate ID to position's candidateIds if not present
     if (!pos.candidateIds.includes(candidate.id)) {
       pos.candidateIds.push(candidate.id);
       POSITIONS_STORE.set(candidate.electionId, positions);
@@ -325,7 +432,7 @@ candidateRouter.post(
       role: session.role,
       ipAddress,
       status: 'SUCCESS',
-      details: `Approved candidate ${candidate.fullName} (${candidate.studentId}) for portfolio ${pos.title} in election ${election.code}. Assigned to official ballot.`
+      details: `Approved candidate ${candidate.fullName} (${candidate.studentId}) for portfolio ${pos.title} in election ${election.code}.`
     });
 
     return res.json({
@@ -338,22 +445,24 @@ candidateRouter.post(
 
 /**
  * POST /api/candidates/:id/reject
- * Administrator rejection of candidate nomination with stated reason
+ * Administrator rejection of candidate nomination with stated reason (Scoped by domain RBAC)
  */
 candidateRouter.post(
   '/:id/reject',
   authenticateToken,
-  requireAdminRole(),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const { reason } = req.body;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const { reason } = req.body || {};
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     if (!reason || !reason.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'A specific constitutional or academic reason is required to reject a candidate application.'
+        error:
+          'A specific constitutional or academic reason is required to reject a candidate application.'
       });
     }
 
@@ -362,12 +471,32 @@ candidateRouter.post(
       return res.status(404).json({ success: false, error: 'Candidate not found.' });
     }
 
+    const election = ELECTIONS_STORE.get(candidate.electionId);
+    if (election) {
+      const accessCheck = canAdminManageElection(session, election);
+      if (!accessCheck.allowed) {
+        logAuditEvent({
+          eventType: 'UNAUTHORIZED_ACCESS',
+          userId: session.userId,
+          identifier: candidate.id,
+          role: session.role,
+          ipAddress,
+          status: 'FLAGGED',
+          details: `Domain RBAC blocked candidate rejection for ${candidate.id}: ${accessCheck.reason}`
+        });
+        return res.status(403).json({
+          success: false,
+          code: 'DOMAIN_RBAC_DENIED',
+          error: accessCheck.reason
+        });
+      }
+    }
+
     candidate.applicationStatus = 'Rejected';
     candidate.rejectionReason = reason.trim();
     candidate.reviewedAt = new Date().toISOString();
-    candidate.reviewedBy = session.fullName || session.userId || 'Electoral Commission Vetting Committee';
+    candidate.reviewedBy = session.userId || 'Electoral Commission Vetting Committee';
 
-    // Remove from position's candidateIds if previously approved
     const positions = POSITIONS_STORE.get(candidate.electionId) || [];
     const pos = positions.find((p) => p.id === candidate.positionId);
     if (pos) {
@@ -397,17 +526,18 @@ candidateRouter.post(
 
 /**
  * POST /api/candidates/:id/request-corrections
- * Request corrections from candidate
+ * Request corrections from candidate (Scoped by domain RBAC)
  */
 candidateRouter.post(
   '/:id/request-corrections',
   authenticateToken,
-  requireAdminRole(),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const { notes } = req.body;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const { notes } = req.body || {};
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     if (!notes || !notes.trim()) {
       return res.status(400).json({
@@ -421,10 +551,31 @@ candidateRouter.post(
       return res.status(404).json({ success: false, error: 'Candidate not found.' });
     }
 
+    const election = ELECTIONS_STORE.get(candidate.electionId);
+    if (election) {
+      const accessCheck = canAdminManageElection(session, election);
+      if (!accessCheck.allowed) {
+        logAuditEvent({
+          eventType: 'UNAUTHORIZED_ACCESS',
+          userId: session.userId,
+          identifier: candidate.id,
+          role: session.role,
+          ipAddress,
+          status: 'FLAGGED',
+          details: `Domain RBAC blocked correction request for ${candidate.id}: ${accessCheck.reason}`
+        });
+        return res.status(403).json({
+          success: false,
+          code: 'DOMAIN_RBAC_DENIED',
+          error: accessCheck.reason
+        });
+      }
+    }
+
     candidate.applicationStatus = 'Under review';
     candidate.correctionNotes = notes.trim();
     candidate.reviewedAt = new Date().toISOString();
-    candidate.reviewedBy = session.fullName || session.userId || 'Electoral Commission Vetting Committee';
+    candidate.reviewedBy = session.userId || 'Electoral Commission Vetting Committee';
 
     CANDIDATES_STORE.set(id, candidate);
 
@@ -448,12 +599,12 @@ candidateRouter.post(
 
 /**
  * POST /api/candidates/:id/withdraw
- * Candidate or Admin voluntary withdrawal
  */
 candidateRouter.post('/:id/withdraw', (req: Request, res: Response) => {
   const { id } = req.params;
-  const { reason } = req.body;
-  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const { reason } = req.body || {};
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
   const candidate = CANDIDATES_STORE.get(id);
   if (!candidate) {
@@ -464,7 +615,6 @@ candidateRouter.post('/:id/withdraw', (req: Request, res: Response) => {
   candidate.rejectionReason = reason ? reason.trim() : 'Withdrawn at candidate request.';
   candidate.reviewedAt = new Date().toISOString();
 
-  // Remove from ballot if present
   const positions = POSITIONS_STORE.get(candidate.electionId) || [];
   const pos = positions.find((p) => p.id === candidate.positionId);
   if (pos) {
@@ -493,17 +643,18 @@ candidateRouter.post('/:id/withdraw', (req: Request, res: Response) => {
 
 /**
  * POST /api/candidates/:id/assign-position
- * Admin assigns candidate to a specific position in an election
+ * Admin assigns candidate to a specific position within an election in their authorized domain
  */
 candidateRouter.post(
   '/:id/assign-position',
   authenticateToken,
-  requireAdminRole(),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const { electionId, positionId } = req.body;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const { electionId, positionId } = req.body || {};
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const candidate = CANDIDATES_STORE.get(id);
     if (!candidate) {
@@ -515,13 +666,21 @@ candidateRouter.post(
       return res.status(400).json({ success: false, error: 'Target election not found.' });
     }
 
+    const accessCheck = canAdminManageElection(session, targetElection);
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
     const positions = POSITIONS_STORE.get(targetElection.id) || [];
     const newPos = positions.find((p) => p.id === positionId);
     if (!newPos) {
       return res.status(400).json({ success: false, error: 'Target position not found in election.' });
     }
 
-    // Remove from old position if different
     if (candidate.electionId && candidate.positionId) {
       const oldPositions = POSITIONS_STORE.get(candidate.electionId) || [];
       const oldPos = oldPositions.find((p) => p.id === candidate.positionId);
@@ -531,11 +690,13 @@ candidateRouter.post(
       }
     }
 
-    // Update candidate
     candidate.electionId = targetElection.id;
     candidate.positionId = newPos.id;
+    candidate.domainId = targetElection.domainId || categoryToDomainId(targetElection.category);
+    candidate.hallId = targetElection.hallId;
+    candidate.facultyId = targetElection.facultyId;
+    candidate.departmentId = targetElection.departmentId;
 
-    // Add to new position if approved
     if (candidate.applicationStatus === 'Approved' && !newPos.candidateIds.includes(candidate.id)) {
       newPos.candidateIds.push(candidate.id);
       POSITIONS_STORE.set(targetElection.id, positions);

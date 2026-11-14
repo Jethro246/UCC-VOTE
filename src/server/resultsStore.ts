@@ -14,6 +14,7 @@ import {
   POSITIONS_STORE,
   CANDIDATES_STORE
 } from './electionStore.ts';
+import { categoryToDomainId } from './domainStore.ts';
 import { logAuditEvent } from './authStore.ts';
 
 export const PRIVACY_COHORT_THRESHOLD = 25;
@@ -477,6 +478,167 @@ function initializeBallotLedgers() {
       ]
     }
   });
+
+  // 6. UCC-ADE-2026: Live Polls Open (Adehye Hall)
+  BALLOT_LEDGER_STORE.set('UCC-ADE-2026', {
+    electionId: 'UCC-ADE-2026',
+    workflowStage: 'preliminary',
+    invalidBallots: 4,
+    blankOverallBallots: 12,
+    workflowHistory: [
+      {
+        stage: 'preliminary',
+        actorId: 'system',
+        actorName: 'Live Polling Telemetry',
+        actorRole: 'Automated Ledger',
+        timestamp: new Date().toISOString(),
+        notes: 'Adehye Hall JCRC polling underway.'
+      }
+    ],
+    positionTallies: {
+      'pos-ade-pres': {
+        candidateVotes: { 'cand-ade-01': 1020, 'cand-ade-02': 820 },
+        blankVotes: 12,
+        invalidVotes: 4
+      },
+      'pos-ade-wel': {
+        candidateVotes: { 'cand-ade-03': 1610 },
+        blankVotes: 242,
+        invalidVotes: 4
+      },
+      'pos-ade-fin': {
+        candidateVotes: { 'cand-ade-04': 1590 },
+        blankVotes: 262,
+        invalidVotes: 4
+      }
+    },
+    cohorts: {
+      byFaculty: [
+        { label: 'Faculty of Educational Foundations', eligibleVoters: 1050, ballotsCast: 650 },
+        { label: 'School of Business', eligibleVoters: 890, ballotsCast: 540 },
+        { label: 'Faculty of Arts', eligibleVoters: 640, ballotsCast: 390 },
+        { label: 'School of Biological Sciences', eligibleVoters: 520, ballotsCast: 276 }
+      ],
+      byDepartment: [],
+      byLevel: [
+        { label: 'Level 100', eligibleVoters: 820, ballotsCast: 440 },
+        { label: 'Level 200', eligibleVoters: 790, ballotsCast: 480 },
+        { label: 'Level 300', eligibleVoters: 770, ballotsCast: 492 },
+        { label: 'Level 400', eligibleVoters: 720, ballotsCast: 444 }
+      ],
+      byHall: [
+        { label: 'Adehye Hall Residents & Affiliates', eligibleVoters: 3100, ballotsCast: 1856 }
+      ]
+    }
+  });
+
+  // 7. UCC-GRA-2026: Live Polls Open (GRASAG 2026 Postgraduate Only)
+  BALLOT_LEDGER_STORE.set('UCC-GRA-2026', {
+    electionId: 'UCC-GRA-2026',
+    workflowStage: 'preliminary',
+    invalidBallots: 6,
+    blankOverallBallots: 18,
+    workflowHistory: [
+      {
+        stage: 'preliminary',
+        actorId: 'system',
+        actorName: 'Live Polling Telemetry',
+        actorRole: 'Automated Ledger',
+        timestamp: new Date().toISOString(),
+        notes: 'GRASAG-UCC 2026/2027 postgraduate polling active.'
+      }
+    ],
+    positionTallies: {
+      'pos-gra26-pres': {
+        candidateVotes: { 'cand-gra26-01': 1210, 'cand-gra26-02': 930 },
+        blankVotes: 18,
+        invalidVotes: 6
+      },
+      'pos-gra26-sec': {
+        candidateVotes: { 'cand-gra26-03': 1840 },
+        blankVotes: 318,
+        invalidVotes: 6
+      },
+      'pos-gra26-fin': {
+        candidateVotes: { 'cand-gra26-04': 1810 },
+        blankVotes: 348,
+        invalidVotes: 6
+      }
+    },
+    cohorts: {
+      byFaculty: [
+        { label: 'School of Physical Sciences', eligibleVoters: 1120, ballotsCast: 445 },
+        { label: 'School of Business', eligibleVoters: 1450, ballotsCast: 580 },
+        { label: 'Faculty of Educational Foundations', eligibleVoters: 1680, ballotsCast: 642 },
+        { label: 'Faculty of Arts', eligibleVoters: 740, ballotsCast: 278 },
+        { label: 'School of Biological Sciences', eligibleVoters: 630, ballotsCast: 219 }
+      ],
+      byDepartment: [],
+      byLevel: [
+        { label: 'Postgraduate (M.Phil./M.Sc./M.A.)', eligibleVoters: 4480, ballotsCast: 1690 },
+        { label: 'Postgraduate (Ph.D.)', eligibleVoters: 1140, ballotsCast: 474 }
+      ],
+      byHall: [
+        { label: 'Superannuation Hostel', eligibleVoters: 1920, ballotsCast: 785 },
+        { label: 'Valco Graduate Hostel', eligibleVoters: 1380, ballotsCast: 560 },
+        { label: 'Off-Campus Postgraduate Affiliates', eligibleVoters: 2320, ballotsCast: 819 }
+      ]
+    }
+  });
+
+  // 8. UCC-NUGS-2026: Live Polls Open (Local NUGS)
+  BALLOT_LEDGER_STORE.set('UCC-NUGS-2026', {
+    electionId: 'UCC-NUGS-2026',
+    workflowStage: 'preliminary',
+    invalidBallots: 18,
+    blankOverallBallots: 44,
+    workflowHistory: [
+      {
+        stage: 'preliminary',
+        actorId: 'system',
+        actorName: 'Live Polling Telemetry',
+        actorRole: 'Automated Ledger',
+        timestamp: new Date().toISOString(),
+        notes: 'UCC Local NUGS 2026/2027 digital ballot stations open.'
+      }
+    ],
+    positionTallies: {
+      'pos-nugs-pres': {
+        candidateVotes: { 'cand-nugs-01': 5180, 'cand-nugs-02': 4240 },
+        blankVotes: 44,
+        invalidVotes: 18
+      },
+      'pos-nugs-sec': {
+        candidateVotes: { 'cand-nugs-03': 8110 },
+        blankVotes: 1354,
+        invalidVotes: 18
+      },
+      'pos-nugs-wocom': {
+        candidateVotes: { 'cand-nugs-04': 8050 },
+        blankVotes: 1414,
+        invalidVotes: 18
+      }
+    },
+    cohorts: {
+      byFaculty: [
+        { label: 'School of Physical Sciences', eligibleVoters: 5100, ballotsCast: 1820 },
+        { label: 'School of Business', eligibleVoters: 6800, ballotsCast: 2390 },
+        { label: 'Faculty of Arts & Social Sciences', eligibleVoters: 9200, ballotsCast: 3040 },
+        { label: 'Faculty of Educational Foundations', eligibleVoters: 4900, ballotsCast: 1420 },
+        { label: 'Faculty of Law', eligibleVoters: 1200, ballotsCast: 412 },
+        { label: 'School of Medical & Biological Sciences', eligibleVoters: 1700, ballotsCast: 400 }
+      ],
+      byDepartment: [],
+      byLevel: [
+        { label: 'Level 100', eligibleVoters: 6900, ballotsCast: 2010 },
+        { label: 'Level 200', eligibleVoters: 6600, ballotsCast: 2290 },
+        { label: 'Level 300', eligibleVoters: 6500, ballotsCast: 2450 },
+        { label: 'Level 400', eligibleVoters: 6300, ballotsCast: 2140 },
+        { label: 'Postgraduate', eligibleVoters: 2600, ballotsCast: 592 }
+      ],
+      byHall: []
+    }
+  });
 }
 
 initializeBallotLedgers();
@@ -736,6 +898,8 @@ export function computeElectionResults(
     electionTitle: election.title,
     electionCode: election.code,
     category: election.category,
+    domainId: election.domainId || categoryToDomainId(election.category),
+    subdomainLabel: election.subdomainLabel,
     status: election.status,
     academicYear: election.academicYear,
     organizingBody: election.organizingBody,
@@ -758,6 +922,46 @@ export function computeElectionResults(
       byHall: applyPrivacyProtection(ledger.cohorts.byHall)
     }
   };
+}
+
+/**
+ * Syncs an already-validated anonymous ballot's per-position selections directly into
+ * BALLOT_LEDGER_STORE without receiving any voter identity data.
+ */
+export function syncAnonymousSelectionsIntoLedger(
+  electionId: string,
+  selections: Array<{ positionId: string; candidateIds: string[] }>
+): void {
+  const ledger = getOrCreateLedger(electionId);
+  if (!ledger) return;
+
+  let hasAnySelection = false;
+  for (const sel of selections) {
+    if (!ledger.positionTallies[sel.positionId]) {
+      ledger.positionTallies[sel.positionId] = {
+        candidateVotes: {},
+        blankVotes: 0,
+        invalidVotes: 0
+      };
+    }
+    const tally = ledger.positionTallies[sel.positionId];
+    if (!sel.candidateIds || sel.candidateIds.length === 0) {
+      tally.blankVotes += 1;
+    } else {
+      hasAnySelection = true;
+      for (const cid of sel.candidateIds) {
+        const cand = CANDIDATES_STORE.get(cid);
+        tally.candidateVotes[cid] =
+          tally.candidateVotes[cid] !== undefined
+            ? tally.candidateVotes[cid] + 1
+            : cand?.votesReceived || 1;
+      }
+    }
+  }
+
+  if (!hasAnySelection && selections.length > 0) {
+    ledger.blankOverallBallots += 1;
+  }
 }
 
 /**

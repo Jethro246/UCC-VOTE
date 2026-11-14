@@ -5,21 +5,118 @@ import {
   STUDENT_ACCOUNTS, 
   ADMIN_ACCOUNTS, 
   ACTIVE_SESSIONS, 
+  REFRESH_SESSIONS,
   RESET_TOKENS,
   checkRateLimit, 
   recordFailedAttempt, 
   resetRateLimit, 
   logAuditEvent,
-  AUDIT_LOGS
+  persistSessions,
+  revokeUserSessions,
+  findStudentAccountByIdentifier
 } from './authStore.ts';
-import type { StoredStudentAccount, SessionData } from './authStore.ts';
+import type { StoredStudentAccount, SessionData, RefreshSessionData } from './authStore.ts';
 import { hashPassword, verifyPassword, generateToken } from './cryptoUtils.ts';
 
 export const authRouter = Router();
 
+const ACCESS_TOKEN_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const DEFAULT_REFRESH_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REMEMBER_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function getCookieOptions(maxAge: number) {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    maxAge
+  };
+}
+
+function issueSessionPair(params: {
+  res: Response;
+  userId: string;
+  role: string;
+  userType: 'student' | 'admin';
+  ipAddress: string;
+  userAgent?: string;
+  rememberMe?: boolean;
+  managedDomainIds?: string[];
+  managedHalls?: string[];
+  managedFaculties?: string[];
+  managedDepartments?: string[];
+}) {
+  const {
+    res,
+    userId,
+    role,
+    userType,
+    ipAddress,
+    userAgent,
+    rememberMe,
+    managedDomainIds,
+    managedHalls,
+    managedFaculties,
+    managedDepartments
+  } = params;
+  const now = Date.now();
+  const accessToken = generateToken(32);
+  const refreshToken = generateToken(36);
+  const accessExpiresAt = now + ACCESS_TOKEN_TTL_MS;
+  const refreshDuration =
+    userType === 'admin'
+      ? 8 * 60 * 60 * 1000
+      : rememberMe
+      ? REMEMBER_REFRESH_TTL_MS
+      : DEFAULT_REFRESH_TTL_MS;
+  const refreshExpiresAt = now + refreshDuration;
+
+  const sessionData: SessionData = {
+    token: accessToken,
+    userId,
+    role,
+    userType,
+    managedDomainIds,
+    managedHalls,
+    managedFaculties,
+    managedDepartments,
+    expiresAt: accessExpiresAt,
+    createdAt: now,
+    refreshToken,
+    ipAddress,
+    userAgent,
+    rememberMe: Boolean(rememberMe)
+  };
+
+  const refreshData: RefreshSessionData = {
+    refreshToken,
+    userId,
+    role,
+    userType,
+    expiresAt: refreshExpiresAt,
+    createdAt: now,
+    rememberMe: Boolean(rememberMe)
+  };
+
+  ACTIVE_SESSIONS.set(accessToken, sessionData);
+  REFRESH_SESSIONS.set(refreshToken, refreshData);
+  persistSessions();
+
+  res.cookie('ucc_session', accessToken, getCookieOptions(ACCESS_TOKEN_TTL_MS));
+  res.cookie('ucc_refresh', refreshToken, getCookieOptions(refreshDuration));
+
+  return {
+    token: accessToken,
+    refreshToken,
+    expiresAt: accessExpiresAt,
+    refreshExpiresAt
+  };
+}
+
 // Middleware to extract and validate session token from header or cookie
 export function authenticateToken(req: Request, res: Response, next: NextFunction) {
-  let token = req.headers.authorization?.replace(/^Bearer\s+/, '');
+  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
   if (!token && req.cookies && req.cookies.ucc_session) {
     token = req.cookies.ucc_session;
   }
@@ -27,6 +124,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   if (!token) {
     return res.status(401).json({ 
       success: false, 
+      code: 'AUTH_REQUIRED',
       error: 'Authentication required. No session token provided.' 
     });
   }
@@ -35,16 +133,40 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   if (!session) {
     return res.status(401).json({ 
       success: false, 
+      code: 'SESSION_EXPIRED',
       error: 'Invalid or expired session. Please log in again.' 
     });
   }
 
   if (Date.now() > session.expiresAt) {
     ACTIVE_SESSIONS.delete(token);
+    persistSessions();
     return res.status(401).json({ 
       success: false, 
+      code: 'TOKEN_EXPIRED',
       error: 'Session expired. Please log in again.' 
     });
+  }
+
+  // Verify account is still active and not suspended
+  if (session.userType === 'student') {
+    const account = findStudentAccountByIdentifier(session.userId);
+    if (!account) {
+      revokeUserSessions(session.userId);
+      return res.status(401).json({
+        success: false,
+        code: 'SESSION_EXPIRED',
+        error: 'Student account record no longer exists. Please log in again.'
+      });
+    }
+    if (account.status === 'suspended') {
+      revokeUserSessions(session.userId);
+      return res.status(403).json({
+        success: false,
+        code: 'ACCOUNT_SUSPENDED',
+        error: 'Your voter account has been suspended by the University Electoral Commission.'
+      });
+    }
   }
 
   // Attach session data to request
@@ -86,8 +208,8 @@ authRouter.post('/login', (req: Request, res: Response) => {
     });
   }
 
-  // Look up student account
-  const student = STUDENT_ACCOUNTS.get(cleanId);
+  // Look up student account (by Student ID or Index Number, case-insensitive)
+  const student = findStudentAccountByIdentifier(cleanId);
   if (!student) {
     const attempt = recordFailedAttempt(cleanId);
     logAuditEvent({
@@ -172,33 +294,18 @@ authRouter.post('/login', (req: Request, res: Response) => {
   // Login success -> reset rate limit
   resetRateLimit(cleanId);
 
-  // Generate Session
-  const sessionToken = generateToken(32);
-  const sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-  const expiresAt = Date.now() + sessionDuration;
-
-  const sessionData: SessionData = {
-    token: sessionToken,
+  // Generate Access + Refresh Session Pair
+  const issued = issueSessionPair({
+    res,
     userId: student.id,
     role: 'Student',
     userType: 'student',
-    expiresAt,
-    createdAt: Date.now(),
     ipAddress,
     userAgent: req.headers['user-agent'] as string,
     rememberMe: Boolean(rememberMe)
-  };
-
-  ACTIVE_SESSIONS.set(sessionToken, sessionData);
-  student.lastLogin = new Date().toISOString();
-
-  // Set HTTP-Only Cookie as well as return token in JSON
-  res.cookie('ucc_session', sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: sessionDuration
   });
+
+  student.lastLogin = new Date().toISOString();
 
   logAuditEvent({
     eventType: 'LOGIN_SUCCESS',
@@ -215,10 +322,11 @@ authRouter.post('/login', (req: Request, res: Response) => {
 
   return res.json({
     success: true,
-    token: sessionToken,
+    token: issued.token,
+    refreshToken: issued.refreshToken,
     user: sanitizedStudent,
     userRole: 'student',
-    expiresAt
+    expiresAt: issued.expiresAt
   });
 });
 
@@ -254,30 +362,20 @@ authRouter.post('/admin-login', (req: Request, res: Response) => {
     return res.status(401).json({ success: false, error: 'Invalid staff ID or password.' });
   }
 
-  const sessionToken = generateToken(32);
-  const sessionDuration = 8 * 60 * 60 * 1000; // 8 hours for admin
-  const expiresAt = Date.now() + sessionDuration;
-
-  const sessionData: SessionData = {
-    token: sessionToken,
+  const issued = issueSessionPair({
+    res,
     userId: admin.id,
     role: admin.role,
     userType: 'admin',
-    expiresAt,
-    createdAt: Date.now(),
     ipAddress,
-    userAgent: req.headers['user-agent'] as string
-  };
-
-  ACTIVE_SESSIONS.set(sessionToken, sessionData);
-  admin.lastLogin = new Date().toISOString();
-
-  res.cookie('ucc_session', sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: sessionDuration
+    userAgent: req.headers['user-agent'] as string,
+    managedDomainIds: admin.managedDomainIds,
+    managedHalls: admin.managedHalls,
+    managedFaculties: admin.managedFaculties,
+    managedDepartments: admin.managedDepartments
   });
+
+  admin.lastLogin = new Date().toISOString();
 
   logAuditEvent({
     eventType: 'LOGIN_SUCCESS',
@@ -293,10 +391,11 @@ authRouter.post('/admin-login', (req: Request, res: Response) => {
 
   return res.json({
     success: true,
-    token: sessionToken,
+    token: issued.token,
+    refreshToken: issued.refreshToken,
     user: sanitizedAdmin,
     userRole: 'admin',
-    expiresAt
+    expiresAt: issued.expiresAt
   });
 });
 
@@ -408,29 +507,14 @@ authRouter.post('/register', (req: Request, res: Response) => {
 
   STUDENT_ACCOUNTS.set(cleanId, newAccount);
 
-  // Generate session
-  const sessionToken = generateToken(32);
-  const sessionDuration = 24 * 60 * 60 * 1000;
-  const expiresAt = Date.now() + sessionDuration;
-
-  const sessionData: SessionData = {
-    token: sessionToken,
+  // Generate Access + Refresh Session Pair
+  const issued = issueSessionPair({
+    res,
     userId: newAccount.id,
     role: 'Student',
     userType: 'student',
-    expiresAt,
-    createdAt: Date.now(),
     ipAddress,
     userAgent: req.headers['user-agent'] as string
-  };
-
-  ACTIVE_SESSIONS.set(sessionToken, sessionData);
-
-  res.cookie('ucc_session', sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: sessionDuration
   });
 
   logAuditEvent({
@@ -448,10 +532,11 @@ authRouter.post('/register', (req: Request, res: Response) => {
   return res.status(201).json({
     success: true,
     message: 'Account successfully activated and verified with institutional records.',
-    token: sessionToken,
+    token: issued.token,
+    refreshToken: issued.refreshToken,
     user: sanitized,
     userRole: 'student',
-    expiresAt
+    expiresAt: issued.expiresAt
   });
 });
 
@@ -599,12 +684,8 @@ authRouter.post('/reset-password', (req: Request, res: Response) => {
   // Invalidate reset token
   RESET_TOKENS.delete(foundKey);
 
-  // Invalidate any existing sessions for security
-  for (const [sToken, sData] of ACTIVE_SESSIONS.entries()) {
-    if (sData.userId === account.id) {
-      ACTIVE_SESSIONS.delete(sToken);
-    }
-  }
+  // Invalidate any existing sessions (access + refresh) for security
+  revokeUserSessions(account.id);
 
   logAuditEvent({
     eventType: 'PASSWORD_RESET',
@@ -673,19 +754,152 @@ authRouter.get('/me', authenticateToken, (req: Request, res: Response) => {
 });
 
 /**
+ * 7b. POST /api/auth/refresh
+ * Exchanges a valid, non-expired refresh token for a rotated access + refresh token pair
+ */
+authRouter.post('/refresh', (req: Request, res: Response) => {
+  const refreshToken =
+    (req.body?.refreshToken as string | undefined)?.trim() ||
+    (req.cookies?.ucc_refresh as string | undefined);
+  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+  if (!refreshToken) {
+    return res.status(401).json({
+      success: false,
+      code: 'SESSION_EXPIRED',
+      error: 'Your session has expired. Please log in again to continue.'
+    });
+  }
+
+  const refreshRecord = REFRESH_SESSIONS.get(refreshToken);
+  if (!refreshRecord) {
+    return res.status(401).json({
+      success: false,
+      code: 'SESSION_EXPIRED',
+      error: 'Your session has expired. Please log in again to continue.'
+    });
+  }
+
+  if (Date.now() > refreshRecord.expiresAt) {
+    REFRESH_SESSIONS.delete(refreshToken);
+    persistSessions();
+    return res.status(401).json({
+      success: false,
+      code: 'SESSION_EXPIRED',
+      error: 'Your session has expired. Please log in again to continue.'
+    });
+  }
+
+  // Rotate refresh token (single-use)
+  REFRESH_SESSIONS.delete(refreshToken);
+
+  if (refreshRecord.userType === 'student') {
+    const student = findStudentAccountByIdentifier(refreshRecord.userId);
+    if (!student) {
+      persistSessions();
+      return res.status(401).json({
+        success: false,
+        code: 'SESSION_EXPIRED',
+        error: 'Student account record could not be verified. Please log in again.'
+      });
+    }
+    if (student.status === 'suspended') {
+      revokeUserSessions(student.id);
+      return res.status(403).json({
+        success: false,
+        code: 'ACCOUNT_SUSPENDED',
+        error: 'Your voter account has been suspended by the University Electoral Commission.'
+      });
+    }
+
+    const issued = issueSessionPair({
+      res,
+      userId: student.id,
+      role: 'Student',
+      userType: 'student',
+      ipAddress,
+      userAgent: req.headers['user-agent'] as string,
+      rememberMe: refreshRecord.rememberMe
+    });
+
+    const { passwordHash: _, passwordSalt: __, ...sanitized } = student;
+    return res.json({
+      success: true,
+      token: issued.token,
+      refreshToken: issued.refreshToken,
+      user: sanitized,
+      userRole: 'student',
+      expiresAt: issued.expiresAt
+    });
+  } else {
+    let admin: any;
+    for (const a of ADMIN_ACCOUNTS.values()) {
+      if (a.id === refreshRecord.userId) {
+        admin = a;
+        break;
+      }
+    }
+    if (!admin || admin.status === 'suspended') {
+      persistSessions();
+      return res.status(401).json({
+        success: false,
+        code: 'SESSION_EXPIRED',
+        error: 'Administrative session is no longer valid. Please log in again.'
+      });
+    }
+
+    const issued = issueSessionPair({
+      res,
+      userId: admin.id,
+      role: admin.role,
+      userType: 'admin',
+      ipAddress,
+      userAgent: req.headers['user-agent'] as string,
+      managedDomainIds: admin.managedDomainIds,
+      managedHalls: admin.managedHalls,
+      managedFaculties: admin.managedFaculties,
+      managedDepartments: admin.managedDepartments
+    });
+
+    const { passwordHash: _, passwordSalt: __, ...sanitized } = admin;
+    return res.json({
+      success: true,
+      token: issued.token,
+      refreshToken: issued.refreshToken,
+      user: sanitized,
+      userRole: 'admin',
+      expiresAt: issued.expiresAt
+    });
+  }
+});
+
+/**
  * 8. POST /api/auth/logout
  */
 authRouter.post('/logout', (req: Request, res: Response) => {
-  let token = req.headers.authorization?.replace(/^Bearer\s+/, '');
+  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
   if (!token && req.cookies && req.cookies.ucc_session) {
     token = req.cookies.ucc_session;
   }
 
+  const refreshToken =
+    (req.body?.refreshToken as string | undefined)?.trim() ||
+    (req.cookies?.ucc_refresh as string | undefined);
+
   if (token) {
+    const sess = ACTIVE_SESSIONS.get(token);
+    if (sess?.refreshToken) {
+      REFRESH_SESSIONS.delete(sess.refreshToken);
+    }
     ACTIVE_SESSIONS.delete(token);
   }
+  if (refreshToken) {
+    REFRESH_SESSIONS.delete(refreshToken);
+  }
+  persistSessions();
 
   res.clearCookie('ucc_session');
+  res.clearCookie('ucc_refresh');
   return res.json({ success: true, message: 'Logged out successfully.' });
 });
 

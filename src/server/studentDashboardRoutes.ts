@@ -1,65 +1,32 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
-import { 
-  STUDENT_ACCOUNTS, 
-  OFFICIAL_UCC_STUDENT_REGISTRY
-} from './authStore.ts';
+import { STUDENT_ACCOUNTS } from './authStore.ts';
 import type { SessionData } from './authStore.ts';
-import { MOCK_NOTIFICATIONS } from '../data/mockData.ts';
 import { ELECTIONS_STORE, POSITIONS_STORE, verifyStudentEligibility } from './electionStore.ts';
-import type { Election } from '../types/index.ts';
+import { DOMAINS_STORE, categoryToDomainId } from './domainStore.ts';
 
 export const studentDashboardRouter = Router();
 
-// Helper to determine if a student is eligible for an election
-export function checkStudentEligibility(student: any, election: Election): { isEligible: boolean; reason?: string } {
-  if (student.status === 'suspended') {
-    return { isEligible: false, reason: 'Your voter account has been administratively suspended.' };
-  }
-
-  const crit = election.eligibilityCriteria;
-  if (!crit) return { isEligible: true };
-
-  // Check levels
-  if (crit.levels && crit.levels.length > 0) {
-    if (!crit.levels.includes(student.level)) {
-      return { isEligible: false, reason: `Requires academic level: ${crit.levels.join(', ')} (Your level: ${student.level})` };
-    }
-  }
-
-  // Check faculties
-  if (crit.faculties && crit.faculties.length > 0) {
-    if (!crit.faculties.some((f: string) => student.faculty?.toLowerCase().includes(f.toLowerCase()))) {
-      return { isEligible: false, reason: `Restricted to faculty: ${crit.faculties.join(', ')}` };
-    }
-  }
-
-  // Check departments
-  if (crit.departments && crit.departments.length > 0) {
-    if (!crit.departments.some((d: string) => student.department?.toLowerCase().includes(d.toLowerCase()))) {
-      return { isEligible: false, reason: `Restricted to department: ${crit.departments.join(', ')}` };
-    }
-  }
-
-  // Check halls
-  if (crit.halls && crit.halls.length > 0) {
-    if (!crit.halls.some((h: string) => student.hall?.toLowerCase().includes(h.toLowerCase().split(' ')[0]))) {
-      return { isEligible: false, reason: `Restricted to members/residents of ${crit.halls.join(', ')}` };
-    }
-  }
-
-  return { isEligible: true };
-}
+// Re-export single authoritative eligibility checker for backwards compatibility
+export const checkStudentEligibility = verifyStudentEligibility;
 
 /**
  * GET /api/student/dashboard
- * Aggregates personalized real-time statistics, elections, voting status, and announcements
+ * Aggregates personalized real-time statistics, domain category cards, elections,
+ * voting status, and announcements
  */
 studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: Response) => {
   const session: SessionData = (req as any).session;
-  
-  // Find student in memory store
+
+  if (!session || session.userType !== 'student') {
+    return res.status(403).json({
+      success: false,
+      code: 'ADMIN_ROLE_NOT_STUDENT',
+      error: 'Student voter dashboard requires an authenticated student account.'
+    });
+  }
+
   let studentAccount: any;
   for (const s of STUDENT_ACCOUNTS.values()) {
     if (s.id === session.userId || s.studentId === session.userId) {
@@ -68,34 +35,34 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
     }
   }
 
-  // Fallback if demo session
   if (!studentAccount) {
-    studentAccount = STUDENT_ACCOUNTS.get('PS/CSC/22/0089');
-  }
-
-  if (!studentAccount) {
-    return res.status(404).json({ success: false, error: 'Student record not found.' });
+    return res.status(404).json({
+      success: false,
+      code: 'STUDENT_NOT_FOUND',
+      error: 'Student record not found.'
+    });
   }
 
   const elections = Array.from(ELECTIONS_STORE.values());
   const hasVotedList: string[] = studentAccount.hasVotedElections || [];
 
-  // Map each election with eligibility and voting status
-  const processedElections = elections.map(el => {
+  const processedElections = elections.map((el) => {
     const { isEligible, reason } = verifyStudentEligibility(studentAccount, el);
     const hasVoted = hasVotedList.includes(el.id);
-    const canVoteNow = isEligible && el.status === 'live' && !hasVoted && studentAccount.status === 'active';
+    const canVoteNow =
+      isEligible && el.status === 'live' && !hasVoted && studentAccount.status === 'active';
     const positions = POSITIONS_STORE.get(el.id) || [];
 
     return {
       ...el,
+      domainId: el.domainId || categoryToDomainId(el.category),
       studentEligibility: {
         isEligible,
         reason: reason || (isEligible ? 'Verified against DAA registry records' : 'Ineligible'),
         hasVoted,
         canVoteNow
       },
-      positionsList: positions.map(p => ({
+      positionsList: positions.map((p) => ({
         id: p.id,
         title: p.title,
         order: p.order,
@@ -104,60 +71,95 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
     };
   });
 
-  // Categorize sections
-  const electionsAvailableToMe = processedElections.filter(e => e.studentEligibility.isEligible);
-  const activeElections = processedElections.filter(e => e.status === 'live');
+  const electionsAvailableToMe = processedElections.filter((e) => e.studentEligibility.isEligible);
+  const activeElections = processedElections.filter((e) => e.status === 'live');
   const upcomingElections = processedElections.filter(
-    e => e.status === 'upcoming' || e.status === 'scheduled'
+    (e) => e.status === 'upcoming' || e.status === 'scheduled'
   );
-  const completedElections = processedElections.filter(e => e.status === 'results_published' || e.status === 'closed');
+  const completedElections = processedElections.filter(
+    (e) => e.status === 'results_published' || e.status === 'closed'
+  );
 
-  // Compute student voting status summary
-  const completedVotesCount = electionsAvailableToMe.filter(e => e.studentEligibility.hasVoted).length;
-  const pendingVotesCount = electionsAvailableToMe.filter(e => e.status === 'live' && !e.studentEligibility.hasVoted).length;
-  const closedEligibleCount = electionsAvailableToMe.filter(e => e.status === 'results_published' || e.status === 'closed').length;
+  // Build personalized per-domain summary cards for all registered domains
+  const domainsSummary = Array.from(DOMAINS_STORE.values())
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((dom) => {
+      const domElections = processedElections.filter((e) => e.domainId === dom.id);
+      const eligibleInDom = domElections.filter((e) => e.studentEligibility.isEligible);
+      const activeInDom = domElections.filter((e) => e.status === 'live');
+      const canVoteCount = domElections.filter((e) => e.studentEligibility.canVoteNow).length;
+      const votedCount = domElections.filter((e) => e.studentEligibility.hasVoted).length;
 
-  // Real announcements
+      return {
+        ...dom,
+        totalElections: domElections.length,
+        activeCount: activeInDom.length,
+        upcomingCount: domElections.filter(
+          (e) => e.status === 'upcoming' || e.status === 'scheduled'
+        ).length,
+        eligibleCount: eligibleInDom.length,
+        canVoteCount,
+        votedCount
+      };
+    });
+
+  const completedVotesCount = electionsAvailableToMe.filter(
+    (e) => e.studentEligibility.hasVoted
+  ).length;
+  const pendingVotesCount = electionsAvailableToMe.filter(
+    (e) => e.status === 'live' && !e.studentEligibility.hasVoted
+  ).length;
+  const closedEligibleCount = electionsAvailableToMe.filter(
+    (e) => e.status === 'results_published' || e.status === 'closed'
+  ).length;
+
   const announcements = [
     {
       id: 'ann-1',
       title: '64th SRC General Elections: Digital Polling Closes at 17:00 GMT',
       category: 'Official Notice',
+      domainId: 'src',
       timestamp: 'Today, 08:00 GMT',
-      deadline: 'Tomorrow, 17:00 GMT',
-      summary: 'All eligible undergraduate voters are urged to verify their ballot token before the official closing time. Extended polling kiosks are available at New Examination Centre and Students\' Centre.',
+      deadline: 'Nov 25, 17:00 GMT',
+      summary:
+        'All eligible undergraduate voters are urged to verify their ballot token before the official closing time.',
       priority: 'high'
     },
     {
       id: 'ann-2',
-      title: 'Casely Hayford Hall (Casford) JCR Polling Underway',
+      title: 'JCRC / Hall Polling Underway: Casford & Adehye Halls',
       category: 'Hall Election',
+      domainId: 'jcrc_hall',
       timestamp: 'Today, 09:00 GMT',
-      deadline: 'Tomorrow, 16:00 GMT',
-      summary: 'Voting for Casford Hall executive portfolios is active for all verified hall residents and affiliates.',
+      deadline: 'Nov 25, 16:00 GMT',
+      summary:
+        'Voting for participating residential hall JCRC executive portfolios is active for verified hall residents and affiliates.',
+      priority: 'medium'
+    },
+    {
+      id: 'ann-5',
+      title: 'GRASAG-UCC 2026 & Local NUGS Polls Open',
+      category: 'Union & Postgraduate',
+      domainId: 'grasag',
+      timestamp: 'Today, 08:30 GMT',
+      deadline: 'Nov 26, 18:00 GMT',
+      summary:
+        'Postgraduate students may cast independent GRASAG ballots, and active students may participate in Local NUGS elections.',
       priority: 'medium'
     },
     {
       id: 'ann-3',
       title: 'Department of Computer Science & IT (NACOS) Nominations Gazetted',
       category: 'Departmental',
+      domainId: 'departmental',
       timestamp: 'Yesterday',
       deadline: 'Nov 18, 08:00 GMT',
-      summary: 'Final vetting reports and aspirant manifestos for the 2026 NACOS executive elections are now available for review.',
-      priority: 'info'
-    },
-    {
-      id: 'ann-4',
-      title: 'School of Physical Sciences (SPS-ESA) Presidential Debate Announced',
-      category: 'Faculty Election',
-      timestamp: 'Nov 8, 2026',
-      deadline: 'Nov 15, 16:00 GMT',
-      summary: 'The SPS Electoral Committee invites all physical science students to the Science Lecture Theatre 1 for the official manifesto presentation.',
+      summary:
+        'Final vetting reports and aspirant manifestos for the 2026 NACOS executive elections are now available for review.',
       priority: 'info'
     }
   ];
 
-  // Return full dashboard response
   return res.json({
     success: true,
     data: {
@@ -181,15 +183,21 @@ studentDashboardRouter.get('/dashboard', authenticateToken, (req: Request, res: 
         activeElections: activeElections.length,
         upcomingElections: upcomingElections.length,
         completedElections: completedElections.length,
-        isDemoData: true // Clearly identifies demonstration figures
+        isDemoData: true
       },
       votingStatus: {
         totalEligible: electionsAvailableToMe.length,
         completedVotesCount,
         pendingVotesCount,
         closedEligibleCount,
-        statusLabel: studentAccount.status === 'suspended' ? 'SUSPENDED' : pendingVotesCount > 0 ? 'BALLOT_AWAITING_ACTION' : 'ALL_CAUGHT_UP'
+        statusLabel:
+          studentAccount.status === 'suspended'
+            ? 'SUSPENDED'
+            : pendingVotesCount > 0
+            ? 'BALLOT_AWAITING_ACTION'
+            : 'ALL_CAUGHT_UP'
       },
+      domainsSummary,
       sections: {
         availableToMe: electionsAvailableToMe,
         active: activeElections,

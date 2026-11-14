@@ -1,25 +1,34 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
-import { requireAdminRole } from './adminRoutes.ts';
+import {
+  ALL_MANAGING_ADMIN_ROLES,
+  canAdminManageElection,
+  requireAdminRole
+} from './adminRoutes.ts';
 import { ELECTIONS_STORE } from './electionStore.ts';
+import { categoryToDomainId } from './domainStore.ts';
 import { ACTIVE_SESSIONS, logAuditEvent } from './authStore.ts';
+import type { SessionData } from './authStore.ts';
 import {
   computeElectionResults,
   transitionResultsWorkflow,
   recordBallotCast
 } from './resultsStore.ts';
-import {
-  generateElectionReportPdf,
-  generateElectionReportCsv
-} from './pdfGenerator.ts';
+import { generateElectionReportPdf, generateElectionReportCsv } from './pdfGenerator.ts';
 import type { ReportType } from './pdfGenerator.ts';
 import type { ResultsWorkflowStage } from '../types/index.ts';
 
 export const resultsRouter = Router();
 
-function getOptionalSession(req: Request) {
-  let token = req.headers.authorization?.replace(/^Bearer\s+/, '');
+const RESULTS_VIEWING_ROLES = [
+  ...ALL_MANAGING_ADMIN_ROLES,
+  'Returning Officer',
+  'Results Auditor'
+];
+
+function getOptionalSession(req: Request): SessionData | null {
+  let token = req.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
   if (!token && req.cookies && req.cookies.ucc_session) {
     token = req.cookies.ucc_session;
   }
@@ -31,14 +40,27 @@ function getOptionalSession(req: Request) {
 
 /**
  * GET /api/results
- * Overview of all elections with publication status & participation summaries
+ * Overview of all elections with publication status & participation summaries.
+ * Supports optional ?domainId= filtering; unpublished tallies are revealed only for admin's authorized scope.
  */
 resultsRouter.get('/', (req: Request, res: Response) => {
+  const { domainId } = req.query;
   const session = getOptionalSession(req);
-  const isAdmin = session && session.userType === 'admin';
+  const isAdmin = Boolean(session && session.userType === 'admin');
 
-  const list = Array.from(ELECTIONS_STORE.values())
-    .map((el) => computeElectionResults(el.id, Boolean(isAdmin)))
+  let elections = Array.from(ELECTIONS_STORE.values());
+  if (domainId && typeof domainId === 'string' && domainId !== 'All') {
+    elections = elections.filter(
+      (el) => (el.domainId || categoryToDomainId(el.category)) === domainId
+    );
+  }
+
+  const list = elections
+    .map((el) => {
+      const canSeePrivate =
+        isAdmin && canAdminManageElection(session!, el, { allowAuditorRead: true }).allowed;
+      return computeElectionResults(el.id, canSeePrivate);
+    })
     .filter(Boolean);
 
   return res.json({
@@ -71,22 +93,45 @@ resultsRouter.get('/:electionId', (req: Request, res: Response) => {
 
 /**
  * GET /api/results/:electionId/admin
- * Protected Administrator endpoint for full tallies across all 6 workflow stages
+ * Protected Administrator endpoint for full tallies across all 6 workflow stages (Domain-RBAC scoped)
  */
 resultsRouter.get(
   '/:electionId/admin',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner', 'Returning Officer', 'Results Auditor']),
+  requireAdminRole(RESULTS_VIEWING_ROLES),
   (req: Request, res: Response) => {
     const { electionId } = req.params;
-    const results = computeElectionResults(electionId, true);
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
-    if (!results) {
+    const election = ELECTIONS_STORE.get(electionId);
+    if (!election) {
       return res.status(404).json({
         success: false,
         error: `Election '${electionId}' was not found.`
       });
     }
+
+    const accessCheck = canAdminManageElection(session, election, { allowAuditorRead: true });
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: electionId,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked admin results access for ${electionId}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
+    const results = computeElectionResults(electionId, true);
 
     return res.json({
       success: true,
@@ -97,17 +142,44 @@ resultsRouter.get(
 
 /**
  * POST /api/results/:electionId/workflow
- * Advances results through the 6-stage verification, audit, approval, certification & publication workflow
+ * Advances results through verification, audit, approval, certification & publication (Domain-RBAC scoped)
  */
 resultsRouter.post(
   '/:electionId/workflow',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner', 'Returning Officer', 'Results Auditor']),
+  requireAdminRole(RESULTS_VIEWING_ROLES),
   (req: Request, res: Response) => {
     const { electionId } = req.params;
-    const { targetStage, notes, actorName } = req.body;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const { targetStage, notes, actorName } = req.body || {};
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+    const election = ELECTIONS_STORE.get(electionId);
+    if (!election) {
+      return res.status(404).json({
+        success: false,
+        error: `Election '${electionId}' was not found.`
+      });
+    }
+
+    const accessCheck = canAdminManageElection(session, election, { allowAuditorRead: true });
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: electionId,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked workflow advancement for ${electionId}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
 
     if (!targetStage) {
       return res.status(400).json({
@@ -151,7 +223,8 @@ resultsRouter.post('/:electionId/cast', (req: Request, res: Response) => {
   const { electionId } = req.params;
   const { selections, voterMeta } = req.body || {};
   const session = getOptionalSession(req);
-  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
   const result = recordBallotCast(electionId, selections || {}, voterMeta);
 
@@ -188,30 +261,40 @@ resultsRouter.get('/:electionId/export', (req: Request, res: Response) => {
   const format = (req.query.format as string)?.toLowerCase() === 'csv' ? 'csv' : 'pdf';
   const rawType = ((req.query.type as string) || 'full').toLowerCase();
   const validTypes: ReportType[] = ['full', 'results', 'turnout', 'candidates', 'positions'];
-  const reportType: ReportType = validTypes.includes(rawType as ReportType) ? (rawType as ReportType) : 'full';
+  const reportType: ReportType = validTypes.includes(rawType as ReportType)
+    ? (rawType as ReportType)
+    : 'full';
 
   const session = getOptionalSession(req);
-  const isAdmin = Boolean(session && session.userType === 'admin');
+  const election = ELECTIONS_STORE.get(electionId);
+  if (!election) {
+    return res.status(404).json({ success: false, error: 'Election not found.' });
+  }
 
-  // Check publication vs admin clearance
+  const isAdmin = Boolean(session && session.userType === 'admin');
+  const hasDomainClearance =
+    isAdmin && canAdminManageElection(session!, election, { allowAuditorRead: true }).allowed;
+
   const publicPreview = computeElectionResults(electionId, false);
   if (!publicPreview) {
     return res.status(404).json({ success: false, error: 'Election not found.' });
   }
 
-  if (!isAdmin && !publicPreview.isPublished) {
+  if (!publicPreview.isPublished && !hasDomainClearance) {
     return res.status(403).json({
       success: false,
-      error: 'Unpublished election reports are restricted to authorized Electoral Commission officials.'
+      error:
+        'Unpublished election reports are restricted to authorized Electoral Commission or Domain officials for this constituency.'
     });
   }
 
-  const results = computeElectionResults(electionId, isAdmin);
+  const results = computeElectionResults(electionId, hasDomainClearance);
   if (!results) {
     return res.status(404).json({ success: false, error: 'Election results unavailable.' });
   }
 
-  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
   if (isAdmin && session) {
     logAuditEvent({
       eventType: 'RESULTS_REPORT_EXPORTED',

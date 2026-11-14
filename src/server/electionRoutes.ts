@@ -1,19 +1,30 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticateToken } from './authRoutes.ts';
-import { requireAdminRole } from './adminRoutes.ts';
-import { 
-  ELECTIONS_STORE, 
-  POSITIONS_STORE, 
-  CANDIDATES_STORE,
-  isValidTransition, 
+import {
+  ALL_MANAGING_ADMIN_ROLES,
+  canAdminAccessDomain,
+  canAdminManageElection,
+  requireAdminRole
+} from './adminRoutes.ts';
+import {
+  ELECTIONS_STORE,
+  POSITIONS_STORE,
+  isValidTransition,
   VALID_STATUS_TRANSITIONS,
   verifyStudentEligibility,
-  calculateEligibleVoterCount,
-  verifyCandidateCandidacyEligibility
+  calculateEligibleVoterCount
 } from './electionStore.ts';
+import {
+  categoryToDomainId,
+  domainIdToCategory,
+  enrichElectionDomainRelations,
+  matchesHallName,
+  normalizeText
+} from './domainStore.ts';
 import { logAuditEvent, OFFICIAL_UCC_STUDENT_REGISTRY, STUDENT_ACCOUNTS } from './authStore.ts';
-import type { Election, ElectionCategory, ElectionStatus, Position, Candidate, CandidateApplicationStatus } from '../types/index.ts';
+import type { SessionData } from './authStore.ts';
+import type { DomainId, Election, ElectionCategory, ElectionStatus, Position } from '../types/index.ts';
 
 export const electionRouter = Router();
 
@@ -23,11 +34,41 @@ export const electionRouter = Router();
 
 /**
  * GET /api/elections
- * Returns list of elections with optional category and status filtering
+ * Returns list of elections with optional domainId, subdomain, category, and status filtering
  */
 electionRouter.get('/', (req: Request, res: Response) => {
-  const { category, status, search } = req.query;
+  const { domainId, hallId, facultyId, departmentId, category, status, search } = req.query;
   let list = Array.from(ELECTIONS_STORE.values());
+
+  if (domainId && typeof domainId === 'string' && domainId !== 'All') {
+    list = list.filter((e) => (e.domainId || categoryToDomainId(e.category)) === domainId);
+  }
+
+  if (hallId && typeof hallId === 'string' && hallId !== 'All') {
+    list = list.filter(
+      (e) =>
+        e.hallId === hallId ||
+        e.eligibilityCriteria?.halls?.some((h) => matchesHallName(h, hallId))
+    );
+  }
+
+  if (facultyId && typeof facultyId === 'string' && facultyId !== 'All') {
+    list = list.filter(
+      (e) =>
+        e.facultyId === facultyId ||
+        e.eligibilityCriteria?.faculties?.some((f) => normalizeText(f).includes(normalizeText(facultyId)))
+    );
+  }
+
+  if (departmentId && typeof departmentId === 'string' && departmentId !== 'All') {
+    list = list.filter(
+      (e) =>
+        e.departmentId === departmentId ||
+        e.eligibilityCriteria?.departments?.some((d) =>
+          normalizeText(d).includes(normalizeText(departmentId))
+        )
+    );
+  }
 
   if (category && category !== 'All') {
     list = list.filter((e) => e.category === category);
@@ -43,11 +84,11 @@ electionRouter.get('/', (req: Request, res: Response) => {
       (e) =>
         e.title.toLowerCase().includes(q) ||
         e.code.toLowerCase().includes(q) ||
-        e.description.toLowerCase().includes(q)
+        e.description.toLowerCase().includes(q) ||
+        (e.subdomainLabel && e.subdomainLabel.toLowerCase().includes(q))
     );
   }
 
-  // Sort by startDate descending
   list.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
   return res.json({
@@ -72,7 +113,7 @@ electionRouter.get('/:id', (req: Request, res: Response) => {
     });
   }
 
-  const positions = POSITIONS_STORE.get(id) || [];
+  const positions = [...(POSITIONS_STORE.get(id) || [])].sort((a, b) => a.order - b.order);
 
   return res.json({
     success: true,
@@ -93,16 +134,14 @@ electionRouter.post('/:id/check-eligibility', authenticateToken, (req: Request, 
     return res.status(404).json({ success: false, error: 'Election not found.' });
   }
 
-  const session = (req as any).session;
+  const session = (req as any).session as SessionData;
   let targetStudent: any = null;
 
-  // Priority 1: If explicit studentId in body (admin evaluation or test persona)
   if (req.body && req.body.studentId) {
     const rawId = req.body.studentId.trim();
-    // Search in activated accounts first (which tracks live status like 'suspended')
     for (const s of STUDENT_ACCOUNTS.values()) {
       if (s.studentId.toLowerCase() === rawId.toLowerCase() || s.id === rawId) {
-        targetStudent = s;
+        targetStudent = { ...s };
         break;
       }
     }
@@ -111,13 +150,12 @@ electionRouter.post('/:id/check-eligibility', authenticateToken, (req: Request, 
     }
   }
 
-  // Priority 2: From authenticated student session
   if (!targetStudent && session && session.userType === 'student') {
     targetStudent = STUDENT_ACCOUNTS.get(session.userId);
     if (!targetStudent) {
       for (const s of STUDENT_ACCOUNTS.values()) {
         if (s.id === session.userId || s.studentId === session.userId) {
-          targetStudent = s;
+          targetStudent = { ...s };
           break;
         }
       }
@@ -127,7 +165,6 @@ electionRouter.post('/:id/check-eligibility', authenticateToken, (req: Request, 
     }
   }
 
-  // Priority 3: Fallback default active student if logged in
   if (!targetStudent && session && session.userType === 'student') {
     targetStudent = STUDENT_ACCOUNTS.get('PS/CSC/22/0089');
   }
@@ -139,12 +176,11 @@ electionRouter.post('/:id/check-eligibility', authenticateToken, (req: Request, 
     });
   }
 
-  // Cross-reference live account status from STUDENT_ACCOUNTS if available
   const liveAccount = Array.from(STUDENT_ACCOUNTS.values()).find(
-    s => s.studentId === targetStudent.studentId || s.id === targetStudent.id
+    (s) => s.studentId === targetStudent.studentId || s.id === targetStudent.id
   );
   if (liveAccount && liveAccount.status) {
-    targetStudent.status = liveAccount.status;
+    targetStudent = { ...targetStudent, status: liveAccount.status };
   }
 
   const result = verifyStudentEligibility(targetStudent, election);
@@ -164,23 +200,28 @@ electionRouter.post('/:id/check-eligibility', authenticateToken, (req: Request, 
 
 /**
  * POST /api/elections
- * Create a new election (Restricted to Super Admin or Electoral Commissioner)
+ * Create a new election (Global admins OR authorized Domain/Subdomain admins for their own scope)
  */
 electionRouter.post(
   '/',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner']),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
-    const body = req.body;
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const body = req.body || {};
 
-    // 1. Mandatory field validation
     const {
       title,
       code,
       description,
       category,
+      domainId,
+      hallId,
+      facultyId,
+      departmentId,
+      subdomainLabel,
       academicYear,
       startDate,
       endDate,
@@ -190,14 +231,16 @@ electionRouter.post(
       positions
     } = body;
 
-    if (!title || !category || !startDate || !endDate) {
+    const resolvedDomainId: DomainId = domainId || categoryToDomainId(category);
+    const resolvedCategory: ElectionCategory = category || domainIdToCategory(resolvedDomainId);
+
+    if (!title || (!category && !domainId) || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed: Title, category, start date, and end date are mandatory.'
+        error: 'Validation failed: Title, domain/category, start date, and end date are mandatory.'
       });
     }
 
-    // 2. Validate Date Range
     const start = new Date(startDate).getTime();
     const end = new Date(endDate).getTime();
 
@@ -215,9 +258,49 @@ electionRouter.post(
       });
     }
 
-    // 3. Unique election ID generation
-    const electionId = body.id || `UCC-${category.replace(/[^A-Z]/gi, '').substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
-    
+    const parsedCriteria = {
+      faculties: Array.isArray(eligibilityCriteria?.faculties) ? eligibilityCriteria.faculties : [],
+      departments: Array.isArray(eligibilityCriteria?.departments)
+        ? eligibilityCriteria.departments
+        : [],
+      programmes: Array.isArray(eligibilityCriteria?.programmes) ? eligibilityCriteria.programmes : [],
+      levels: Array.isArray(eligibilityCriteria?.levels) ? eligibilityCriteria.levels : [],
+      halls: Array.isArray(eligibilityCriteria?.halls) ? eligibilityCriteria.halls : []
+    };
+
+    // Enforce GRASAG Postgraduate-only constitutional isolation
+    if (resolvedDomainId === 'grasag') {
+      parsedCriteria.levels = ['Postgraduate'];
+    }
+
+    // Domain & Subdomain RBAC Guard
+    const accessCheck = canAdminAccessDomain(session, resolvedDomainId, {
+      hall: parsedCriteria.halls[0] || subdomainLabel,
+      faculty: parsedCriteria.faculties[0] || subdomainLabel,
+      department: parsedCriteria.departments[0] || subdomainLabel
+    });
+
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: resolvedDomainId,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked election creation in '${resolvedDomainId}': ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
+    const electionId =
+      body.id ||
+      `UCC-${resolvedCategory.replace(/[^A-Z]/gi, '').substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
     if (ELECTIONS_STORE.has(electionId)) {
       return res.status(409).json({
         success: false,
@@ -225,7 +308,6 @@ electionRouter.post(
       });
     }
 
-    // 4. Initial status calculation
     const now = Date.now();
     let initialStatus: ElectionStatus = body.status || 'draft';
     if (!body.status) {
@@ -234,23 +316,21 @@ electionRouter.post(
       else initialStatus = 'closed';
     }
 
-    // 5. Build parsed eligibility criteria
-    const parsedCriteria = {
-      faculties: Array.isArray(eligibilityCriteria?.faculties) ? eligibilityCriteria.faculties : [],
-      departments: Array.isArray(eligibilityCriteria?.departments) ? eligibilityCriteria.departments : [],
-      programmes: Array.isArray(eligibilityCriteria?.programmes) ? eligibilityCriteria.programmes : [],
-      levels: Array.isArray(eligibilityCriteria?.levels) ? eligibilityCriteria.levels : [],
-      halls: Array.isArray(eligibilityCriteria?.halls) ? eligibilityCriteria.halls : []
-    };
-
     const calculatedEligible = calculateEligibleVoterCount(parsedCriteria);
 
-    const newElection: Election = {
+    const baseElection: Election = {
       id: electionId,
       title: title.trim(),
-      code: code ? code.trim().toUpperCase() : `${category.substring(0, 3).toUpperCase()}-${academicYear || '2026'}-${Date.now().toString().slice(-3)}`,
+      code: code
+        ? code.trim().toUpperCase()
+        : `${resolvedCategory.replace(/[^A-Z]/gi, '').substring(0, 4).toUpperCase()}-${academicYear || '2026'}-${Date.now().toString().slice(-3)}`,
       description: description ? description.trim() : 'Officially sanctioned UCC election.',
-      category: category as ElectionCategory,
+      category: resolvedCategory,
+      domainId: resolvedDomainId,
+      hallId,
+      facultyId,
+      departmentId,
+      subdomainLabel,
       academicYear: academicYear || '2026/2027',
       status: initialStatus,
       startDate: new Date(startDate).toISOString(),
@@ -262,12 +342,15 @@ electionRouter.post(
       turnoutPercentage: 0,
       organizingBody: organizingBody ? organizingBody.trim() : 'UCC Electoral Commission (EC-UCC)',
       eligibilityCriteria: parsedCriteria,
-      rules: Array.isArray(rules) && rules.length > 0 ? rules : [
-        'One verified vote per accredited student per contested portfolio.',
-        'Ballot secrecy is cryptographically preserved; votes are decoupled from voter identities.',
-        'Voting closes automatically at official scheduled time.'
-      ],
-      positionsCount: Array.isArray(positions) ? positions.length : (body.positionsCount || 0),
+      rules:
+        Array.isArray(rules) && rules.length > 0
+          ? rules
+          : [
+              'One verified vote per accredited student per contested portfolio.',
+              'Ballot secrecy is cryptographically preserved; votes are decoupled from voter identities.',
+              'Voting closes automatically at official scheduled time.'
+            ],
+      positionsCount: Array.isArray(positions) ? positions.length : body.positionsCount || 0,
       resultsCertified: false,
       provisionalResultsReady: false,
       createdAt: new Date().toISOString(),
@@ -275,20 +358,25 @@ electionRouter.post(
       approvedBy: session.userId
     };
 
+    const newElection = enrichElectionDomainRelations(baseElection);
     ELECTIONS_STORE.set(electionId, newElection);
 
-    // Save positions if provided
     if (Array.isArray(positions) && positions.length > 0) {
       const formattedPositions: Position[] = positions.map((p: any, idx: number) => ({
         id: p.id || `pos-${electionId}-${idx + 1}`,
         electionId,
+        domainId: newElection.domainId,
+        hallId: newElection.hallId,
+        facultyId: newElection.facultyId,
+        departmentId: newElection.departmentId,
         title: p.title,
         description: p.description || `Contested portfolio for ${p.title}`,
         maxSelections: p.maxSelections || 1,
         allowsSkip: p.allowsSkip ?? false,
         order: p.order || idx + 1,
         candidateIds: p.candidateIds || [],
-        candidateEligibilityRules: p.candidateEligibilityRules || 'Registered student in good standing.',
+        candidateEligibilityRules:
+          p.candidateEligibilityRules || 'Registered student in good standing.',
         votingRules: p.votingRules || 'Single choice vote'
       }));
       POSITIONS_STORE.set(electionId, formattedPositions);
@@ -304,7 +392,7 @@ electionRouter.post(
       role: session.role,
       ipAddress,
       status: 'SUCCESS',
-      details: `Created new ${category} election: "${title}" (ID: ${electionId}, Status: ${initialStatus}).`
+      details: `Created new ${newElection.category} (${newElection.domainId}) election: "${title}" (ID: ${electionId}, Status: ${initialStatus}).`
     });
 
     return res.status(201).json({
@@ -318,20 +406,39 @@ electionRouter.post(
 
 /**
  * PUT /api/elections/:id
- * Update election details (Restricted to Super Admin or Electoral Commissioner)
+ * Update election details (Scoped by domain/subdomain RBAC)
  */
 electionRouter.put(
   '/:id',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner']),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const existing = ELECTIONS_STORE.get(id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, existing);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked election update for ${id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
     }
 
     if (existing.status === 'archived') {
@@ -341,15 +448,8 @@ electionRouter.put(
       });
     }
 
-    const {
-      title,
-      description,
-      startDate,
-      endDate,
-      organizingBody,
-      rules,
-      eligibilityCriteria
-    } = req.body;
+    const { title, description, startDate, endDate, organizingBody, rules, eligibilityCriteria } =
+      req.body || {};
 
     if (startDate && endDate) {
       const s = new Date(startDate).getTime();
@@ -362,7 +462,18 @@ electionRouter.put(
       }
     }
 
-    const updated: Election = {
+    const mergedCriteria = eligibilityCriteria
+      ? {
+          ...existing.eligibilityCriteria,
+          ...eligibilityCriteria
+        }
+      : existing.eligibilityCriteria;
+
+    if ((existing.domainId || categoryToDomainId(existing.category)) === 'grasag') {
+      mergedCriteria.levels = ['Postgraduate'];
+    }
+
+    const updated: Election = enrichElectionDomainRelations({
       ...existing,
       title: title !== undefined ? title.trim() : existing.title,
       description: description !== undefined ? description.trim() : existing.description,
@@ -370,12 +481,9 @@ electionRouter.put(
       endDate: endDate ? new Date(endDate).toISOString() : existing.endDate,
       organizingBody: organizingBody !== undefined ? organizingBody.trim() : existing.organizingBody,
       rules: Array.isArray(rules) ? rules : existing.rules,
-      eligibilityCriteria: eligibilityCriteria ? {
-        ...existing.eligibilityCriteria,
-        ...eligibilityCriteria
-      } : existing.eligibilityCriteria,
+      eligibilityCriteria: mergedCriteria,
       updatedAt: new Date().toISOString()
-    };
+    });
 
     ELECTIONS_STORE.set(id, updated);
 
@@ -399,28 +507,46 @@ electionRouter.put(
 
 /**
  * PATCH /api/elections/:id/status
- * Perform state machine transition (e.g., draft -> scheduled -> live -> suspended -> closed)
+ * Perform state machine transition (Scoped by domain/subdomain RBAC)
  */
 electionRouter.patch(
   '/:id/status',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner']),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const { newStatus, justification } = req.body;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const { newStatus, justification } = req.body || {};
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const election = ELECTIONS_STORE.get(id);
     if (!election) {
       return res.status(404).json({ success: false, error: 'Election not found.' });
     }
 
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked status transition on ${id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
     if (!newStatus) {
       return res.status(400).json({ success: false, error: 'Target newStatus is required.' });
     }
 
-    // State machine check
     const currentStatus = election.status;
     if (!isValidTransition(currentStatus, newStatus as ElectionStatus)) {
       const allowed = VALID_STATUS_TRANSITIONS[currentStatus] || [];
@@ -430,7 +556,6 @@ electionRouter.patch(
       });
     }
 
-    // Apply status change
     election.status = newStatus as ElectionStatus;
     election.updatedAt = new Date().toISOString();
 
@@ -465,26 +590,45 @@ electionRouter.patch(
  */
 electionRouter.get('/:id/positions', (req: Request, res: Response) => {
   const { id } = req.params;
-  const positions = POSITIONS_STORE.get(id) || [];
+  const positions = [...(POSITIONS_STORE.get(id) || [])].sort((a, b) => a.order - b.order);
   return res.json({ success: true, positions });
 });
 
 /**
  * POST /api/elections/:id/positions
- * Add a new contested position to an election
+ * Add a new contested position to an election (Dynamic per hall / Local NUGS / domain rules)
  */
 electionRouter.post(
   '/:id/positions',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner']),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id } = req.params;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const election = ELECTIONS_STORE.get(id);
     if (!election) {
       return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked creating position on ${id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
     }
 
     const {
@@ -494,18 +638,22 @@ electionRouter.post(
       allowsSkip,
       candidateEligibilityRules,
       votingRules
-    } = req.body;
+    } = req.body || {};
 
-    if (!title) {
+    if (!title || !title.trim()) {
       return res.status(400).json({ success: false, error: 'Position title is mandatory.' });
     }
 
     const existingPositions = POSITIONS_STORE.get(id) || [];
     const newPosition: Position = {
-      id: `pos-${id}-${Date.now().toString().slice(-4)}`,
+      id: `pos-${id}-${Date.now().toString().slice(-4)}-${existingPositions.length + 1}`,
       electionId: id,
+      domainId: election.domainId || categoryToDomainId(election.category),
+      hallId: election.hallId,
+      facultyId: election.facultyId,
+      departmentId: election.departmentId,
       title: title.trim(),
-      description: description || `Portfolio for ${title.trim()}`,
+      description: description?.trim() || `Portfolio for ${title.trim()}`,
       maxSelections: maxSelections || 1,
       allowsSkip: allowsSkip ?? false,
       order: existingPositions.length + 1,
@@ -541,21 +689,117 @@ electionRouter.post(
 );
 
 /**
- * DELETE /api/elections/:id/positions/:posId
- * Delete a contested position from an election
+ * PUT /api/elections/:id/positions/:posId
+ * Update a position's title, description, or voting parameters dynamically
  */
-electionRouter.delete(
+electionRouter.put(
   '/:id/positions/:posId',
   authenticateToken,
-  requireAdminRole(['Super Administrator', 'Electoral Commissioner']),
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
   (req: Request, res: Response) => {
     const { id, posId } = req.params;
-    const session = (req as any).session;
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
     const election = ELECTIONS_STORE.get(id);
     if (!election) {
       return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked position update on ${id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
+    }
+
+    const positions = POSITIONS_STORE.get(id) || [];
+    const target = positions.find((p) => p.id === posId);
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'Position not found.' });
+    }
+
+    const { title, description, maxSelections, allowsSkip, candidateEligibilityRules, votingRules } =
+      req.body || {};
+    if (title !== undefined && title.trim()) target.title = title.trim();
+    if (description !== undefined) target.description = description.trim();
+    if (typeof maxSelections === 'number' && maxSelections >= 1) target.maxSelections = maxSelections;
+    if (typeof allowsSkip === 'boolean') target.allowsSkip = allowsSkip;
+    if (candidateEligibilityRules !== undefined) {
+      target.candidateEligibilityRules = candidateEligibilityRules;
+    }
+    if (votingRules !== undefined) target.votingRules = votingRules;
+
+    POSITIONS_STORE.set(id, positions);
+    election.updatedAt = new Date().toISOString();
+    ELECTIONS_STORE.set(id, election);
+
+    logAuditEvent({
+      eventType: 'UPDATE_POSITION',
+      userId: session.userId,
+      identifier: posId,
+      role: session.role,
+      ipAddress,
+      status: 'SUCCESS',
+      details: `Updated position '${target.title}' in election ${id}.`
+    });
+
+    return res.json({
+      success: true,
+      message: `Position '${target.title}' updated successfully.`,
+      position: target,
+      allPositions: positions
+    });
+  }
+);
+
+/**
+ * DELETE /api/elections/:id/positions/:posId
+ * Delete a contested position from an election (Scoped by domain RBAC)
+ */
+electionRouter.delete(
+  '/:id/positions/:posId',
+  authenticateToken,
+  requireAdminRole(ALL_MANAGING_ADMIN_ROLES),
+  (req: Request, res: Response) => {
+    const { id, posId } = req.params;
+    const session = (req as any).session as SessionData;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+    const election = ELECTIONS_STORE.get(id);
+    if (!election) {
+      return res.status(404).json({ success: false, error: 'Election not found.' });
+    }
+
+    const accessCheck = canAdminManageElection(session, election);
+    if (!accessCheck.allowed) {
+      logAuditEvent({
+        eventType: 'UNAUTHORIZED_ACCESS',
+        userId: session.userId,
+        identifier: id,
+        role: session.role,
+        ipAddress,
+        status: 'FLAGGED',
+        details: `Domain RBAC blocked position deletion on ${id}: ${accessCheck.reason}`
+      });
+      return res.status(403).json({
+        success: false,
+        code: 'DOMAIN_RBAC_DENIED',
+        error: accessCheck.reason
+      });
     }
 
     if (election.status === 'live' || election.status === 'closed') {
@@ -572,7 +816,6 @@ electionRouter.delete(
       return res.status(404).json({ success: false, error: 'Position not found.' });
     }
 
-    // Re-index orders
     filtered.forEach((p, idx) => {
       p.order = idx + 1;
     });
@@ -599,4 +842,3 @@ electionRouter.delete(
     });
   }
 );
-

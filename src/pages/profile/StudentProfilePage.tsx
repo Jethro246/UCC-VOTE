@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
-import { Logo } from '../../components/common/Logo';
+import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { 
   User, 
   ShieldCheck, 
@@ -22,42 +22,30 @@ import {
 } from 'lucide-react';
 
 export const StudentProfilePage: React.FC = () => {
-  const { student, elections, updateStudentProfile } = useApp();
+  const {
+    student,
+    userRole,
+    sessionChecked,
+    sessionExpiredReason,
+    setPostLoginView,
+    navigateTo,
+    elections,
+    updateStudentProfile
+  } = useApp();
 
-  const currentStudent = student || {
-    id: 'stu-001',
-    studentId: 'PS/CSC/22/0089',
-    indexNumber: '10982341',
-    fullName: 'Kofi Mensah Sarbah',
-    email: 'kofi.sarbah@st.ucc.edu.gh',
-    phone: '+233 24 555 0192',
-    emergencyContact: '+233 20 888 1234',
-    department: 'Computer Science & Information Technology',
-    faculty: 'School of Physical Sciences',
-    programme: 'B.Sc. Computer Science',
-    level: '300',
-    hall: 'Casely Hayford Hall',
-    isEligible: true,
-    avatarUrl: '/src/assets/images/candidate_male_1794352938747.jpg',
-    notificationPreferences: {
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'history'>('profile');
+
+  // Editable personal fields (hooks declared unconditionally at top)
+  const [phone, setPhone] = useState(student?.phone || '');
+  const [emergencyContact, setEmergencyContact] = useState(student?.emergencyContact || '');
+  const [notifPrefs, setNotifPrefs] = useState(
+    student?.notificationPreferences || {
       emailAlerts: true,
       smsBulletins: true,
       resultsAnnouncements: true
-    },
-    hasVotedElections: ['UCC-GRA-2025', 'UCC-VAL-2025']
-  };
+    }
+  );
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'history'>('profile');
-  
-  // Editable personal fields
-  const [phone, setPhone] = useState(currentStudent.phone || '+233 24 555 0192');
-  const [emergencyContact, setEmergencyContact] = useState(currentStudent.emergencyContact || '+233 20 888 1234');
-  const [notifPrefs, setNotifPrefs] = useState(currentStudent.notificationPreferences || {
-    emailAlerts: true,
-    smsBulletins: true,
-    resultsAnnouncements: true
-  });
-  
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -71,6 +59,58 @@ export const StudentProfilePage: React.FC = () => {
 
   const [tamperingSecurityAlert, setTamperingSecurityAlert] = useState('');
 
+  React.useEffect(() => {
+    if (student) {
+      setPhone(student.phone || '');
+      setEmergencyContact(student.emergencyContact || '');
+      setNotifPrefs(
+        student.notificationPreferences || {
+          emailAlerts: true,
+          smsBulletins: true,
+          resultsAnnouncements: true
+        }
+      );
+    }
+  }, [student?.id, student?.phone, student?.emergencyContact]);
+
+  if (!sessionChecked) {
+    return (
+      <BrandedLoadingScreen
+        title="Verifying your secure voting session..."
+        subtitle="Restoring your authenticated UCC student profile..."
+      />
+    );
+  }
+
+  if (userRole !== 'student' || !student) {
+    const isExpired = Boolean(sessionExpiredReason);
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5 text-center">
+          <div className="flex justify-center">
+            <Logo variant="default" layout="stacked" subtitle="Student Profile" />
+          </div>
+          <h1 className="text-xl font-extrabold text-slate-900">
+            {isExpired ? 'Your Session Has Expired' : 'Student Sign-In Required'}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600">
+            {sessionExpiredReason || 'Sign in with your verified UCC Student ID to access your voter profile.'}
+          </p>
+          <button
+            onClick={() => {
+              setPostLoginView('student_profile');
+              navigateTo('student_login');
+            }}
+            className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold cursor-pointer"
+          >
+            {isExpired ? 'Log In Again' : 'Sign In as Student'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentStudent = student;
   const votedElections = elections.filter(e => currentStudent.hasVotedElections?.includes(e.id));
 
   const handleSavePermittedDetails = async (e: React.FormEvent) => {

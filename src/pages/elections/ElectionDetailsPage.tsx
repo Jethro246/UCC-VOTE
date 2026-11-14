@@ -35,27 +35,68 @@ export const ElectionDetailsPage: React.FC = () => {
 
   const hasVoted = student?.hasVotedElections.includes(election.id);
 
-  // Check eligibility for student against multi-tier criteria
+  // Check eligibility for student against multi-tier domain criteria
   let isEligible = true;
-  let eligibilityReason = "You satisfy all university eligibility criteria for this ballot.";
-  
+  let eligibilityReason = 'You satisfy all university eligibility criteria for this ballot.';
+
+  const matchesHall = (studentHall: string | undefined, targetHall: string) => {
+    if (!studentHall) return false;
+    const s = studentHall.trim().toLowerCase();
+    const t = targetHall.trim().toLowerCase();
+    if (s === t) return true;
+    const aliases: Record<string, string[]> = {
+      'casely hayford hall': ['casely hayford', 'casford'],
+      'atlantic hall': ['atlantic', 'atl'],
+      'adehye hall': ['adehye'],
+      'oguaa hall': ['oguaa'],
+      'kwame nkrumah hall': ['kwame nkrumah', 'knh', 'nkrumah'],
+      'valco hall': ['valco']
+    };
+    for (const [canon, list] of Object.entries(aliases)) {
+      const sOk = s.includes(canon) || list.some((a) => s.includes(a));
+      const tOk = t.includes(canon) || list.some((a) => t.includes(a));
+      if (sOk && tOk) return true;
+    }
+    return s.includes(t) || t.includes(s);
+  };
+
   if (student) {
-    if (student.status === 'suspended') {
+    if (student.status === 'suspended' || !student.isEligible) {
       isEligible = false;
       eligibilityReason = 'Your voter account has been administratively suspended.';
+    } else if (
+      (election.domainId === 'grasag' || election.category === 'GRASAG') &&
+      student.level !== 'Postgraduate'
+    ) {
+      isEligible = false;
+      eligibilityReason = `GRASAG elections are strictly restricted to Postgraduate students. Your level is Level ${student.level}.`;
     } else {
       const crit = election.eligibilityCriteria;
       if (crit) {
         if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(student.level)) {
           isEligible = false;
-          eligibilityReason = `Restricted to Level ${crit.levels.join(', ')}. Your registered level is Level ${student.level}.`;
-        } else if (crit.faculties && crit.faculties.length > 0 && !crit.faculties.some(f => student.faculty?.toLowerCase().includes(f.toLowerCase()))) {
+          eligibilityReason = `Restricted to ${crit.levels.join(', ')}. Your registered level is Level ${student.level}.`;
+        } else if (
+          crit.faculties &&
+          crit.faculties.length > 0 &&
+          !crit.faculties.some((f) => student.faculty?.toLowerCase().includes(f.toLowerCase()))
+        ) {
           isEligible = false;
           eligibilityReason = `Restricted to ${crit.faculties.join(', ')}. Your faculty is ${student.faculty}.`;
-        } else if (crit.departments && crit.departments.length > 0 && !crit.departments.some(d => student.department?.toLowerCase().includes(d.toLowerCase()))) {
+        } else if (
+          crit.departments &&
+          crit.departments.length > 0 &&
+          !crit.departments.some((d) =>
+            student.department?.toLowerCase().includes(d.toLowerCase())
+          )
+        ) {
           isEligible = false;
           eligibilityReason = `Restricted to ${crit.departments.join(', ')}. Your department is ${student.department}.`;
-        } else if (crit.halls && crit.halls.length > 0 && !crit.halls.some(h => student.hall?.toLowerCase().includes(h.toLowerCase().split(' ')[0]))) {
+        } else if (
+          crit.halls &&
+          crit.halls.length > 0 &&
+          !crit.halls.some((h) => matchesHall(student.hall, h))
+        ) {
           isEligible = false;
           eligibilityReason = `Restricted to registered members of ${crit.halls.join(', ')}. Your hall is ${student.hall}.`;
         }
@@ -65,16 +106,26 @@ export const ElectionDetailsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      
-      {/* Back button */}
-      <div>
+      {/* Breadcrumb bar */}
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => navigateTo('elections_directory')}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#123B70] transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Elections Directory</span>
+          <span>Elections Directory</span>
         </button>
+        {election.domainId && (
+          <>
+            <span className="text-slate-300">/</span>
+            <button
+              onClick={() => navigateTo('domain_elections', { domainId: election.domainId })}
+              className="text-xs font-semibold text-[#123B70] hover:underline cursor-pointer"
+            >
+              {election.category} Domain
+            </button>
+          </>
+        )}
       </div>
 
       {/* Main Banner */}
@@ -83,18 +134,20 @@ export const ElectionDetailsPage: React.FC = () => {
           <div className="flex items-start gap-4 max-w-3xl">
             <Logo variant="default" showWordmark={false} className="mt-1 hidden sm:inline-flex" />
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-xs font-bold uppercase tracking-wider">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="font-bold text-[#123B70] uppercase tracking-wider">
                   {election.category}
                 </span>
-                <span className="text-slate-400">·</span>
-                <span className="text-xs font-mono text-slate-500 font-semibold">
-                  CODE: {election.code}
-                </span>
-                <span className="text-slate-400">·</span>
-                <span className="text-xs text-slate-600">
-                  Academic Year {election.academicYear}
-                </span>
+                {election.subdomainLabel && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-semibold text-slate-700">{election.subdomainLabel}</span>
+                  </>
+                )}
+                <span aria-hidden="true">·</span>
+                <span className="font-mono font-semibold">CODE: {election.code}</span>
+                <span aria-hidden="true">·</span>
+                <span>Academic Year {election.academicYear}</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">

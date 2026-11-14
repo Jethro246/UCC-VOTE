@@ -9,6 +9,7 @@ import { electionRouter } from './src/server/electionRoutes.ts';
 import { candidateRouter } from './src/server/candidateRoutes.ts';
 import { votingRouter } from './src/server/votingRoutes.ts';
 import { resultsRouter } from './src/server/resultsRoutes.ts';
+import { domainRouter } from './src/server/domainRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +26,7 @@ async function startServer() {
   // Mount API Routers
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/domains', domainRouter);
   app.use('/api/student', studentDashboardRouter);
   app.use('/api/voting', votingRouter);
   app.use('/api/results', resultsRouter);

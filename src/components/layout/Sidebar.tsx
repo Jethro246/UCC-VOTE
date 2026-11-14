@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
                 <p className="text-xs font-semibold text-white truncate">
                   {admin?.fullName || 'Dr. J. Tetteh'}
                 </p>
-                <p className="text-[11px] text-amber-400 font-medium">
+                <p className="text-[11px] text-amber-400 font-medium truncate">
                   {admin?.role || 'Electoral Commissioner'}
                 </p>
                 <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
@@ -70,6 +70,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
                 </p>
               </div>
             </div>
+            {admin?.managedDomainIds && admin.managedDomainIds.length > 0 && (
+              <div className="mt-2.5 pt-2 border-t border-slate-700/80 text-[10px] text-slate-300 leading-tight">
+                <span className="text-slate-400">Scope: </span>
+                <span className="font-semibold text-white">
+                  {admin.managedDomainIds.length >= 6
+                    ? 'All University Domains'
+                    : admin.managedHalls?.length
+                    ? admin.managedHalls.join(', ')
+                    : admin.managedDepartments?.length
+                    ? admin.managedDepartments.join(', ')
+                    : admin.managedFaculties?.length
+                    ? admin.managedFaculties.join(', ')
+                    : admin.managedDomainIds.map((d) => d.toUpperCase()).join(', ')}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Navigation Section */}
@@ -79,7 +95,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
             </p>
             {adminNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeView === item.id;
+              const isActive =
+                activeView === item.id ||
+                (item.id === 'elections_directory' &&
+                  (activeView === 'domain_elections' || activeView === 'election_details'));
               return (
                 <button
                   key={item.id}
@@ -172,10 +191,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Eligibility Status:</span>
-            <span className="font-semibold text-emerald-700 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              Verified
-            </span>
+            {student?.status === 'suspended' ? (
+              <span className="font-semibold text-red-700 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Suspended
+              </span>
+            ) : student && student.isEligible ? (
+              <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Verified
+              </span>
+            ) : (
+              <span className="font-semibold text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Restricted
+              </span>
+            )}
           </div>
         </div>
 
@@ -186,7 +217,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
           </p>
           {studentNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeView === item.id;
+            const isActive =
+              activeView === item.id ||
+              (item.id === 'elections_directory' &&
+                (activeView === 'domain_elections' || activeView === 'election_details'));
             return (
               <button
                 key={item.id}

@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Candidate, Position } from '../../types';
-import { 
-  X, 
-  SlidersHorizontal, 
-  Scale, 
-  CheckCircle2, 
-  Award, 
-  BookOpen, 
-  GraduationCap, 
-  MapPin, 
-  Video, 
-  ArrowRight,
+import { Candidate } from '../../types';
+import {
+  X,
+  Scale,
+  CheckCircle2,
+  Video,
   Vote,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 
 interface ManifestoComparisonModalProps {
@@ -33,41 +28,124 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
   onClose,
   initialCandidateIds = [],
   candidates: propCandidates,
-  positionTitle,
-  electionTitle
+  initialElectionId,
+  initialPositionId
 }) => {
-  const { candidates: contextCandidates, elections, navigateTo } = useApp();
+  const {
+    candidates: contextCandidates,
+    elections,
+    positionsByElection,
+    navigateTo
+  } = useApp();
 
-  const sourceCandidates = propCandidates && propCandidates.length > 0 ? propCandidates : contextCandidates;
+  const sourceCandidates =
+    propCandidates && propCandidates.length > 0 ? propCandidates : contextCandidates;
 
-  const [selectedElectionId, setSelectedElectionId] = useState<string>('UCC-SRC-2026');
-  const [selectedPositionId, setSelectedPositionId] = useState<string>('pos-src-pres');
+  const approvedCandidates = useMemo(
+    () =>
+      sourceCandidates.filter(
+        (c) =>
+          c.applicationStatus === 'Approved' ||
+          (propCandidates && propCandidates.some((pc) => pc.id === c.id))
+      ),
+    [sourceCandidates, propCandidates]
+  );
+
+  const [selectedElectionId, setSelectedElectionId] = useState<string>(
+    initialElectionId || 'UCC-SRC-2026'
+  );
+  const [selectedPositionId, setSelectedPositionId] = useState<string>(
+    initialPositionId || 'pos-src-pres'
+  );
   const [activeCandidateId1, setActiveCandidateId1] = useState<string>(
-    initialCandidateIds[0] || (sourceCandidates[0]?.id || 'cand-01')
+    initialCandidateIds[0] || ''
   );
   const [activeCandidateId2, setActiveCandidateId2] = useState<string>(
-    initialCandidateIds[1] || (sourceCandidates[1]?.id || sourceCandidates[0]?.id || 'cand-02')
+    initialCandidateIds[1] || ''
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialElectionId) {
+      setSelectedElectionId(initialElectionId);
+    } else if (initialCandidateIds[0]) {
+      const seed = approvedCandidates.find((c) => c.id === initialCandidateIds[0]);
+      if (seed) {
+        setSelectedElectionId(seed.electionId);
+        setSelectedPositionId(seed.positionId);
+      }
+    }
+    if (initialPositionId) {
+      setSelectedPositionId(initialPositionId);
+    }
+  }, [isOpen, initialElectionId, initialPositionId, initialCandidateIds, approvedCandidates]);
+
+  const positionsInSelectedElection = useMemo(() => {
+    const posList = positionsByElection[selectedElectionId] || [];
+    if (posList.length > 0) return posList;
+    const ids = Array.from(
+      new Set(
+        approvedCandidates
+          .filter((c) => c.electionId === selectedElectionId)
+          .map((c) => c.positionId)
+      )
+    );
+    return ids.map((id, idx) => ({
+      id,
+      electionId: selectedElectionId,
+      title: id,
+      description: '',
+      maxSelections: 1,
+      allowsSkip: true,
+      order: idx + 1,
+      candidateIds: []
+    }));
+  }, [positionsByElection, selectedElectionId, approvedCandidates]);
+
+  const samePositionCandidates = useMemo(
+    () =>
+      approvedCandidates.filter(
+        (c) => c.electionId === selectedElectionId && c.positionId === selectedPositionId
+      ),
+    [approvedCandidates, selectedElectionId, selectedPositionId]
+  );
+
+  useEffect(() => {
+    if (
+      positionsInSelectedElection.length > 0 &&
+      !positionsInSelectedElection.some((p) => p.id === selectedPositionId)
+    ) {
+      setSelectedPositionId(positionsInSelectedElection[0].id);
+    }
+  }, [positionsInSelectedElection, selectedPositionId]);
+
+  useEffect(() => {
+    if (samePositionCandidates.length === 0) return;
+    if (!samePositionCandidates.some((c) => c.id === activeCandidateId1)) {
+      setActiveCandidateId1(samePositionCandidates[0].id);
+    }
+    if (!samePositionCandidates.some((c) => c.id === activeCandidateId2)) {
+      setActiveCandidateId2(
+        samePositionCandidates[1]?.id || samePositionCandidates[0].id
+      );
+    }
+  }, [samePositionCandidates, activeCandidateId1, activeCandidateId2]);
 
   if (!isOpen) return null;
 
-  // Filter approved or accredited candidates for comparison
-  const approvedCandidates = sourceCandidates.filter(
-    c => c.applicationStatus === 'Approved' || (propCandidates && propCandidates.includes(c))
-  );
+  const candidate1 =
+    samePositionCandidates.find((c) => c.id === activeCandidateId1) || samePositionCandidates[0];
+  const candidate2 =
+    samePositionCandidates.find((c) => c.id === activeCandidateId2) ||
+    samePositionCandidates[1] ||
+    candidate1;
 
-  // Candidate 1 and Candidate 2
-  const candidate1 = approvedCandidates.find(c => c.id === activeCandidateId1) || approvedCandidates[0];
-  const candidate2 = approvedCandidates.find(c => c.id === activeCandidateId2) || approvedCandidates[1] || candidate1;
-
-  // Opponents running for the same position
-  const samePositionCandidates = approvedCandidates.filter(c => 
-    c.electionId === candidate1?.electionId && c.positionId === candidate1?.positionId
-  );
+  const activeElection = elections.find((e) => e.id === selectedElectionId);
+  const activePosition = positionsInSelectedElection.find((p) => p.id === selectedPositionId);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div 
+      <div
         className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
@@ -83,7 +161,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 Impartial Side-by-Side Manifesto Comparison
               </h2>
               <p className="text-xs text-blue-100">
-                Neutral Aspirant Scrutiny · University of Cape Coast E-Voting Platform
+                Strict Same-Election & Same-Portfolio Scrutiny · {activeElection?.category || 'UCC VOTE'}
               </p>
             </div>
           </div>
@@ -96,44 +174,92 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
           </button>
         </div>
 
-        {/* Candidate Selector Bar */}
-        <div className="bg-slate-50 border-b border-slate-200 p-4 sm:px-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-700">Contested Portfolio:</span>
-            <span className="px-3 py-1 rounded-lg bg-[#EAF2FA] text-[#123B70] text-xs font-extrabold">
-              {candidate1?.department || 'Executive Office'} · {candidate1?.hall || 'UCC'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Candidate A:</span>
+        {/* Race & Candidate Selector Bar */}
+        <div className="bg-slate-50 border-b border-slate-200 p-4 sm:px-6 space-y-3 shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Election
+              </label>
               <select
-                value={activeCandidateId1}
-                onChange={(e) => setActiveCandidateId1(e.target.value)}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-xl border border-slate-300 bg-white text-slate-800"
+                value={selectedElectionId}
+                onChange={(e) => setSelectedElectionId(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800"
               >
-                {approvedCandidates.map(c => (
-                  <option key={c.id} value={c.id}>{c.fullName} ({c.hall})</option>
+                {elections.map((el) => (
+                  <option key={el.id} value={el.id}>
+                    [{el.category}] {el.title}
+                  </option>
                 ))}
               </select>
             </div>
-
-            <span className="text-xs font-bold text-slate-400">vs</span>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Candidate B:</span>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Contested Portfolio
+              </label>
               <select
-                value={activeCandidateId2}
-                onChange={(e) => setActiveCandidateId2(e.target.value)}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-xl border border-slate-300 bg-white text-slate-800"
+                value={selectedPositionId}
+                onChange={(e) => setSelectedPositionId(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800"
               >
-                {approvedCandidates.map(c => (
-                  <option key={c.id} value={c.id}>{c.fullName} ({c.hall})</option>
+                {positionsInSelectedElection.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
+
+          {samePositionCandidates.length >= 1 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="text-xs text-slate-600">
+                <span className="font-semibold text-slate-800">Portfolio: </span>
+                <span className="font-bold text-[#123B70]">
+                  {activePosition?.title || selectedPositionId}
+                </span>
+                <span className="text-slate-400 mx-1.5">·</span>
+                <span className="font-mono tabular-nums">
+                  {samePositionCandidates.length} Approved Candidate
+                  {samePositionCandidates.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500">Candidate A:</span>
+                  <select
+                    value={candidate1?.id || ''}
+                    onChange={(e) => setActiveCandidateId1(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
+                  >
+                    {samePositionCandidates.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} ({c.hall})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <span className="text-xs font-bold text-slate-400">vs</span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500">Candidate B:</span>
+                  <select
+                    value={candidate2?.id || ''}
+                    onChange={(e) => setActiveCandidateId2(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
+                  >
+                    {samePositionCandidates.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} ({c.hall})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Neutrality Disclaimer */}
@@ -141,13 +267,25 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
             <span>
-              <strong>Neutrality Guarantee:</strong> Information is drawn verbatim from candidate vetting submissions. The UCC Electoral Commission maintains strict neutrality and does not endorse any candidate.
+              <strong>Neutrality Guarantee:</strong> Comparison is strictly restricted to candidates contesting the same election and portfolio.
             </span>
           </span>
         </div>
 
         {/* Side-by-Side Comparison Grid */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
+          {samePositionCandidates.length === 0 ? (
+            <div className="p-10 text-center space-y-2 border border-slate-200 rounded-2xl bg-slate-50">
+              <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-900">
+                No Approved Candidates in Selected Portfolio
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Select another election or portfolio above that has approved candidates to compare their vetted manifestos.
+              </p>
+            </div>
+          ) : (
+            <>
           
           {/* Candidates Identity Header */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -350,6 +488,8 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Modal Footer */}

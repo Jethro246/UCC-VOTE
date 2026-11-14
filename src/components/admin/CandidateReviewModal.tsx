@@ -43,7 +43,8 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
     requestCandidateCorrectionsAction,
     verifyCandidateEligibilityAction,
     assignCandidatePositionAction,
-    elections
+    elections,
+    positionsByElection
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'dossier' | 'eligibility' | 'actions'>('dossier');
@@ -182,6 +183,9 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
   };
 
   const targetElection = elections.find(e => e.id === candidate.electionId);
+  const electionPositions = positionsByElection[candidate.electionId] || [];
+  const resolvedPosition =
+    position || electionPositions.find(p => p.id === candidate.positionId);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
@@ -326,10 +330,11 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                     Portfolio Contested
                   </span>
                   <h4 className="text-sm font-extrabold text-slate-900 mt-0.5">
-                    {position?.title || 'Electoral Position'}
+                    {resolvedPosition?.title || candidate.positionId}
                   </h4>
                   <p className="text-xs text-slate-600 mt-0.5">
                     Election: {electionTitle || targetElection?.title || candidate.electionId}
+                    {targetElection?.subdomainLabel ? ` · ${targetElection.subdomainLabel}` : ''}
                   </p>
                 </div>
 
@@ -345,20 +350,34 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {isReassigning && (
                 <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3">
                   <span className="text-xs font-bold text-[#123B70] block">
-                    Reassign Candidate to Another Position:
+                    Reassign Candidate to Another Position in {targetElection?.title || candidate.electionId}:
                   </span>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="text"
-                      value={selectedPositionId}
-                      onChange={(e) => setSelectedPositionId(e.target.value)}
-                      placeholder="Enter target Position ID (e.g. pos-src-sec)"
-                      className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white flex-1"
-                    />
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    {electionPositions.length > 0 ? (
+                      <select
+                        value={selectedPositionId}
+                        onChange={(e) => setSelectedPositionId(e.target.value)}
+                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white flex-1"
+                      >
+                        {electionPositions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={selectedPositionId}
+                        onChange={(e) => setSelectedPositionId(e.target.value)}
+                        placeholder="Enter target Position ID"
+                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white flex-1"
+                      />
+                    )}
                     <button
                       onClick={handleReassignPosition}
                       disabled={isProcessing}
-                      className="px-4 py-1.5 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer hover:bg-[#0B1F3A]"
+                      className="px-4 py-1.5 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer hover:bg-[#0B1F3A] whitespace-nowrap"
                     >
                       Confirm Reassignment
                     </button>

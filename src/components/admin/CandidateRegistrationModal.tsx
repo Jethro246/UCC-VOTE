@@ -36,7 +36,11 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   defaultElectionId,
   defaultPositionId
 }) => {
-  const { elections, registerCandidateAction, updateCandidateAction, student, userRole } = useApp();
+  const { elections, positionsByElection, admin, registerCandidateAction, updateCandidateAction, student } = useApp();
+
+  const selectableElections = admin?.managedDomainIds?.length
+    ? elections.filter((e) => !e.domainId || admin.managedDomainIds!.includes(e.domainId))
+    : elections;
 
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -152,10 +156,20 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
     setSuccessMsg('');
   }, [candidateToEdit, defaultElectionId, defaultPositionId, isOpen, student]);
 
-  // Load positions for selected election
+  // Load positions for selected election from live positionsByElection + API fallback
   useEffect(() => {
     if (!selectedElectionId) {
       setAvailablePositions([]);
+      return;
+    }
+    const cached = positionsByElection[selectedElectionId];
+    if (cached && cached.length > 0) {
+      setAvailablePositions(cached);
+      if (!candidateToEdit && !defaultPositionId) {
+        setSelectedPositionId((prev) =>
+          cached.some((p) => p.id === prev) ? prev : cached[0].id
+        );
+      }
       return;
     }
     async function loadPositions() {
@@ -173,7 +187,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       }
     }
     loadPositions();
-  }, [selectedElectionId, candidateToEdit, defaultPositionId]);
+  }, [selectedElectionId, candidateToEdit, defaultPositionId, positionsByElection]);
 
   if (!isOpen) return null;
 
@@ -464,9 +478,9 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   onChange={(e) => setSelectedElectionId(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
-                  {elections.map((el) => (
+                  {selectableElections.map((el) => (
                     <option key={el.id} value={el.id}>
-                      {el.title} ({el.code})
+                      {el.title} · {el.category} ({el.code})
                     </option>
                   ))}
                 </select>

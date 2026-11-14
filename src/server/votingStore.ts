@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type {
   Candidate,
+  DomainId,
   Election,
   Position,
   VoteConfirmationReceipt
@@ -16,6 +17,8 @@ import {
   CANDIDATES_STORE,
   verifyStudentEligibility
 } from './electionStore.ts';
+import { categoryToDomainId } from './domainStore.ts';
+import { syncAnonymousSelectionsIntoLedger } from './resultsStore.ts';
 
 /**
  * VAULT 1: VOTER PARTICIPATION VAULT (Identity-linked eligibility & participation only)
@@ -28,6 +31,7 @@ export interface VoterParticipationRecord {
   electionId: string;
   electionTitle: string;
   electionCategory: Election['category'];
+  domainId?: DomainId;
   studentAccountId: string;
   studentId: string;
   votedAt: string;
@@ -96,6 +100,7 @@ function seedHistoricalParticipation() {
       electionId: elId,
       electionTitle: election.title,
       electionCategory: election.category,
+      domainId: election.domainId || categoryToDomainId(election.category),
       studentAccountId: kofi.id,
       studentId: kofi.studentId,
       votedAt,
@@ -184,6 +189,7 @@ export function buildReceiptFromParticipation(
     electionId: record.electionId,
     electionTitle: record.electionTitle,
     electionCategory: record.electionCategory,
+    domainId: record.domainId || categoryToDomainId(record.electionCategory),
     submittedAt: record.votedAt,
     positionsCompleted: record.positionsCompleted,
     message: 'YOUR VOTE HAS BEEN SUCCESSFULLY SUBMITTED.'
@@ -204,11 +210,26 @@ function getElectionStateRejection(election: Election): {
   code?: string;
   reason?: string;
 } {
+  const formattedStart = !isNaN(new Date(election.startDate).getTime())
+    ? `${new Date(election.startDate).toLocaleString('en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'UTC'
+      })} GMT`
+    : election.startDate;
+  const formattedEnd = !isNaN(new Date(election.endDate).getTime())
+    ? `${new Date(election.endDate).toLocaleString('en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'UTC'
+      })} GMT`
+    : election.endDate;
+
   if (election.status !== 'live') {
     const statusLabels: Record<string, { code: string; msg: string }> = {
       closed: {
         code: 'ELECTION_CLOSED',
-        msg: 'Voting for this election has officially closed. No further ballots can be accepted.'
+        msg: `Voting for this election officially closed on ${formattedEnd}. No further ballots can be accepted.`
       },
       suspended: {
         code: 'ELECTION_SUSPENDED',
@@ -216,27 +237,27 @@ function getElectionStateRejection(election: Election): {
       },
       draft: {
         code: 'ELECTION_NOT_OPEN',
-        msg: 'This election is still in draft configuration and is not open for voting.'
+        msg: 'This election is still in draft configuration and has not opened for voting.'
       },
       pending_approval: {
         code: 'ELECTION_NOT_OPEN',
-        msg: 'This election is pending Electoral Commission approval and is not open for voting.'
+        msg: 'This election is pending Electoral Commission approval and has not opened for voting.'
       },
       scheduled: {
-        code: 'ELECTION_NOT_STARTED',
-        msg: `Voting has not opened yet. Scheduled opening: ${new Date(election.startDate).toUTCString()}.`
+        code: 'ELECTION_NOT_OPEN',
+        msg: `Voting has not opened yet. Scheduled opening: ${formattedStart}.`
       },
       upcoming: {
-        code: 'ELECTION_NOT_STARTED',
-        msg: `Voting has not opened yet. Scheduled opening: ${new Date(election.startDate).toUTCString()}.`
+        code: 'ELECTION_NOT_OPEN',
+        msg: `Voting has not opened yet. Scheduled opening: ${formattedStart}.`
       },
       results_pending_certification: {
         code: 'ELECTION_CLOSED',
-        msg: 'Polling has concluded and results are undergoing certification.'
+        msg: `Polling concluded on ${formattedEnd} and results are undergoing certification.`
       },
       results_published: {
         code: 'ELECTION_CLOSED',
-        msg: 'This election has concluded and official results have already been published.'
+        msg: 'This election has closed and official results have already been published.'
       },
       archived: {
         code: 'ELECTION_ARCHIVED',
@@ -244,7 +265,7 @@ function getElectionStateRejection(election: Election): {
       }
     };
     const info = statusLabels[election.status] || {
-      code: 'ELECTION_NOT_LIVE',
+      code: 'ELECTION_NOT_OPEN',
       msg: `Election is currently "${election.status}" and is not open for voting.`
     };
     return { allowed: false, code: info.code, reason: info.msg };
@@ -257,16 +278,16 @@ function getElectionStateRejection(election: Election): {
   if (!isNaN(start) && now < start) {
     return {
       allowed: false,
-      code: 'OUTSIDE_VOTING_WINDOW',
-      reason: `Official voting period has not started yet. Polling opens at ${new Date(election.startDate).toUTCString()}.`
+      code: 'ELECTION_NOT_OPEN',
+      reason: `Official voting has not opened yet. Polling opens at ${formattedStart}.`
     };
   }
 
   if (!isNaN(end) && now > end) {
     return {
       allowed: false,
-      code: 'OUTSIDE_VOTING_WINDOW',
-      reason: `Official voting period ended at ${new Date(election.endDate).toUTCString()}.`
+      code: 'ELECTION_CLOSED',
+      reason: `Official voting closed at ${formattedEnd}. No further ballots can be accepted.`
     };
   }
 
@@ -278,6 +299,8 @@ export interface BallotAccessResult {
   success: boolean;
   code?: string;
   error?: string;
+  opensAt?: string;
+  closesAt?: string;
   alreadyVoted?: boolean;
   receipt?: VoteConfirmationReceipt;
   election?: Election;
@@ -368,13 +391,46 @@ export function getAuthorizedBallotForStudent(
     };
   }
 
-  // Check student account standing & election eligibility
+  // Check student account active standing first
+  if (student.status !== 'active') {
+    const reason = `Your student voter account status is "${student.status}". Only active verified students may access digital ballots.`;
+    logAuditEvent({
+      eventType: 'VOTING_ACCESS_DENIED',
+      userId: student.id,
+      identifier: student.studentId,
+      role: 'Student',
+      ipAddress,
+      status: 'WARNING',
+      details: `Suspended/inactive student ${student.studentId} blocked from ballot for ${election.code}.`
+    });
+    return {
+      httpStatus: 403,
+      success: false,
+      code: 'ACCOUNT_SUSPENDED',
+      error: reason,
+      election
+    };
+  }
+
+  // Check election live state and voting period before election-level eligibility
+  const stateCheck = getElectionStateRejection(election);
+  if (!stateCheck.allowed) {
+    return {
+      httpStatus: 403,
+      success: false,
+      code: stateCheck.code,
+      error: stateCheck.reason,
+      opensAt: election.startDate,
+      closesAt: election.endDate,
+      election
+    };
+  }
+
+  // Check election eligibility rules
   const eligibility = verifyStudentEligibility(student, election);
-  if (!eligibility.isEligible || student.status !== 'active' || !student.isEligible) {
+  if (!eligibility.isEligible || !student.isEligible) {
     const reason =
-      student.status !== 'active'
-        ? `Your student account status is "${student.status}". Only active verified students may vote.`
-        : eligibility.reason || 'You do not meet the eligibility criteria for this election.';
+      eligibility.reason || 'You do not meet the eligibility criteria for this election.';
     logAuditEvent({
       eventType: 'VOTING_ACCESS_DENIED',
       userId: student.id,
@@ -394,25 +450,14 @@ export function getAuthorizedBallotForStudent(
     };
   }
 
-  // Check election live state and voting period
-  const stateCheck = getElectionStateRejection(election);
-  if (!stateCheck.allowed) {
-    return {
-      httpStatus: 403,
-      success: false,
-      code: stateCheck.code,
-      error: stateCheck.reason,
-      election,
-      eligibility
-    };
-  }
-
   const positions = getSanitizedBallotPositions(electionId);
 
   return {
     httpStatus: 200,
     success: true,
     alreadyVoted: false,
+    opensAt: election.startDate,
+    closesAt: election.endDate,
     election,
     eligibility,
     positions
@@ -874,7 +919,9 @@ export function executeAtomicVoteSubmission(params: {
       ANONYMOUS_BALLOT_VAULT.push(anonymousRecord);
     }
 
-    // 10b. Increment candidate tallies & recalculate position percentages
+    // 10b. Sync anonymous selections into aggregate BALLOT_LEDGER_STORE & update candidate tallies
+    syncAnonymousSelectionsIntoLedger(electionId, anonymousSelections);
+
     for (const sel of normalizedSelections) {
       for (const candId of sel.candidateIds) {
         const cand = CANDIDATES_STORE.get(candId);
@@ -930,6 +977,7 @@ export function executeAtomicVoteSubmission(params: {
       electionId,
       electionTitle: election.title,
       electionCategory: election.category,
+      domainId: election.domainId || categoryToDomainId(election.category),
       studentAccountId: student.id,
       studentId: student.studentId,
       votedAt: submittedAt,
