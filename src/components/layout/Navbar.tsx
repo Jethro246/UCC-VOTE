@@ -43,10 +43,14 @@ export const Navbar: React.FC = () => {
           {/* Zone 1: Official UCC Crest & Brand Wordmark */}
           <button 
             onClick={() => handleNav('landing')} 
-            className="text-left shrink-0 cursor-pointer focus:outline-none"
+            className="text-left shrink-0 cursor-pointer focus:outline-none min-w-0"
           >
-            <Logo variant="compact" className="sm:hidden" />
-            <Logo variant="default" className="hidden sm:inline-flex" />
+            <span className="inline-flex sm:hidden">
+              <Logo variant="compact" />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <Logo variant="default" />
+            </span>
           </button>
 
           {/* Zone 2: Concise Single-Line Nav Links */}

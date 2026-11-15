@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { Vote, ArrowRight } from 'lucide-react';
 import { PWAInstallBanner } from '../components/common/PWAInstallButton';
 
+import heroVotingImg from '../assets/images/ucc_student_voting_hero_final_1794715355976.jpg';
+
 export const LandingPage: React.FC = () => {
   const { navigateTo, userRole } = useApp();
 
@@ -11,18 +13,26 @@ export const LandingPage: React.FC = () => {
       {/* Hero Section */}
       <section
         aria-label="UCC VOTE Hero"
-        className="relative w-full min-h-[540px] sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[720px] flex items-center overflow-hidden bg-[#0B1F3A] bg-[url('/assets/aistudio/jet_04926c53.jpg')] bg-cover bg-[56%_35%] md:bg-center bg-no-repeat text-white"
+        className="relative w-full min-h-[540px] sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[720px] flex items-center overflow-hidden bg-[#0B1F3A] text-white"
       >
-        {/* Mobile subtle navy-blue overlay for crisp text readability while keeping voter, Ghana flag & ballot box clearly visible */}
-        <div
+        <img
+          src={heroVotingImg}
+          alt=""
           aria-hidden="true"
-          className="absolute inset-0 md:hidden pointer-events-none bg-[linear-gradient(180deg,rgba(11,31,58,0.68)_0%,rgba(18,59,112,0.74)_55%,rgba(11,31,58,0.86)_100%)]"
+          fetchPriority="high"
+          className="absolute inset-0 w-full h-full object-cover object-[70%_25%] sm:object-[60%_25%] md:object-center pointer-events-none select-none"
         />
 
-        {/* Tablet/Desktop directional navy-blue overlay: keeps left text high-contrast while citizen, Ghana flag & ballot box remain bright and unobstructed */}
+        {/* Mobile subtle navy-blue overlay for crisp text readability while keeping voter, UCC-branded booth & ballot box clearly visible */}
         <div
           aria-hidden="true"
-          className="hidden md:block absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgba(11,31,58,0.92)_0%,rgba(18,59,112,0.78)_36%,rgba(18,59,112,0.28)_62%,rgba(11,31,58,0.08)_100%)]"
+          className="absolute inset-0 md:hidden pointer-events-none bg-[linear-gradient(180deg,rgba(11,31,58,0.68)_0%,rgba(18,59,112,0.72)_55%,rgba(11,31,58,0.86)_100%)]"
+        />
+
+        {/* Tablet/Desktop directional navy-blue overlay: keeps left text high-contrast while UCC-branded booth, ballot box & voter remain bright and clear */}
+        <div
+          aria-hidden="true"
+          className="hidden md:block absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgba(11,31,58,0.88)_0%,rgba(18,59,112,0.72)_34%,rgba(18,59,112,0.22)_58%,rgba(11,31,58,0.06)_100%)]"
         />
 
         {/* Subtle bottom contrast edge */}

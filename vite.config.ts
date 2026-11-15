@@ -1,14 +1,35 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const hmrEnabled = process.env.ENABLE_HMR === 'true' && process.env.DISABLE_HMR !== 'true';
+
+function disableHmrClientPlugin(): Plugin {
+  return {
+    name: 'disable-hmr-client-ws',
+    apply: 'serve',
+    enforce: 'post',
+    transform(code, id) {
+      if (hmrEnabled) return null;
+      const cleanId = id.replace(/\\/g, '/').split('?')[0];
+      if (!cleanId.endsWith('/vite/dist/client/client.mjs')) return null;
+      const replaced = code.replace(
+        /const transport = normalizeModuleRunnerTransport\(\(\(\) => \{[\s\S]*?\}\)\(\)\);/,
+        'const transport = normalizeModuleRunnerTransport({ connect() {}, disconnect() {}, send() {} });'
+      );
+      return replaced === code ? null : { code: replaced, map: null };
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     plugins: [
       react(),
       tailwindcss(),
+      disableHmrClientPlugin(),
       VitePWA({
         strategies: 'generateSW',
         registerType: 'prompt',
@@ -102,11 +123,10 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: 3000,
       allowedHosts: true as const,
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // HMR is disabled in AI Studio to prevent WebSocket connection errors and agent edit flicker.
+      hmr: hmrEnabled,
+      ws: hmrEnabled ? {} : false,
+      watch: hmrEnabled ? {} : null,
     },
   };
 });
