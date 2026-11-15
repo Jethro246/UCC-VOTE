@@ -242,11 +242,11 @@ const AppContent: React.FC = () => {
 
   if (activeView === 'landing') {
     return (
-      <div className="min-h-screen flex flex-col bg-[#F4F6F9]">
+      <div className="flex flex-col">
         <FirebaseStatusBanner />
         <EmailLinkVerificationOverlay />
         <Navbar />
-        <main className="flex-1">
+        <main>
           <LandingPage />
         </main>
         <BottomNav />

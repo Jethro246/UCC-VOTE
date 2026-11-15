@@ -3,34 +3,31 @@ import { useApp } from '../context/AppContext';
 import { Vote, ArrowRight } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { navigateTo, elections, candidates, userRole } = useApp();
-
-  const activeElectionCount = elections.filter(e => e.status === 'live').length;
-  const approvedCandidateCount = candidates.filter(c => c.applicationStatus === 'Approved').length;
+  const { navigateTo, userRole } = useApp();
 
   return (
     <div className="w-full">
       {/* Hero Section */}
       <section
         aria-label="UCC VOTE Hero"
-        className="relative w-full min-h-[540px] sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[720px] flex items-center overflow-hidden bg-[#0B1F3A] bg-[url('/assets/aistudio/image_6f5614c6.png')] bg-cover bg-center bg-no-repeat text-white"
+        className="relative w-full min-h-[540px] sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[720px] flex items-center overflow-hidden bg-[#0B1F3A] bg-[url('/assets/aistudio/jet_04926c53.jpg')] bg-cover bg-[56%_35%] md:bg-center bg-no-repeat text-white"
       >
-        {/* Mobile dark navy overlay for full readability while preserving subject visibility */}
+        {/* Mobile subtle navy-blue overlay for crisp text readability while keeping voter, Ghana flag & ballot box clearly visible */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 md:hidden pointer-events-none bg-[linear-gradient(180deg,rgba(11,31,58,0.76)_0%,rgba(18,59,112,0.82)_55%,rgba(11,31,58,0.94)_100%)]"
+          className="absolute inset-0 md:hidden pointer-events-none bg-[linear-gradient(180deg,rgba(11,31,58,0.68)_0%,rgba(18,59,112,0.74)_55%,rgba(11,31,58,0.86)_100%)]"
         />
 
-        {/* Tablet/Desktop directional dark navy overlay: keeps left text high-contrast while students & ballot box remain bright and unobstructed */}
+        {/* Tablet/Desktop directional navy-blue overlay: keeps left text high-contrast while citizen, Ghana flag & ballot box remain bright and unobstructed */}
         <div
           aria-hidden="true"
-          className="hidden md:block absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgba(11,31,58,0.92)_0%,rgba(18,59,112,0.80)_36%,rgba(18,59,112,0.34)_62%,rgba(11,31,58,0.12)_100%)]"
+          className="hidden md:block absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgba(11,31,58,0.92)_0%,rgba(18,59,112,0.78)_36%,rgba(18,59,112,0.28)_62%,rgba(11,31,58,0.08)_100%)]"
         />
 
         {/* Subtle bottom contrast edge */}
         <div
           aria-hidden="true"
-          className="hidden md:block absolute inset-x-0 bottom-0 h-28 pointer-events-none bg-[linear-gradient(to_top,rgba(11,31,58,0.45)_0%,transparent_100%)]"
+          className="hidden md:block absolute inset-x-0 bottom-0 h-24 pointer-events-none bg-[linear-gradient(to_top,rgba(11,31,58,0.35)_0%,transparent_100%)]"
         />
 
         <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16 lg:py-20">
@@ -41,7 +38,7 @@ export const LandingPage: React.FC = () => {
             </div>
 
             <h1 className="text-3xl sm:text-5xl lg:text-[3.35rem] font-black tracking-tight text-white leading-[1.08] text-balance drop-shadow-sm">
-              YOUR VOICE. YOUR VOTE. YOUR UCC.
+              YOUR VOTE. YOUR POWER.
             </h1>
 
             <p className="text-base sm:text-lg text-slate-100 leading-relaxed max-w-lg drop-shadow-xs">
@@ -66,22 +63,6 @@ export const LandingPage: React.FC = () => {
                 <Vote className="w-4 h-4" />
                 <span>Explore Elections</span>
               </button>
-            </div>
-
-            {/* Live Institutional Platform Counters */}
-            <div className="pt-5 mt-2 border-t border-white/20 grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">{elections.length}</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Registered Elections</p>
-              </div>
-              <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-amber-300 font-mono tabular-nums">{activeElectionCount} Live</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Active Polling Portals</p>
-              </div>
-              <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-emerald-300 font-mono tabular-nums">{approvedCandidateCount}</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Approved Candidates</p>
-              </div>
             </div>
           </div>
         </div>
