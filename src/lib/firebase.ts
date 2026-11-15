@@ -21,6 +21,7 @@ const firebaseConfig = {
 };
 
 export const FIREBASE_PROJECT_ID = 'ucc-vote';
+export const FIRESTORE_DATABASE_ID = 'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c';
 
 // Initialize Firebase only once across HMR / module evaluations
 export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -28,11 +29,15 @@ export const auth: Auth = getAuth(app);
 
 let dbInstance: Firestore;
 try {
-  dbInstance = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true,
-  });
+  dbInstance = initializeFirestore(
+    app,
+    {
+      experimentalAutoDetectLongPolling: true,
+    },
+    FIRESTORE_DATABASE_ID
+  );
 } catch {
-  dbInstance = getFirestore(app);
+  dbInstance = getFirestore(app, FIRESTORE_DATABASE_ID);
 }
 export const db: Firestore = dbInstance;
 
@@ -104,10 +109,26 @@ export function handleFirestoreError(
   throw new Error(errInfo.error);
 }
 
+export function formatFirestorePermissionError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): string {
+  const errInfo = buildFirestoreErrorInfo(error, operationType, path);
+  console.warn('Firestore operation failed:', JSON.stringify(errInfo));
+  const raw = errInfo.error || '';
+  const code = (error as any)?.code || '';
+  if (code === 'permission-denied' || raw.includes('Missing or insufficient permissions')) {
+    return `Permission denied on Firestore database "${FIRESTORE_DATABASE_ID}" (${operationType} ${path || ''}). Publish the security rules from firestore.rules to database "${FIRESTORE_DATABASE_ID}" in Firebase Console.`;
+  }
+  return raw || 'Cloud Firestore operation failed.';
+}
+
 export async function testFirestoreConnection(): Promise<{
   connected: boolean;
   offline: boolean;
   databaseMissing?: boolean;
+  rulesLocked?: boolean;
   error?: string;
 }> {
   // Check browser connectivity first
@@ -120,9 +141,9 @@ export async function testFirestoreConnection(): Promise<{
   }
 
   try {
-    // Probe Firestore REST API to distinguish an uncreated (default) database from network failure
+    // Probe Firestore REST API against the existing named database
     const probeRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/elections?pageSize=1`
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents/elections?pageSize=1`
     );
     if (probeRes.status === 404) {
       const body = await probeRes.json().catch(() => null);
@@ -132,10 +153,18 @@ export async function testFirestoreConnection(): Promise<{
           connected: false,
           offline: false,
           databaseMissing: true,
-          error:
-            'Cloud Firestore database "(default)" is not yet enabled on Firebase project "ucc-vote". Create it in Firebase Console → Build → Firestore Database.',
+          error: `Cloud Firestore database "${FIRESTORE_DATABASE_ID}" was not found in Firebase project "${FIREBASE_PROJECT_ID}".`,
         };
       }
+    }
+
+    if (probeRes.status === 403) {
+      return {
+        connected: true,
+        offline: false,
+        rulesLocked: true,
+        error: `Connected to Cloud Firestore "${FIRESTORE_DATABASE_ID}", but its security rules currently block access. Publish firestore.rules to this database in Firebase Console → Firestore → Rules.`,
+      };
     }
 
     await getDocFromServer(doc(db, 'system', 'connection_check'));

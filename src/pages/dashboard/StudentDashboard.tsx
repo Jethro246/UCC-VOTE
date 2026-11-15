@@ -198,18 +198,34 @@ export const StudentDashboard: React.FC = () => {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-bold text-sm">Email Verified — Voter Eligibility Pending Review</h4>
+              <h4 className="font-bold text-sm">
+                {!currentStudent.studentId
+                  ? 'Account Verified — Complete Your UCC Student Details'
+                  : 'Email Verified — Voter Eligibility Pending Review'}
+              </h4>
               <p className="text-xs text-amber-800 mt-0.5">
-                Confirming your email proves account ownership. Voting access unlocks once the UCC Electoral Commission verifies your student record on the official voter roll.
+                {!currentStudent.studentId
+                  ? 'Your Google sign-in is active. Submit your UCC Student ID, index number, programme, and hall in your profile so the Electoral Commission can verify your voter roll status.'
+                  : 'Confirming your email proves account ownership. Voting access unlocks once the UCC Electoral Commission verifies your student record on the official voter roll.'}
               </p>
             </div>
           </div>
-          <button
-            onClick={() => navigateTo('help_support')}
-            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap self-start sm:self-auto cursor-pointer"
-          >
-            Contact Electoral Desk
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            {!currentStudent.studentId && (
+              <button
+                onClick={() => navigateTo('student_profile')}
+                className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs whitespace-nowrap cursor-pointer"
+              >
+                Complete Student Profile
+              </button>
+            )}
+            <button
+              onClick={() => navigateTo('help_support')}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap cursor-pointer"
+            >
+              Contact Electoral Desk
+            </button>
+          </div>
         </div>
       )}
 
@@ -289,11 +305,18 @@ export const StudentDashboard: React.FC = () => {
               </h1>
 
               <p className="text-xs sm:text-sm text-slate-200 truncate max-w-xl">
-                {currentStudent.programme} · Level {currentStudent.level} · {currentStudent.hall}
+                {[
+                  currentStudent.programme || 'UCC Programme Not Linked',
+                  currentStudent.level ? `Level ${currentStudent.level}` : '',
+                  currentStudent.hall || 'Hall Not Linked',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
 
               <p className="text-[11px] text-slate-300 font-mono">
-                ID: {currentStudent.studentId} · Dept: {currentStudent.department}
+                ID: {currentStudent.studentId || 'Pending submission'} · Dept:{' '}
+                {currentStudent.department || 'Not specified'}
               </p>
             </div>
           </div>

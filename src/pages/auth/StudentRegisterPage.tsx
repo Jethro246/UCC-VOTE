@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
+import { GoogleAuthButton } from '../../components/common/GoogleAuthButton';
 import { isValidEmail } from '../../services/firebaseAuthService';
 import {
   UserPlus,
@@ -17,6 +18,7 @@ import {
 export const StudentRegisterPage: React.FC = () => {
   const {
     navigateTo,
+    loginWithUserPayload,
     halls,
     faculties,
     departments,
@@ -36,6 +38,8 @@ export const StudentRegisterPage: React.FC = () => {
   const [hall, setHall] = useState(halls[0]?.name || '');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleSuccessMessage, setGoogleSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sentMessage, setSentMessage] = useState<string | null>(null);
 
@@ -94,10 +98,30 @@ export const StudentRegisterPage: React.FC = () => {
     }
 
     setIsLoading(true);
+    try {
+      // If user already completed email-link verification and now needs to save their UCC profile
+      if (firebaseUser && needsProfileCompletion) {
+        const saveRes = await authClient.saveActivationProfile({
+          studentId: studentId.trim().toUpperCase(),
+          indexNumber: indexNumber.trim(),
+          fullName: fullName.trim(),
+          email: cleanEmail,
+          phone: phone.trim(),
+          department: department.trim(),
+          faculty: faculty.trim(),
+          programme: programme.trim() || department.trim(),
+          level,
+          hall: hall.trim(),
+        });
+        if (!saveRes.success) {
+          setError(saveRes.error || 'Could not save student profile.');
+          return;
+        }
+        navigateTo('student_dashboard');
+        return;
+      }
 
-    // If user already completed email-link verification and now needs to save their UCC profile
-    if (firebaseUser && needsProfileCompletion) {
-      const saveRes = await authClient.saveActivationProfile({
+      const res = await authClient.sendEmailLink(cleanEmail, 'activate', {
         studentId: studentId.trim().toUpperCase(),
         indexNumber: indexNumber.trim(),
         fullName: fullName.trim(),
@@ -109,38 +133,54 @@ export const StudentRegisterPage: React.FC = () => {
         level,
         hall: hall.trim(),
       });
-      setIsLoading(false);
-      if (!saveRes.success) {
-        setError(saveRes.error || 'Could not save student profile.');
+
+      if (!res.success) {
+        setError(res.error || 'Failed to send verification link.');
         return;
       }
-      navigateTo('student_dashboard');
-      return;
+
+      setSentMessage(
+        res.message ||
+          `Verification link sent to ${cleanEmail}. Click the link in your email to verify your address and activate your UCC VOTE account.`
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Unable to complete student activation.');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    const res = await authClient.sendEmailLink(cleanEmail, 'activate', {
-      studentId: studentId.trim().toUpperCase(),
-      indexNumber: indexNumber.trim(),
-      fullName: fullName.trim(),
-      email: cleanEmail,
-      phone: phone.trim(),
-      department: department.trim(),
-      faculty: faculty.trim(),
-      programme: programme.trim() || department.trim(),
-      level,
-      hall: hall.trim(),
-    });
+  const handleGoogleSignUp = async () => {
+    setError(null);
+    setSentMessage(null);
+    setGoogleSuccessMessage(null);
+    setIsGoogleLoading(true);
 
-    setIsLoading(false);
-    if (!res.success) {
-      setError(res.error || 'Failed to send verification link.');
-      return;
+    try {
+      const res = await authClient.signInWithGoogle();
+      if (res.redirected) {
+        return;
+      }
+      if (!res.success || !res.student) {
+        setError(res.error || 'Unable to sign in. Please try again.');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      setGoogleSuccessMessage(
+        res.isNewUser
+          ? 'Google sign-in successful — your UCC VOTE profile has been created.'
+          : 'Google sign-in successful — existing profile loaded.'
+      );
+      setIsGoogleLoading(false);
+
+      setTimeout(() => {
+        loginWithUserPayload(res.student, 'student');
+      }, 450);
+    } catch {
+      setIsGoogleLoading(false);
+      setError('Unable to sign in. Please try again.');
     }
-
-    setSentMessage(
-      res.message ||
-        `Verification link sent to ${cleanEmail}. Click the link in your email to verify your address and activate your UCC VOTE account.`
-    );
   };
 
   return (
@@ -158,7 +198,7 @@ export const StudentRegisterPage: React.FC = () => {
                 Activate Your UCC Student Account
               </h2>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Register your student credentials and verify control of your email address via Firebase passwordless verification.
+                Sign up with Google in one click or register your UCC credentials via Firebase passwordless email verification.
               </p>
             </div>
           </div>
@@ -170,21 +210,21 @@ export const StudentRegisterPage: React.FC = () => {
                 <span>Verification vs Voter Eligibility</span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-300">
-                Email verification confirms that you own the email inbox. Official UCC voter eligibility is verified separately on the UCC Electoral Commission roll.
+                Google or email verification confirms that you own the account. Official UCC voter eligibility is verified separately on the UCC Electoral Commission roll.
               </p>
             </div>
 
             <div className="flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <p>
-                Students may activate using @stu.ucc.edu.gh, Gmail, or any valid email address.
+                Students may sign up using Gmail, @stu.ucc.edu.gh, or any valid Google or email account.
               </p>
             </div>
           </div>
         </div>
 
         {/* Right Form Panel */}
-        <div className="lg:col-span-8 p-6 sm:p-8 space-y-6">
+        <div className="lg:col-span-8 p-6 sm:p-8 space-y-5">
           <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">
@@ -193,11 +233,41 @@ export const StudentRegisterPage: React.FC = () => {
                   : 'Student Account Activation'}
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Enter your official University of Cape Coast registration details below.
+                {firebaseUser && needsProfileCompletion
+                  ? 'Enter your official University of Cape Coast registration details below.'
+                  : 'Create your account instantly with Google or activate using your UCC student details.'}
               </p>
             </div>
             <UserPlus className="w-6 h-6 text-[#123B70] shrink-0" />
           </div>
+
+          {!sentMessage && !(firebaseUser && needsProfileCompletion) && (
+            <>
+              <GoogleAuthButton
+                onClick={handleGoogleSignUp}
+                isLoading={isGoogleLoading}
+                disabled={isLoading}
+                label="Continue with Google"
+                loadingLabel="Creating your account..."
+                sublabel="Automatically creates your profile using Gmail or UCC Google accounts"
+              />
+
+              <div className="relative flex items-center py-0.5">
+                <div className="flex-grow border-t border-slate-200" />
+                <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  or activate with email verification
+                </span>
+                <div className="flex-grow border-t border-slate-200" />
+              </div>
+            </>
+          )}
+
+          {googleSuccessMessage && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-bold">{googleSuccessMessage}</span>
+            </div>
+          )}
 
           {error && (
             <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">

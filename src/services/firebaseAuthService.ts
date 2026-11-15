@@ -8,6 +8,11 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  getAdditionalUserInfo,
   User,
 } from 'firebase/auth';
 import {
@@ -22,7 +27,7 @@ import {
   limit,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, formatFirestorePermissionError, OperationType } from '../lib/firebase';
 import { AdminProfile, StudentProfile } from '../types';
 
 export const PENDING_EMAIL_KEY = 'ucc_vote_pending_email';
@@ -195,7 +200,9 @@ export async function createOrLoadStudentProfile(
   try {
     snap = await getDoc(studentRef);
   } catch (err) {
-    handleFirestoreError(err, OperationType.GET, `students/${user.uid}`);
+    return {
+      error: formatFirestorePermissionError(err, OperationType.GET, `students/${user.uid}`),
+    };
   }
 
   if (snap.exists()) {
@@ -249,6 +256,12 @@ export async function createOrLoadStudentProfile(
   const cleanEmail = (user.email || draft.email).trim().toLowerCase();
   const nowIso = new Date().toISOString();
 
+  const resolvedProvider = user.providerData?.some((p) => p.providerId === 'password')
+    ? 'password'
+    : user.providerData?.some((p) => p.providerId === 'google.com')
+    ? 'google'
+    : 'email_link';
+
   // Important: Email verification confirms email ownership ONLY.
   // Voter eligibility (isEligible) remains pending_verification until approved/verified in voter_eligibility.
   const newProfile: Omit<StudentProfile, 'id'> = {
@@ -258,6 +271,9 @@ export async function createOrLoadStudentProfile(
     fullName: draft.fullName.trim(),
     email: cleanEmail,
     emailVerified: user.emailVerified,
+    photoUrl: user.photoURL || '',
+    avatarUrl: user.photoURL || '',
+    authProvider: resolvedProvider,
     phone: draft.phone.trim(),
     department: draft.department.trim(),
     faculty: draft.faculty.trim(),
@@ -277,6 +293,7 @@ export async function createOrLoadStudentProfile(
     },
     createdAt: nowIso,
     updatedAt: nowIso,
+    lastLoginAt: nowIso,
   };
 
   try {
@@ -286,7 +303,9 @@ export async function createOrLoadStudentProfile(
       updatedAt: serverTimestamp(),
     });
   } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, `students/${user.uid}`);
+    return {
+      error: formatFirestorePermissionError(err, OperationType.CREATE, `students/${user.uid}`),
+    };
   }
 
   // Also create pending voter_eligibility record if rules permit
@@ -547,6 +566,292 @@ export async function updateFirebaseUserPassword(
       return { success: false, error: 'Current password is incorrect.' };
     }
     return { success: false, error: err?.message || 'Failed to update password.' };
+  }
+}
+
+export interface GoogleAuthResult {
+  success: boolean;
+  isNewUser?: boolean;
+  redirected?: boolean;
+  student?: StudentProfile;
+  message?: string;
+  error?: string;
+  cancelled?: boolean;
+}
+
+function buildGoogleAuthProvider(): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
+  return provider;
+}
+
+function mapGoogleAuthError(err: any): {
+  message: string;
+  cancelled?: boolean;
+  popupBlocked?: boolean;
+} {
+  const code = err?.code || '';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return {
+      cancelled: true,
+      message: 'Google sign-in was cancelled. Click Continue with Google whenever you are ready.',
+    };
+  }
+  if (code === 'auth/popup-blocked') {
+    return {
+      popupBlocked: true,
+      message: 'Pop-up was blocked by your browser. Redirecting to Google Sign-In...',
+    };
+  }
+  if (code === 'auth/account-exists-with-different-credential') {
+    return {
+      message:
+        'An account already exists with this email using another sign-in method. Please sign in using your email link or password.',
+    };
+  }
+  if (code === 'auth/network-request-failed') {
+    return {
+      message:
+        'Network error while connecting to Google. Please check your internet connection and try again.',
+    };
+  }
+  if (code === 'auth/operation-not-allowed') {
+    return {
+      message:
+        'Google Sign-In is not yet enabled in Firebase Authentication for project ucc-vote.',
+    };
+  }
+  if (code === 'auth/unauthorized-domain') {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'this domain';
+    return {
+      message: `Current domain (${origin}) must be added to Authorized Domains in Firebase Authentication settings.`,
+    };
+  }
+  if (code === 'auth/user-disabled') {
+    return {
+      message: 'This account has been disabled in Firebase Authentication.',
+    };
+  }
+  return {
+    message: 'Unable to sign in. Please try again.',
+  };
+}
+
+export async function ensureGoogleStudentProfile(
+  user: User,
+  isNewFromProvider?: boolean
+): Promise<GoogleAuthResult> {
+  const studentRef = doc(db, 'students', user.uid);
+  let snap;
+
+  try {
+    snap = await getDoc(studentRef);
+  } catch (err) {
+    return {
+      success: false,
+      error: formatFirestorePermissionError(err, OperationType.GET, `students/${user.uid}`),
+    };
+  }
+
+  const cleanEmail = (user.email || '').trim().toLowerCase();
+  const googlePhoto = user.photoURL || '';
+  const nowIso = new Date().toISOString();
+
+  if (snap.exists()) {
+    const data = snap.data() as StudentProfile;
+    const patch: Record<string, any> = {
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    if (user.emailVerified && !data.emailVerified) {
+      patch.emailVerified = true;
+    }
+    if (!data.authProvider) {
+      patch.authProvider = 'google';
+    }
+    if (googlePhoto && !data.photoUrl) {
+      patch.photoUrl = googlePhoto;
+    }
+    if (googlePhoto && !data.avatarUrl) {
+      patch.avatarUrl = googlePhoto;
+    }
+    if (user.displayName && !data.fullName) {
+      patch.fullName = user.displayName.trim();
+    }
+
+    try {
+      await updateDoc(studentRef, patch);
+    } catch {
+      // Non-blocking login metadata sync
+    }
+
+    clearPendingAuthState();
+
+    return {
+      success: true,
+      isNewUser: false,
+      message: 'Google sign-in successful',
+      student: {
+        ...data,
+        id: snap.id,
+        uid: user.uid,
+        email: data.email || cleanEmail,
+        emailVerified: Boolean(user.emailVerified || data.emailVerified),
+        photoUrl: data.photoUrl || googlePhoto,
+        avatarUrl: data.avatarUrl || data.photoUrl || googlePhoto,
+        authProvider: data.authProvider || 'google',
+        lastLoginAt: nowIso,
+      },
+    };
+  }
+
+  // First-time Google sign-in: automatically create Firestore profile keyed by Firebase UID
+  const resolvedName =
+    user.displayName?.trim() ||
+    (cleanEmail ? cleanEmail.split('@')[0] : 'UCC Student');
+
+  const newProfile: Omit<StudentProfile, 'id'> = {
+    uid: user.uid,
+    studentId: '',
+    indexNumber: '',
+    fullName: resolvedName,
+    email: cleanEmail,
+    emailVerified: Boolean(user.emailVerified),
+    photoUrl: googlePhoto,
+    avatarUrl: googlePhoto,
+    authProvider: 'google',
+    phone: user.phoneNumber || '',
+    department: '',
+    faculty: '',
+    programme: '',
+    level: '100',
+    hall: '',
+    isEligible: false,
+    eligibilityStatus: 'pending_verification',
+    eligibilityNotes:
+      'Signed in with Google. Complete your UCC student details and await Electoral Commission voter roll confirmation.',
+    status: 'active',
+    hasVotedElections: [],
+    notificationPreferences: {
+      emailAlerts: true,
+      smsBulletins: false,
+      resultsAnnouncements: true,
+    },
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    lastLoginAt: nowIso,
+  };
+
+  try {
+    await setDoc(studentRef, {
+      ...newProfile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+    });
+  } catch (err) {
+    return {
+      success: false,
+      error: formatFirestorePermissionError(err, OperationType.CREATE, `students/${user.uid}`),
+    };
+  }
+
+  // Best-effort pending eligibility record if rules permit
+  try {
+    await setDoc(
+      doc(db, 'voter_eligibility', user.uid),
+      {
+        uid: user.uid,
+        studentId: '',
+        fullName: resolvedName,
+        email: cleanEmail,
+        faculty: '',
+        department: '',
+        programme: '',
+        level: '100',
+        hall: '',
+        isEligible: false,
+        status: 'pending_verification',
+        reason: 'Google account verified; awaiting UCC student details and Electoral Commission roll confirmation.',
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch {
+    // Admin manages voter_eligibility under strict Firestore rules
+  }
+
+  clearPendingAuthState();
+
+  return {
+    success: true,
+    isNewUser: isNewFromProvider ?? true,
+    message: 'Google sign-in successful',
+    student: {
+      id: user.uid,
+      ...newProfile,
+    },
+  };
+}
+
+export async function signInWithGoogle(): Promise<GoogleAuthResult> {
+  const provider = buildGoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const additionalInfo = getAdditionalUserInfo(result);
+    return await ensureGoogleStudentProfile(result.user, additionalInfo?.isNewUser);
+  } catch (err: any) {
+    const mapped = mapGoogleAuthError(err);
+    if (mapped.popupBlocked) {
+      try {
+        await signInWithRedirect(auth, provider);
+        return {
+          success: true,
+          redirected: true,
+          message: 'Redirecting to Google Sign-In...',
+        };
+      } catch (redirectErr: any) {
+        const redirectMapped = mapGoogleAuthError(redirectErr);
+        return {
+          success: false,
+          error: redirectMapped.message,
+        };
+      }
+    }
+    return {
+      success: false,
+      cancelled: mapped.cancelled,
+      error: mapped.message,
+    };
+  }
+}
+
+export async function completeGoogleRedirectResult(): Promise<
+  (GoogleAuthResult & { hasResult: boolean })
+> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) {
+      return { hasResult: false, success: true };
+    }
+    const additionalInfo = getAdditionalUserInfo(result);
+    const profileRes = await ensureGoogleStudentProfile(result.user, additionalInfo?.isNewUser);
+    return {
+      hasResult: true,
+      ...profileRes,
+    };
+  } catch (err: any) {
+    const mapped = mapGoogleAuthError(err);
+    return {
+      hasResult: true,
+      success: false,
+      cancelled: mapped.cancelled,
+      error: mapped.message,
+    };
   }
 }
 

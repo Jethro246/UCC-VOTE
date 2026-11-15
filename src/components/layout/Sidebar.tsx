@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
           <div className="flex items-center gap-3">
             <CandidateAvatar
-              src={student?.avatarUrl}
+              src={student?.avatarUrl || student?.photoUrl}
               alt={student?.fullName || 'Student'}
               className="w-10 h-10 rounded-full object-cover border border-slate-300 shrink-0 text-xs"
             />
@@ -171,8 +171,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
               <p className="text-[11px] text-[#123B70] font-medium truncate">
                 {student?.programme || 'UCC Student'}
               </p>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                {student?.studentId || 'Pending Activation'}
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                {student?.studentId || student?.email || 'Pending UCC ID'}
               </p>
             </div>
           </div>

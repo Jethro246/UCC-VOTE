@@ -399,13 +399,13 @@ export const ElectionDetailsPage: React.FC = () => {
               <div className="flex justify-between">
                 <span>Voter ID:</span>
                 <span className="font-mono font-semibold text-slate-700">
-                  {student ? student.studentId : 'Not signed in'}
+                  {student ? (student.studentId || student.email) : 'Not signed in'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Affiliation:</span>
                 <span className="font-semibold text-slate-700">
-                  {student ? student.hall : 'Sign in to check hall eligibility'}
+                  {student ? (student.hall || 'Pending UCC details') : 'Sign in to check hall eligibility'}
                 </span>
               </div>
             </div>

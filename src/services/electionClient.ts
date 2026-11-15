@@ -10,7 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, functions, formatFirestorePermissionError, OperationType } from '../lib/firebase';
 import {
   DOMAIN_REGISTRY,
   UCC_DEPARTMENTS,
@@ -500,7 +500,10 @@ class FirebaseElectionClient {
         message: 'Candidate record saved to Cloud Firestore.',
       };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, `candidates/${candId}`);
+      return {
+        success: false,
+        error: formatFirestorePermissionError(err, OperationType.CREATE, `candidates/${candId}`),
+      };
     }
   }
 
@@ -531,7 +534,10 @@ class FirebaseElectionClient {
         message: 'Candidate updated.',
       };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+      return {
+        success: false,
+        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
+      };
     }
   }
 

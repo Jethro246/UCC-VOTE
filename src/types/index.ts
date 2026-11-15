@@ -41,6 +41,8 @@ export interface StudentProfile {
   eligibilityNotes?: string;
   status?: 'active' | 'suspended' | 'unverified';
   avatarUrl?: string;
+  photoUrl?: string;
+  authProvider?: 'google' | 'email_link' | 'password' | string;
   emergencyContact?: string;
   notificationPreferences?: {
     emailAlerts: boolean;
@@ -50,6 +52,7 @@ export interface StudentProfile {
   hasVotedElections: string[]; // election IDs
   createdAt?: string;
   updatedAt?: string;
+  lastLoginAt?: string;
 }
 
 export interface AdminProfile {

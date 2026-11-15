@@ -128,16 +128,16 @@ export const Navbar: React.FC = () => {
                   className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer text-left"
                 >
                   <CandidateAvatar
-                    src={student.avatarUrl}
-                    alt={student.fullName}
+                    src={student.avatarUrl || student.photoUrl}
+                    alt={student.fullName || student.email || 'Student'}
                     className="w-7 h-7 rounded-full object-cover border border-slate-300 text-[10px]"
                   />
                   <div className="hidden sm:block">
                     <p className="text-xs font-semibold text-slate-900 leading-none truncate max-w-[120px]">
-                      {student.fullName.split(' ')[0]}
+                      {(student.fullName || student.email || 'Student').split(' ')[0]}
                     </p>
-                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                      {student.studentId}
+                    <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-[120px]">
+                      {student.studentId || student.email || 'Google Account'}
                     </p>
                   </div>
                 </button>

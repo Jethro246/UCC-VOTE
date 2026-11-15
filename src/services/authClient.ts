@@ -1,5 +1,5 @@
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, formatFirestorePermissionError, OperationType } from '../lib/firebase';
 import {
   sendStudentEmailLink,
   completeEmailSignInLink,
@@ -9,7 +9,10 @@ import {
   updateFirebaseUserPassword,
   signOutFirebase,
   createOrLoadStudentProfile,
+  signInWithGoogle,
+  completeGoogleRedirectResult,
   PendingActivationDraft,
+  GoogleAuthResult,
 } from './firebaseAuthService';
 import { AuthResponse } from './interfaces';
 
@@ -26,14 +29,87 @@ class FirebaseAuthClient {
     return completeEmailSignInLink(providedEmail, linkUrl);
   }
 
+  async signInWithGoogle(): Promise<GoogleAuthResult> {
+    return signInWithGoogle();
+  }
+
+  async completeGoogleRedirectResult() {
+    return completeGoogleRedirectResult();
+  }
+
   async saveActivationProfile(draft: PendingActivationDraft) {
     const user = auth.currentUser;
     if (!user) {
       return { success: false, error: 'You must verify your email address first.' };
     }
-    const res = await createOrLoadStudentProfile(user, draft);
-    if (res.error) return { success: false, error: res.error };
-    return { success: true, student: res.student };
+    try {
+      const res = await createOrLoadStudentProfile(user, draft);
+      if (res.error) return { success: false, error: res.error };
+      return { success: true, student: res.student };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to save student activation profile.',
+      };
+    }
+  }
+
+  async completeInitialInstitutionalDetails(details: {
+    studentId: string;
+    indexNumber: string;
+    fullName: string;
+    phone?: string;
+    faculty: string;
+    department: string;
+    programme: string;
+    level: '100' | '200' | '300' | '400' | 'Postgraduate';
+    hall: string;
+  }): Promise<AuthResponse> {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: 'Not authenticated.' };
+    }
+
+    const studentRef = doc(db, 'students', user.uid);
+    try {
+      const snap = await getDoc(studentRef);
+      if (!snap.exists()) {
+        return { success: false, error: 'Student profile not found.' };
+      }
+      const existing = snap.data() as any;
+      if (existing.studentId && String(existing.studentId).trim() !== '') {
+        return {
+          success: false,
+          error:
+            'Institutional academic fields (Student ID, Index Number, Faculty, Department, Level, Hall) are already locked and require Electoral Commission verification to modify.',
+        };
+      }
+
+      const payload = {
+        studentId: details.studentId.trim().toUpperCase(),
+        indexNumber: details.indexNumber.trim(),
+        fullName: details.fullName.trim() || existing.fullName,
+        phone: details.phone !== undefined ? details.phone.trim() : existing.phone || '',
+        faculty: details.faculty.trim(),
+        department: details.department.trim(),
+        programme: details.programme.trim() || details.department.trim(),
+        level: details.level,
+        hall: details.hall.trim(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(studentRef, payload);
+      return {
+        success: true,
+        message:
+          'UCC student identification saved. Your record remains pending Electoral Commission voter roll verification.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: formatFirestorePermissionError(err, OperationType.UPDATE, `students/${user.uid}`),
+      };
+    }
   }
 
   async login(
@@ -127,7 +203,10 @@ class FirebaseAuthClient {
         message: 'Contact and notification preferences updated in Cloud Firestore.',
       };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `students/${user.uid}`);
+      return {
+        success: false,
+        error: formatFirestorePermissionError(err, OperationType.UPDATE, `students/${user.uid}`),
+      };
     }
   }
 

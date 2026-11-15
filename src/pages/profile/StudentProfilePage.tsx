@@ -23,7 +23,10 @@ export const StudentProfilePage: React.FC = () => {
     setPostLoginView,
     navigateTo,
     voteConfirmations,
-    updateStudentProfile
+    updateStudentProfile,
+    halls,
+    faculties,
+    departments,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'history'>('profile');
@@ -52,6 +55,19 @@ export const StudentProfilePage: React.FC = () => {
 
   const [tamperingSecurityAlert, setTamperingSecurityAlert] = useState('');
 
+  // Initial UCC institutional fields for Google Sign-Up users who haven't submitted them yet
+  const [instStudentId, setInstStudentId] = useState(student?.studentId || '');
+  const [instIndexNumber, setInstIndexNumber] = useState(student?.indexNumber || '');
+  const [instFullName, setInstFullName] = useState(student?.fullName || '');
+  const [instFaculty, setInstFaculty] = useState(student?.faculty || faculties[0]?.name || '');
+  const [instDepartment, setInstDepartment] = useState(student?.department || departments[0]?.name || '');
+  const [instProgramme, setInstProgramme] = useState(student?.programme || departments[0]?.programmes?.[0] || '');
+  const [instLevel, setInstLevel] = useState<'100' | '200' | '300' | '400' | 'Postgraduate'>(student?.level || '100');
+  const [instHall, setInstHall] = useState(student?.hall || halls[0]?.name || '');
+  const [instMsg, setInstMsg] = useState('');
+  const [instErr, setInstErr] = useState('');
+  const [isSavingInst, setIsSavingInst] = useState(false);
+
   React.useEffect(() => {
     if (student) {
       setPhone(student.phone || '');
@@ -63,8 +79,16 @@ export const StudentProfilePage: React.FC = () => {
           resultsAnnouncements: true
         }
       );
+      setInstFullName(student.fullName || '');
+      if (student.studentId) setInstStudentId(student.studentId);
+      if (student.indexNumber) setInstIndexNumber(student.indexNumber);
+      if (student.faculty) setInstFaculty(student.faculty);
+      if (student.department) setInstDepartment(student.department);
+      if (student.programme) setInstProgramme(student.programme);
+      if (student.level) setInstLevel(student.level);
+      if (student.hall) setInstHall(student.hall);
     }
-  }, [student?.id, student?.phone, student?.emergencyContact]);
+  }, [student?.id, student?.phone, student?.emergencyContact, student?.studentId]);
 
   if (!sessionChecked) {
     return (
@@ -169,13 +193,45 @@ export const StudentProfilePage: React.FC = () => {
     }
   };
 
+  const handleSaveInitialInstitutional = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInstMsg('');
+    setInstErr('');
+
+    if (!instStudentId.trim() || !instIndexNumber.trim() || !instFullName.trim() || !instFaculty.trim() || !instDepartment.trim() || !instHall.trim()) {
+      setInstErr('Please complete all required UCC identification fields.');
+      return;
+    }
+
+    setIsSavingInst(true);
+    const res = await authClient.completeInitialInstitutionalDetails({
+      studentId: instStudentId,
+      indexNumber: instIndexNumber,
+      fullName: instFullName,
+      phone,
+      faculty: instFaculty,
+      department: instDepartment,
+      programme: instProgramme || instDepartment,
+      level: instLevel,
+      hall: instHall,
+    });
+    setIsSavingInst(false);
+
+    if (!res.success) {
+      setInstErr(res.error || 'Unable to save student identification details.');
+      return;
+    }
+
+    setInstMsg(res.message || 'UCC student identification saved.');
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Profile Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
         <CandidateAvatar
-          src={currentStudent.avatarUrl}
+          src={currentStudent.avatarUrl || currentStudent.photoUrl}
           alt={currentStudent.fullName}
           className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-200 shadow-md shrink-0 text-2xl"
         />
@@ -194,7 +250,9 @@ export const StudentProfilePage: React.FC = () => {
           ) : (
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-              <span>Email Verified · Pending Voter Roll Confirmation</span>
+              <span>
+                {currentStudent.authProvider === 'google' ? 'Google Verified' : 'Email Verified'} · Pending Voter Roll Confirmation
+              </span>
             </div>
           )}
 
@@ -203,13 +261,19 @@ export const StudentProfilePage: React.FC = () => {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-600">
-            {currentStudent.programme} · Level {currentStudent.level} · {currentStudent.hall}
+            {[
+              currentStudent.programme || 'Programme not yet linked',
+              currentStudent.level ? `Level ${currentStudent.level}` : '',
+              currentStudent.hall || 'Hall not yet linked',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
 
           <div className="pt-1 flex flex-wrap justify-center sm:justify-start items-center gap-3 text-xs text-slate-500 font-mono">
-            <span>ID: {currentStudent.studentId}</span>
+            <span>ID: {currentStudent.studentId || 'Pending submission'}</span>
             <span>·</span>
-            <span>INDEX: {currentStudent.indexNumber}</span>
+            <span>INDEX: {currentStudent.indexNumber || 'Pending'}</span>
           </div>
         </div>
 
@@ -258,7 +322,185 @@ export const StudentProfilePage: React.FC = () => {
       {/* TAB 1: PROFILE & PERMITTED DETAILS */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
-          
+
+          {!currentStudent.studentId && (
+            <div className="bg-white rounded-2xl border-2 border-[#123B70]/25 p-6 sm:p-8 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#123B70]" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                    Link Your UCC Student Identification
+                  </h2>
+                </div>
+                <span className="text-[10px] font-bold text-[#123B70] bg-blue-100 px-2.5 py-0.5 rounded-full">
+                  ONE-TIME SUBMISSION
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Your Google account is connected. Submit your official UCC student identification below so the Electoral Commission can match your record to the voter roll. Once saved, institutional fields are locked.
+              </p>
+
+              {instMsg && (
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{instMsg}</span>
+                </div>
+              )}
+
+              {instErr && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C62828] font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <span>{instErr}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveInitialInstitutional} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      UCC Student ID *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={instStudentId}
+                      onChange={(e) => setInstStudentId(e.target.value)}
+                      placeholder="e.g. PS/CSC/22/0041"
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 font-mono uppercase focus:outline-none focus:border-[#123B70]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Index Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={instIndexNumber}
+                      onChange={(e) => setInstIndexNumber(e.target.value)}
+                      placeholder="e.g. 10945120"
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 font-mono focus:outline-none focus:border-[#123B70]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Full Legal Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={instFullName}
+                      onChange={(e) => setInstFullName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Faculty / School *
+                    </label>
+                    <select
+                      value={instFaculty}
+                      onChange={(e) => {
+                        const nextFac = e.target.value;
+                        setInstFaculty(nextFac);
+                        const match = departments.filter((d) => d.facultyName.toLowerCase() === nextFac.toLowerCase());
+                        if (match.length > 0) {
+                          setInstDepartment(match[0].name);
+                          setInstProgramme(match[0].programmes?.[0] || '');
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#123B70]"
+                    >
+                      {faculties.map((f) => (
+                        <option key={f.id} value={f.name}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Academic Department *
+                    </label>
+                    <select
+                      value={instDepartment}
+                      onChange={(e) => {
+                        const nextDept = e.target.value;
+                        setInstDepartment(nextDept);
+                        const obj = departments.find((d) => d.name === nextDept);
+                        if (obj?.programmes?.length) setInstProgramme(obj.programmes[0]);
+                      }}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#123B70]"
+                    >
+                      {departments
+                        .filter((d) => !instFaculty || d.facultyName.toLowerCase() === instFaculty.toLowerCase())
+                        .map((d) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Programme
+                    </label>
+                    <input
+                      type="text"
+                      value={instProgramme}
+                      onChange={(e) => setInstProgramme(e.target.value)}
+                      placeholder="Programme of study"
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Level *
+                    </label>
+                    <select
+                      value={instLevel}
+                      onChange={(e) => setInstLevel(e.target.value as any)}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#123B70]"
+                    >
+                      <option value="100">Level 100</option>
+                      <option value="200">Level 200</option>
+                      <option value="300">Level 300</option>
+                      <option value="400">Level 400</option>
+                      <option value="Postgraduate">Postgraduate</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Hall of Residence *
+                    </label>
+                    <select
+                      value={instHall}
+                      onChange={(e) => setInstHall(e.target.value)}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#123B70]"
+                    >
+                      {halls.map((h) => (
+                        <option key={h.id} value={h.name}>{h.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingInst}
+                  className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingInst ? 'Submitting UCC Identification...' : 'Submit UCC Student Details'}</span>
+                </button>
+              </form>
+            </div>
+          )}
+
           {/* Institutional Immutable Attributes Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -281,26 +523,26 @@ export const StudentProfilePage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <span className="text-slate-500">Faculty:</span>
-                <span className="font-bold text-slate-800">{currentStudent.faculty}</span>
+                <span className="font-bold text-slate-800">{currentStudent.faculty || 'Not yet submitted'}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <span className="text-slate-500">Department:</span>
-                <span className="font-bold text-slate-800">{currentStudent.department}</span>
+                <span className="font-bold text-slate-800">{currentStudent.department || 'Not yet submitted'}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <span className="text-slate-500">Programme:</span>
-                <span className="font-bold text-slate-800">{currentStudent.programme}</span>
+                <span className="font-bold text-slate-800">{currentStudent.programme || 'Not yet submitted'}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <span className="text-slate-500">Level:</span>
-                <span className="font-bold text-slate-800">Level {currentStudent.level}</span>
+                <span className="font-bold text-slate-800">Level {currentStudent.level || '100'}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <span className="text-slate-500">Hall of Residence:</span>
-                <span className="font-bold text-slate-800">{currentStudent.hall}</span>
+                <span className="font-bold text-slate-800">{currentStudent.hall || 'Not yet submitted'}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Institutional Email:</span>
+                <span className="text-slate-500">Account Email:</span>
                 <span className="font-bold text-slate-800 font-mono">{currentStudent.email}</span>
               </div>
             </div>
@@ -515,7 +757,13 @@ export const StudentProfilePage: React.FC = () => {
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
               <div className="flex justify-between">
                 <span>Authentication Provider:</span>
-                <span className="font-semibold text-slate-800">Firebase Authentication (ucc-vote)</span>
+                <span className="font-semibold text-slate-800">
+                  {currentStudent.authProvider === 'google'
+                    ? 'Google Sign-In (Firebase Authentication — ucc-vote)'
+                    : currentStudent.authProvider === 'password'
+                    ? 'Email & Password (Firebase Authentication — ucc-vote)'
+                    : 'Email Link (Firebase Authentication — ucc-vote)'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Email Verification:</span>

@@ -1,9 +1,10 @@
 import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as crypto from 'crypto';
 
-admin.initializeApp();
-const db = admin.firestore();
+const adminApp = admin.initializeApp();
+const db = getFirestore(adminApp, 'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c');
 
 async function assertAdmin(uid: string | undefined, tokenClaims: Record<string, any> | undefined) {
   if (!uid) {

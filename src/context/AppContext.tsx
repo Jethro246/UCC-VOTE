@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, testFirestoreConnection } from '../lib/firebase';
+import { auth, db, FIRESTORE_DATABASE_ID, testFirestoreConnection } from '../lib/firebase';
 import {
   ActiveView,
   UserRole,
@@ -41,6 +41,7 @@ import { DomainWithStats } from '../services/interfaces';
 import {
   isIncomingEmailSignInLink,
   completeEmailSignInLink,
+  completeGoogleRedirectResult,
 } from '../services/firebaseAuthService';
 import {
   subscribeElections,
@@ -353,6 +354,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return {
       ...studentRaw,
       emailVerified: firebaseUser?.emailVerified ?? studentRaw.emailVerified,
+      photoUrl: studentRaw.photoUrl || studentRaw.avatarUrl || firebaseUser?.photoURL || '',
+      avatarUrl: studentRaw.avatarUrl || studentRaw.photoUrl || firebaseUser?.photoURL || '',
       isEligible: effectiveEligible,
       eligibilityStatus: effectiveEligibilityStatus,
       eligibilityNotes: voterEligibilityRecord?.reason || studentRaw.eligibilityNotes,
@@ -450,7 +453,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (res.databaseMissing) {
         setDataError(
           res.error ||
-            'Cloud Firestore database "(default)" has not been created yet in Firebase project "ucc-vote". Enable Firestore Database in the Firebase Console.'
+            `Cloud Firestore database "${FIRESTORE_DATABASE_ID}" could not be located in Firebase project "ucc-vote".`
+        );
+        setIsLoadingData(false);
+      } else if (res.rulesLocked) {
+        setDataError(
+          res.error ||
+            `Connected to Firestore database "${FIRESTORE_DATABASE_ID}", but security rules currently block access. Publish firestore.rules to this database in Firebase Console.`
         );
         setIsLoadingData(false);
       } else if (res.offline) {
@@ -572,6 +581,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         text: 'Email verified and signed in to UCC VOTE.',
       });
       navigateTo('student_dashboard');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Handle Google signInWithRedirect return flow if popup fallback triggered a redirect
+  useEffect(() => {
+    if (isIncomingEmailSignInLink(window.location.href)) {
+      return;
+    }
+
+    let active = true;
+    completeGoogleRedirectResult().then((res) => {
+      if (!active || !res.hasResult) return;
+
+      if (!res.success) {
+        setEmailLinkFeedback({
+          type: 'error',
+          text: res.error || 'Unable to sign in. Please try again.',
+        });
+        return;
+      }
+
+      if (res.student) {
+        setStudentRaw(res.student);
+        setUserRole('student');
+        setAdmin(null);
+        setNeedsProfileCompletion(false);
+        setSessionChecked(true);
+      }
+
+      setEmailLinkFeedback({
+        type: 'success',
+        text: res.isNewUser
+          ? 'Google sign-in successful — your UCC VOTE student profile has been created.'
+          : 'Google sign-in successful',
+      });
+
+      const targetView =
+        postLoginView && postLoginView !== 'admin_dashboard'
+          ? postLoginView
+          : 'student_dashboard';
+      setPostLoginView(null);
+      navigateTo(targetView);
     });
 
     return () => {
@@ -1029,9 +1084,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCompareCandidateIds([compareCandidateIds[0], candidateId]);
   };
 
-  const myCandidateApplication = student
-    ? candidates.find((c) => c.studentId.toUpperCase() === student.studentId.toUpperCase()) || null
-    : null;
+  const myCandidateApplication =
+    student && student.studentId?.trim()
+      ? candidates.find(
+          (c) => c.studentId?.toUpperCase() === student.studentId.trim().toUpperCase()
+        ) || null
+      : null;
 
   return (
     <AppContext.Provider

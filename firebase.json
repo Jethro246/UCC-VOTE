@@ -1,5 +1,6 @@
 {
   "firestore": {
+    "database": "ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },

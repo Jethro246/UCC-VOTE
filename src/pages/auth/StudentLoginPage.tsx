@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
+import { GoogleAuthButton } from '../../components/common/GoogleAuthButton';
 import { isValidEmail } from '../../services/firebaseAuthService';
 import {
   Mail,
@@ -17,7 +18,12 @@ import {
 } from 'lucide-react';
 
 export const StudentLoginPage: React.FC = () => {
-  const { navigateTo, sessionExpiredReason, clearSessionExpiredReason } = useApp();
+  const {
+    navigateTo,
+    loginWithUserPayload,
+    sessionExpiredReason,
+    clearSessionExpiredReason,
+  } = useApp();
 
   const [authMethod, setAuthMethod] = useState<'email_link' | 'password'>('email_link');
   const [email, setEmail] = useState('');
@@ -25,6 +31,8 @@ export const StudentLoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleSuccessMessage, setGoogleSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [linkSentMessage, setLinkSentMessage] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -93,6 +101,40 @@ export const StudentLoginPage: React.FC = () => {
     navigateTo('student_dashboard');
   };
 
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setLinkSentMessage(null);
+    setGoogleSuccessMessage(null);
+    clearSessionExpiredReason();
+    setIsGoogleLoading(true);
+
+    try {
+      const res = await authClient.signInWithGoogle();
+      if (res.redirected) {
+        return;
+      }
+      if (!res.success || !res.student) {
+        setError(res.error || 'Unable to sign in. Please try again.');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      setGoogleSuccessMessage(
+        res.isNewUser
+          ? 'Google sign-in successful — your UCC VOTE account has been created.'
+          : 'Google sign-in successful'
+      );
+      setIsGoogleLoading(false);
+
+      setTimeout(() => {
+        loginWithUserPayload(res.student, 'student');
+      }, 450);
+    } catch {
+      setIsGoogleLoading(false);
+      setError('Unable to sign in. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4 sm:p-6 bg-[#F4F6F9]">
       <div className="max-w-4xl w-full bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12">
@@ -110,7 +152,7 @@ export const StudentLoginPage: React.FC = () => {
                 Verified Student Sign-In
               </h2>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Authenticate securely using your email address via Firebase passwordless sign-in links or account password.
+                Authenticate securely using your Google account, a passwordless email sign-in link, or your configured account password.
               </p>
             </div>
           </div>
@@ -118,24 +160,41 @@ export const StudentLoginPage: React.FC = () => {
           <div className="space-y-3 pt-8 text-xs text-slate-300 relative">
             <div className="flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <p>Any valid email address is supported for account verification and login.</p>
+              <p>Gmail, @stu.ucc.edu.gh, and other valid email accounts are all supported.</p>
             </div>
             <div className="flex items-start gap-2.5">
               <Lock className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
               <p>
-                Email confirmation proves inbox ownership. Voter eligibility is verified separately by the UCC Electoral Commission.
+                Authentication confirms account ownership. Official voter eligibility is verified separately by the UCC Electoral Commission.
               </p>
             </div>
           </div>
         </div>
 
         {/* Right Form Panel */}
-        <div className="lg:col-span-7 p-6 sm:p-10 space-y-6">
+        <div className="lg:col-span-7 p-6 sm:p-10 space-y-5">
           <div className="space-y-1.5">
             <h1 className="text-2xl font-extrabold text-slate-900">Student Portal Sign In</h1>
             <p className="text-xs text-slate-500">
-              Sign in with a one-time email link or your configured password.
+              Sign in with Google, a one-time email link, or your configured password.
             </p>
+          </div>
+
+          <GoogleAuthButton
+            onClick={handleGoogleSignIn}
+            isLoading={isGoogleLoading}
+            disabled={isLoading}
+            label="Continue with Google"
+            loadingLabel="Signing you in..."
+            sublabel="Supports Gmail and UCC student Google accounts"
+          />
+
+          <div className="relative flex items-center py-1">
+            <div className="flex-grow border-t border-slate-200" />
+            <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              or sign in with email
+            </span>
+            <div className="flex-grow border-t border-slate-200" />
           </div>
 
           {/* Method Switcher */}
@@ -184,6 +243,13 @@ export const StudentLoginPage: React.FC = () => {
             <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-medium">{error}</span>
+            </div>
+          )}
+
+          {googleSuccessMessage && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-bold">{googleSuccessMessage}</span>
             </div>
           )}
 
