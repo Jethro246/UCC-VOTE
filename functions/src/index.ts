@@ -6,19 +6,36 @@ import * as crypto from 'crypto';
 const adminApp = admin.initializeApp();
 const db = getFirestore(adminApp, 'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c');
 
+const ALLOWED_ADMIN_ROLES = new Set([
+  'Electoral Commissioner',
+  'SRC Election Administrator',
+  'Hall Election Administrator',
+  'GRASAG Election Administrator',
+  'Local NUGS Election Administrator',
+  'Departmental Election Administrator',
+  'Faculty/School Election Administrator',
+  'Returning Officer',
+  'Results Auditor',
+]);
+
 async function assertAdmin(uid: string | undefined, tokenClaims: Record<string, any> | undefined) {
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Authentication required.');
   }
-  if (tokenClaims?.admin === true) {
-    const adminSnap = await db.collection('admins').doc(uid).get();
-    return adminSnap.exists ? adminSnap.data() : { uid, role: 'Administrator', fullName: 'EC Administrator' };
+  if (tokenClaims?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Administrator custom claims are required.');
   }
   const adminSnap = await db.collection('admins').doc(uid).get();
-  if (adminSnap.exists && adminSnap.data()?.isActive !== false) {
-    return adminSnap.data();
+  if (adminSnap.exists && adminSnap.data()?.isActive === false) {
+    throw new HttpsError('permission-denied', 'Administrator account has been deactivated.');
   }
-  throw new HttpsError('permission-denied', 'Administrator privileges are required.');
+  return adminSnap.exists
+    ? adminSnap.data()
+    : {
+        uid,
+        role: String(tokenClaims?.role || 'Electoral Commissioner'),
+        fullName: 'Electoral Administrator',
+      };
 }
 
 function evaluateEligibilityAgainstCriteria(
@@ -331,14 +348,17 @@ export const certifyAndPublishResults = onCall(async (request) => {
   }
 
   const election = electionSnap.data()!;
-  const positions = positionsSnap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) }))
+  type FirestoreDoc = { id: string; [key: string]: any };
+  const positions: FirestoreDoc[] = positionsSnap.docs
+    .map((d): FirestoreDoc => ({ id: d.id, ...(d.data() as Record<string, any>) }))
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-  const candidates = candidatesSnap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Record<string, any>),
-  }));
+  const candidates: FirestoreDoc[] = candidatesSnap.docs.map(
+    (d): FirestoreDoc => ({
+      id: d.id,
+      ...(d.data() as Record<string, any>),
+    })
+  );
 
   // Authoritative recount directly from anonymous ballots collection
   const voteCounts = new Map<string, number>();
@@ -508,44 +528,76 @@ export const certifyAndPublishResults = onCall(async (request) => {
 });
 
 export const setAdminRole = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Authentication required.');
-  }
-
-  // Allow existing admin OR initial bootstrap when zero admin documents exist
-  const adminsCheck = await db.collection('admins').limit(1).get();
-  if (!adminsCheck.empty) {
-    await assertAdmin(request.auth.uid, request.auth.token);
-  }
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
 
   const targetUidInput = String(request.data?.uid || '').trim();
   const email = String(request.data?.email || '').trim().toLowerCase();
   const fullName = String(request.data?.fullName || '').trim();
   const staffId = String(request.data?.staffId || '').trim();
-  const role = String(request.data?.role || 'Electoral Commissioner').trim();
-  const department = String(request.data?.department || 'Electoral Administration').trim();
+  const requestedRole = String(request.data?.role || 'Electoral Commissioner').trim();
+  const department = String(request.data?.department || 'UCC Electoral Commission').trim();
+
+  if (requestedRole === 'Super Administrator' && request.auth?.token?.role !== 'Super Administrator') {
+    throw new HttpsError(
+      'permission-denied',
+      'Only an existing Super Administrator can assign Super Administrator privileges.'
+    );
+  }
+
+  const role =
+    requestedRole === 'Super Administrator' || ALLOWED_ADMIN_ROLES.has(requestedRole)
+      ? requestedRole
+      : 'Electoral Commissioner';
 
   if (!targetUidInput && !email) {
     throw new HttpsError('invalid-argument', 'Either uid or email is required.');
   }
 
-  const userRecord = targetUidInput
-    ? await admin.auth().getUser(targetUidInput)
-    : await admin.auth().getUserByEmail(email);
+  let userRecord: admin.auth.UserRecord;
+  try {
+    userRecord = targetUidInput
+      ? await admin.auth().getUser(targetUidInput)
+      : await admin.auth().getUserByEmail(email);
+  } catch (err: any) {
+    if (err?.code === 'auth/user-not-found') {
+      throw new HttpsError(
+        'not-found',
+        `Firebase Authentication account not found for ${email || targetUidInput}. The user must register first before administrator privileges can be assigned.`
+      );
+    }
+    throw new HttpsError('internal', err?.message || 'Unable to look up Firebase Auth user.');
+  }
+
+  const existingClaims = { ...(userRecord.customClaims || {}) };
+  delete existingClaims.superAdmin;
 
   await admin.auth().setCustomUserClaims(userRecord.uid, {
-    ...(userRecord.customClaims || {}),
+    ...existingClaims,
     admin: true,
     role,
   });
 
+  const permissions = Array.isArray(request.data?.permissions)
+    ? request.data.permissions
+    : [
+        'manage_elections',
+        'approve_elections',
+        'certify_results',
+        'publish_results',
+        'manage_domains',
+        'manage_candidates',
+        'view_audit_logs',
+        'manage_admins',
+      ];
+
   const adminProfile = {
     uid: userRecord.uid,
     staffId: staffId || `UCC/EC/${userRecord.uid.slice(0, 6).toUpperCase()}`,
-    fullName: fullName || userRecord.displayName || userRecord.email || 'Administrator',
-    email: userRecord.email || email,
+    fullName: fullName || userRecord.displayName || userRecord.email || 'Electoral Administrator',
+    email: (userRecord.email || email).toLowerCase(),
     role,
     department,
+    permissions,
     isActive: true,
     managedDomainIds: Array.isArray(request.data?.managedDomainIds)
       ? request.data.managedDomainIds
@@ -554,12 +606,138 @@ export const setAdminRole = onCall(async (request) => {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  await db.collection('admins').doc(userRecord.uid).set(adminProfile, { merge: true });
+  await Promise.all([
+    db.collection('admins').doc(userRecord.uid).set(adminProfile, { merge: true }),
+    db.collection('audit_logs').add({
+      adminName: actor?.fullName || request.auth?.token?.email || 'Electoral Administrator',
+      adminRole: actor?.role || 'Electoral Commissioner',
+      action: 'Assigned Administrator Custom Claims & Role',
+      target: `${adminProfile.email} (${role})`,
+      ipAddress: 'cloud-functions',
+      status: 'success',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }),
+  ]);
 
   return {
     success: true,
     admin: { id: userRecord.uid, ...adminProfile },
     message: 'Administrator custom claims and Firestore role configured.',
+  };
+});
+
+export const updateAdminScope = onCall(async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const targetUid = String(request.data?.uid || request.data?.id || '').trim();
+  if (!targetUid) {
+    throw new HttpsError('invalid-argument', 'Target administrator uid is required.');
+  }
+
+  const targetRef = db.collection('admins').doc(targetUid);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'Administrator record not found.');
+  }
+
+  const updateFields: Record<string, any> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (typeof request.data?.role === 'string' && ALLOWED_ADMIN_ROLES.has(request.data.role.trim())) {
+    updateFields.role = request.data.role.trim();
+  }
+  if (Array.isArray(request.data?.managedDomainIds)) {
+    updateFields.managedDomainIds = request.data.managedDomainIds;
+  }
+  if (Array.isArray(request.data?.managedHalls)) {
+    updateFields.managedHalls = request.data.managedHalls;
+  }
+  if (Array.isArray(request.data?.managedFaculties)) {
+    updateFields.managedFaculties = request.data.managedFaculties;
+  }
+  if (Array.isArray(request.data?.managedDepartments)) {
+    updateFields.managedDepartments = request.data.managedDepartments;
+  }
+  if (Array.isArray(request.data?.permissions)) {
+    updateFields.permissions = request.data.permissions;
+  }
+
+  await targetRef.update(updateFields);
+  if (updateFields.role) {
+    const userRecord = await admin.auth().getUser(targetUid);
+    await admin.auth().setCustomUserClaims(targetUid, {
+      ...(userRecord.customClaims || {}),
+      admin: true,
+      role: updateFields.role,
+    });
+  }
+
+  const updated = await targetRef.get();
+  await db.collection('audit_logs').add({
+    adminName: actor?.fullName || 'Electoral Administrator',
+    adminRole: actor?.role || 'Electoral Commissioner',
+    action: 'Updated Administrator Scope',
+    target: targetUid,
+    ipAddress: 'cloud-functions',
+    status: 'success',
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    success: true,
+    admin: { id: updated.id, ...updated.data() },
+    message: 'Administrator governance scope updated securely.',
+  };
+});
+
+export const revokeAdminRole = onCall(async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const targetUid = String(request.data?.uid || '').trim();
+  if (!targetUid) {
+    throw new HttpsError('invalid-argument', 'Target uid is required.');
+  }
+  if (targetUid === request.auth?.uid) {
+    throw new HttpsError('failed-precondition', 'Administrators cannot revoke their own active access.');
+  }
+
+  const userRecord = await admin.auth().getUser(targetUid);
+  const claims = { ...(userRecord.customClaims || {}) };
+  delete claims.admin;
+  delete claims.role;
+  delete claims.superAdmin;
+  await admin.auth().setCustomUserClaims(targetUid, claims);
+
+  await Promise.all([
+    db.collection('admins').doc(targetUid).set(
+      {
+        isActive: false,
+        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    ),
+    db.collection('audit_logs').add({
+      adminName: actor?.fullName || 'Electoral Administrator',
+      adminRole: actor?.role || 'Electoral Commissioner',
+      action: 'Revoked Administrator Access',
+      target: userRecord.email || targetUid,
+      ipAddress: 'cloud-functions',
+      status: 'warning',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }),
+  ]);
+
+  return { success: true, message: 'Administrator custom claims and access revoked.' };
+});
+
+export const verifyAdminAccess = onCall(async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  return {
+    authorized: true,
+    uid: request.auth!.uid,
+    email: request.auth!.token.email || actor?.email || '',
+    role: actor?.role || request.auth!.token.role || 'Electoral Commissioner',
+    claimsAdmin: request.auth!.token.admin === true,
   };
 });
 

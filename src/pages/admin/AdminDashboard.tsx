@@ -63,6 +63,14 @@ function matchesHallScope(criteriaHalls: string[] | undefined, managedHalls: str
 }
 
 export const AdminDashboard: React.FC = () => {
+  const { admin, userRole, sessionChecked } = useApp();
+  if (!sessionChecked || userRole !== 'admin' || !admin) {
+    return null;
+  }
+  return <AdminDashboardContent />;
+};
+
+const AdminDashboardContent: React.FC = () => {
   const {
     admin,
     elections,

@@ -236,7 +236,24 @@ export const Navbar: React.FC = () => {
 
             <div className="pt-3 border-t border-slate-100 space-y-2">
               <PWAInstallButton variant="menu" />
-              {userRole === 'student' ? (
+              {userRole === 'admin' && admin ? (
+                <>
+                  <button
+                    onClick={() => handleNav('admin_dashboard')}
+                    className="w-full px-4 py-2.5 text-center text-xs font-semibold text-white bg-[#0B1F3A] rounded-lg flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Go to Admin Dashboard</span>
+                  </button>
+                  <button
+                    onClick={logout}
+                    className="w-full px-4 py-2 text-center text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                </>
+              ) : userRole === 'student' && student ? (
                 <>
                   <button
                     onClick={() => handleNav('student_dashboard')}

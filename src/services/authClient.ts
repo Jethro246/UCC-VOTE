@@ -5,6 +5,7 @@ import {
   completeEmailSignInLink,
   loginStudentWithPassword,
   loginAdminWithFirebase,
+  loginAdminWithGoogle,
   sendFirebasePasswordReset,
   updateFirebaseUserPassword,
   signOutFirebase,
@@ -124,12 +125,24 @@ class FirebaseAuthClient {
         error: res.error || 'Authentication failed.',
       };
     }
+    if (res.isAdmin && res.admin) {
+      return {
+        success: true,
+        userRole: 'admin',
+        user: res.admin,
+        message: 'Administrator authenticated via Firebase custom claims.',
+      };
+    }
     return {
       success: true,
       userRole: 'student',
       user: res.student,
       message: 'Signed in via Firebase Authentication.',
     };
+  }
+
+  async adminLoginWithGoogle(): Promise<GoogleAuthResult> {
+    return loginAdminWithGoogle();
   }
 
   async adminLogin(

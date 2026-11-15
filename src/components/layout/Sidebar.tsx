@@ -30,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
     activeView, 
     navigateTo, 
     notifications, 
+    userRole,
     student, 
     admin, 
     logout 
@@ -37,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
 
   const unreadNotifs = notifications.filter(n => !n.read).length;
 
-  if (isAdmin) {
+  if (isAdmin && userRole === 'admin' && admin) {
     const adminNavItems = [
       { id: 'admin_dashboard', label: 'Admin Overview', icon: LayoutDashboard },
       { id: 'elections_directory', label: 'Election Management', icon: Vote },

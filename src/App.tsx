@@ -182,20 +182,20 @@ const FirebaseStatusBanner: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { activeView, userRole, sessionChecked, navigateTo, setPostLoginView } = useApp();
+  const { activeView, userRole, admin, sessionChecked, navigateTo, setPostLoginView } = useApp();
 
   // Enforce client route guards once Firebase Auth session has been checked
   useEffect(() => {
     if (!sessionChecked) return;
-    if (activeView === 'admin_dashboard' && userRole !== 'admin') {
-      navigateTo('admin_login');
+    if (activeView === 'admin_dashboard' && (userRole !== 'admin' || !admin)) {
+      navigateTo(userRole === 'student' ? 'student_dashboard' : 'admin_login');
       return;
     }
     if (STUDENT_PROTECTED_VIEWS.has(activeView) && userRole === 'guest') {
       setPostLoginView(activeView);
       navigateTo('student_login');
     }
-  }, [activeView, userRole, sessionChecked]);
+  }, [activeView, userRole, admin, sessionChecked]);
 
   const renderActiveView = () => {
     switch (activeView) {
@@ -234,7 +234,13 @@ const AppContent: React.FC = () => {
       case 'help_support':
         return <HelpSupportPage />;
       case 'admin_dashboard':
-        return <AdminDashboard />;
+        return userRole === 'admin' && admin ? (
+          <AdminDashboard />
+        ) : userRole === 'student' ? (
+          <StudentDashboard />
+        ) : (
+          <AdminLoginPage />
+        );
       default:
         return <LandingPage />;
     }
@@ -278,7 +284,7 @@ const AppContent: React.FC = () => {
       <Navbar />
 
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
-        {userRole !== 'guest' && <Sidebar isAdmin={userRole === 'admin'} />}
+        {userRole !== 'guest' && <Sidebar isAdmin={userRole === 'admin' && Boolean(admin)} />}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 pb-20 md:pb-8">
           {renderActiveView()}

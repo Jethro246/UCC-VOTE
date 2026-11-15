@@ -28,7 +28,10 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db, formatFirestorePermissionError, OperationType } from '../lib/firebase';
-import { AdminProfile, StudentProfile } from '../types';
+import { getPermissionsForRole } from '../data/uccStructure';
+import { AdminProfile, AdminRoleType, StudentProfile } from '../types';
+
+export const ADMIN_GOOGLE_INTENT_KEY = 'ucc_vote_admin_google_redirect';
 
 export const PENDING_EMAIL_KEY = 'ucc_vote_pending_email';
 export const PENDING_ACTIVATION_KEY = 'ucc_vote_pending_activation';
@@ -354,6 +357,61 @@ export async function createOrLoadStudentProfile(
   };
 }
 
+export async function resolveVerifiedAdminUser(user: User): Promise<{
+  isAdmin: boolean;
+  deactivated?: boolean;
+  admin?: AdminProfile;
+}> {
+  const tokenResult = await user.getIdTokenResult(true);
+  if (tokenResult.claims?.admin !== true) {
+    return { isAdmin: false };
+  }
+
+  let adminSnap: any = null;
+  try {
+    adminSnap = await getDoc(doc(db, 'admins', user.uid));
+  } catch {
+    adminSnap = null;
+  }
+
+  const adminData = adminSnap?.exists?.() ? (adminSnap.data() as AdminProfile) : null;
+  if (adminData && adminData.isActive === false) {
+    return { isAdmin: false, deactivated: true };
+  }
+
+  const resolvedRole = ((adminData?.role ||
+    tokenResult.claims?.role ||
+    'Electoral Commissioner') as AdminRoleType);
+
+  const resolvedAdmin: AdminProfile = adminData
+    ? {
+        ...adminData,
+        id: user.uid,
+        uid: user.uid,
+        role: resolvedRole,
+        permissions:
+          Array.isArray(adminData.permissions) && adminData.permissions.length > 0
+            ? adminData.permissions
+            : getPermissionsForRole(resolvedRole),
+      }
+    : {
+        id: user.uid,
+        uid: user.uid,
+        staffId: (tokenResult.claims?.staffId as string) || `UCC/EC/${user.uid.slice(0, 6).toUpperCase()}`,
+        fullName: user.displayName || user.email || 'Electoral Administrator',
+        email: (user.email || '').toLowerCase(),
+        role: resolvedRole,
+        department: 'UCC Electoral Commission',
+        permissions: getPermissionsForRole(resolvedRole),
+        isActive: true,
+      };
+
+  return {
+    isAdmin: true,
+    admin: resolvedAdmin,
+  };
+}
+
 export async function completeEmailSignInLink(
   providedEmail?: string,
   linkUrl?: string
@@ -361,6 +419,8 @@ export async function completeEmailSignInLink(
   success: boolean;
   needsEmailPrompt?: boolean;
   needsProfileActivation?: boolean;
+  isAdmin?: boolean;
+  admin?: AdminProfile;
   student?: StudentProfile;
   email?: string;
   error?: string;
@@ -384,6 +444,21 @@ export async function completeEmailSignInLink(
     // Clean URL query params so reload does not retry consumed link
     if (typeof window !== 'undefined' && window.history?.replaceState) {
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    const adminResolution = await resolveVerifiedAdminUser(credential.user);
+    if (adminResolution.deactivated) {
+      await signOut(auth);
+      return { success: false, error: 'This administrator account has been deactivated.' };
+    }
+    if (adminResolution.isAdmin && adminResolution.admin) {
+      clearPendingAuthState();
+      return {
+        success: true,
+        isAdmin: true,
+        admin: adminResolution.admin,
+        email: credential.user.email || email,
+      };
     }
 
     const draft = getPendingActivationDraft();
@@ -426,6 +501,8 @@ export async function loginStudentWithPassword(
   password: string
 ): Promise<{
   success: boolean;
+  isAdmin?: boolean;
+  admin?: AdminProfile;
   student?: StudentProfile;
   needsProfileActivation?: boolean;
   error?: string;
@@ -440,6 +517,18 @@ export async function loginStudentWithPassword(
   }
   try {
     const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    const adminResolution = await resolveVerifiedAdminUser(cred.user);
+    if (adminResolution.deactivated) {
+      await signOut(auth);
+      return { success: false, error: 'This administrator account has been deactivated.' };
+    }
+    if (adminResolution.isAdmin && adminResolution.admin) {
+      return {
+        success: true,
+        isAdmin: true,
+        admin: adminResolution.admin,
+      };
+    }
     const res = await createOrLoadStudentProfile(cred.user, null);
     if (res.error) return { success: false, error: res.error };
     return {
@@ -505,23 +594,9 @@ export async function loginAdminWithFirebase(
 
   try {
     const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-    const tokenResult = await cred.user.getIdTokenResult(true);
-    const hasAdminClaim = tokenResult.claims?.admin === true;
+    const adminResolution = await resolveVerifiedAdminUser(cred.user);
 
-    const adminRef = doc(db, 'admins', cred.user.uid);
-    const adminSnap = await getDoc(adminRef);
-
-    if (!adminSnap.exists() && !hasAdminClaim) {
-      await signOut(auth);
-      return {
-        success: false,
-        error:
-          'Access Denied: This account is not authorized as a UCC Electoral Commission administrator.',
-      };
-    }
-
-    const adminData = adminSnap.exists() ? (adminSnap.data() as AdminProfile) : null;
-    if (adminData && adminData.isActive === false) {
+    if (adminResolution.deactivated) {
       await signOut(auth);
       return {
         success: false,
@@ -529,23 +604,18 @@ export async function loginAdminWithFirebase(
       };
     }
 
-    const resolvedAdmin: AdminProfile = adminData
-      ? { ...adminData, id: cred.user.uid, uid: cred.user.uid }
-      : {
-          id: cred.user.uid,
-          uid: cred.user.uid,
-          staffId: (tokenResult.claims?.staffId as string) || 'ADMIN',
-          fullName: cred.user.displayName || cleanEmail,
-          email: cleanEmail,
-          role: ((tokenResult.claims?.role as any) || 'Electoral Commissioner'),
-          department: 'UCC Electoral Commission',
-          permissions: ['*'],
-          isActive: true,
-        };
+    if (!adminResolution.isAdmin || !adminResolution.admin) {
+      await signOut(auth);
+      return {
+        success: false,
+        error:
+          'Access Denied: This account does not hold verified Firebase administrator custom claims.',
+      };
+    }
 
     return {
       success: true,
-      admin: resolvedAdmin,
+      admin: adminResolution.admin,
     };
   } catch (err: any) {
     const code = err?.code || '';
@@ -595,6 +665,8 @@ export async function updateFirebaseUserPassword(
 export interface GoogleAuthResult {
   success: boolean;
   isNewUser?: boolean;
+  isAdmin?: boolean;
+  admin?: AdminProfile;
   redirected?: boolean;
   student?: StudentProfile;
   message?: string;
@@ -668,6 +740,26 @@ export async function ensureGoogleStudentProfile(
   user: User,
   isNewFromProvider?: boolean
 ): Promise<GoogleAuthResult> {
+  // Check server-signed Firebase Auth custom claims first so administrators never create student voter records
+  const adminResolution = await resolveVerifiedAdminUser(user);
+  if (adminResolution.deactivated) {
+    await signOut(auth);
+    return {
+      success: false,
+      error: 'This administrator account has been deactivated.',
+    };
+  }
+  if (adminResolution.isAdmin && adminResolution.admin) {
+    clearPendingAuthState();
+    return {
+      success: true,
+      isAdmin: true,
+      isNewUser: false,
+      admin: adminResolution.admin,
+      message: 'Administrator authenticated via Google & Firebase custom claims.',
+    };
+  }
+
   const studentRef = doc(db, 'students', user.uid);
   let snap;
 
@@ -857,14 +949,126 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
   }
 }
 
+export async function loginAdminWithGoogle(): Promise<GoogleAuthResult> {
+  const offlineError = requireOnline('Google Administrator Sign-In');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
+  const provider = buildGoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const adminResolution = await resolveVerifiedAdminUser(result.user);
+
+    if (adminResolution.deactivated) {
+      await signOut(auth);
+      return {
+        success: false,
+        error: 'This administrator account has been deactivated.',
+      };
+    }
+
+    if (!adminResolution.isAdmin || !adminResolution.admin) {
+      await signOut(auth);
+      return {
+        success: false,
+        error:
+          'Access Denied: This Google account does not hold verified Firebase administrator custom claims.',
+      };
+    }
+
+    clearPendingAuthState();
+    return {
+      success: true,
+      isAdmin: true,
+      admin: adminResolution.admin,
+      message: 'Administrator authenticated via Google & Firebase custom claims.',
+    };
+  } catch (err: any) {
+    const mapped = mapGoogleAuthError(err);
+    if (mapped.popupBlocked) {
+      try {
+        try {
+          window.sessionStorage.setItem(ADMIN_GOOGLE_INTENT_KEY, '1');
+        } catch {
+          // ignore
+        }
+        await signInWithRedirect(auth, provider);
+        return {
+          success: true,
+          redirected: true,
+          message: 'Redirecting to Google Sign-In...',
+        };
+      } catch (redirectErr: any) {
+        try {
+          window.sessionStorage.removeItem(ADMIN_GOOGLE_INTENT_KEY);
+        } catch {
+          // ignore
+        }
+        const redirectMapped = mapGoogleAuthError(redirectErr);
+        return {
+          success: false,
+          error: redirectMapped.message,
+        };
+      }
+    }
+    return {
+      success: false,
+      cancelled: mapped.cancelled,
+      error: mapped.message,
+    };
+  }
+}
+
 export async function completeGoogleRedirectResult(): Promise<
   (GoogleAuthResult & { hasResult: boolean })
 > {
+  let isAdminIntent = false;
+  try {
+    isAdminIntent = window.sessionStorage.getItem(ADMIN_GOOGLE_INTENT_KEY) === '1';
+    if (isAdminIntent) {
+      window.sessionStorage.removeItem(ADMIN_GOOGLE_INTENT_KEY);
+    }
+  } catch {
+    isAdminIntent = false;
+  }
+
   try {
     const result = await getRedirectResult(auth);
     if (!result) {
       return { hasResult: false, success: true };
     }
+
+    const adminResolution = await resolveVerifiedAdminUser(result.user);
+    if (adminResolution.deactivated) {
+      await signOut(auth);
+      return {
+        hasResult: true,
+        success: false,
+        error: 'This administrator account has been deactivated.',
+      };
+    }
+
+    if (adminResolution.isAdmin && adminResolution.admin) {
+      clearPendingAuthState();
+      return {
+        hasResult: true,
+        success: true,
+        isAdmin: true,
+        admin: adminResolution.admin,
+        message: 'Administrator authenticated via Google & Firebase custom claims.',
+      };
+    }
+
+    if (isAdminIntent) {
+      await signOut(auth);
+      return {
+        hasResult: true,
+        success: false,
+        error:
+          'Access Denied: This Google account does not hold verified Firebase administrator custom claims.',
+      };
+    }
+
     const additionalInfo = getAdditionalUserInfo(result);
     const profileRes = await ensureGoogleStudentProfile(result.user, additionalInfo?.isNewUser);
     return {

@@ -98,7 +98,12 @@ export const StudentLoginPage: React.FC = () => {
       return;
     }
 
-    navigateTo('student_dashboard');
+    if (res.userRole === 'admin') {
+      loginWithUserPayload(res.user, 'admin');
+      return;
+    }
+
+    loginWithUserPayload(res.user, 'student');
   };
 
   const handleGoogleSignIn = async () => {
@@ -113,7 +118,22 @@ export const StudentLoginPage: React.FC = () => {
       if (res.redirected) {
         return;
       }
-      if (!res.success || !res.student) {
+      if (!res.success) {
+        setError(res.error || 'Unable to sign in. Please try again.');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      if (res.isAdmin && res.admin) {
+        setGoogleSuccessMessage('Administrator verified — opening Electoral Commission Console...');
+        setIsGoogleLoading(false);
+        setTimeout(() => {
+          loginWithUserPayload(res.admin, 'admin');
+        }, 350);
+        return;
+      }
+
+      if (!res.student) {
         setError(res.error || 'Unable to sign in. Please try again.');
         setIsGoogleLoading(false);
         return;

@@ -894,23 +894,28 @@ class FirebaseAdminService {
         return { success: false, error: 'Administrator record not found in Firestore.' };
       }
 
-      const updateFields: Record<string, any> = {
+      const fn = httpsCallable(functions, 'updateAdminScope');
+      const res = await fn({
+        uid: targetDocId,
         ...payload,
-        updatedAt: serverTimestamp(),
-      };
-      if (payload.role) {
-        updateFields.permissions = getPermissionsForRole(payload.role);
+        permissions: payload.role ? getPermissionsForRole(payload.role) : undefined,
+      });
+      const data = res.data as any;
+      if (data?.success) {
+        return {
+          success: true,
+          admin: data.admin as AdminProfile | undefined,
+          message: data.message || 'Administrator governance scope updated.',
+        };
       }
-
-      await updateDoc(doc(db, 'admins', targetDocId), updateFields);
-      const updated = await getDoc(doc(db, 'admins', targetDocId));
-      return {
-        success: true,
-        admin: updated.exists() ? mapDoc<AdminProfile>(updated.id, updated.data()) : undefined,
-        message: 'Administrator governance scope updated.',
-      };
+      return { success: false, error: data?.error || 'Unable to update administrator scope.' };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `admins/${idOrStaffId}`);
+      return {
+        success: false,
+        error:
+          err?.message ||
+          'Updating administrator permissions requires the updateAdminScope Cloud Function and verified admin custom claims.',
+      };
     }
   }
 

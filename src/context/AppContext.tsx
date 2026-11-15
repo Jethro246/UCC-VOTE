@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, FIRESTORE_DATABASE_ID, testFirestoreConnection } from '../lib/firebase';
 import {
@@ -7,6 +7,7 @@ import {
   UserRole,
   StudentProfile,
   AdminProfile,
+  AdminRoleType,
   Election,
   ElectionCategory,
   ElectionStatus,
@@ -32,6 +33,7 @@ import {
   UCC_FACULTIES,
   UCC_HALLS,
   categoryToDomainId,
+  getPermissionsForRole,
 } from '../data/uccStructure';
 import { authClient } from '../services/authClient';
 import { electionClient } from '../services/electionClient';
@@ -565,6 +567,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
       }
 
+      if (res.isAdmin && res.admin) {
+        setAdmin(res.admin);
+        setUserRole('admin');
+        setStudentRaw(null);
+        setNeedsProfileCompletion(false);
+        setEmailLinkFeedback({
+          type: 'success',
+          text: 'Electoral Commission administrator sign-in verified.',
+        });
+        navigateTo('admin_dashboard');
+        return;
+      }
+
       if (res.needsProfileActivation) {
         setNeedsProfileCompletion(true);
         setEmailLinkFeedback({
@@ -603,6 +618,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           type: 'error',
           text: res.error || 'Unable to sign in. Please try again.',
         });
+        return;
+      }
+
+      if (res.isAdmin && res.admin) {
+        setAdmin(res.admin);
+        setUserRole('admin');
+        setStudentRaw(null);
+        setNeedsProfileCompletion(false);
+        setSessionChecked(true);
+        setEmailLinkFeedback({
+          type: 'success',
+          text: 'Electoral Commission administrator Google sign-in verified.',
+        });
+        setPostLoginView(null);
+        navigateTo('admin_dashboard');
         return;
       }
 
@@ -670,12 +700,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       try {
-        const tokenRes = await user.getIdTokenResult();
+        const tokenRes = await user.getIdTokenResult(true).catch(() => user.getIdTokenResult());
         const hasAdminClaim = tokenRes.claims?.admin === true;
-        const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-        const isAdminUser =
-          Boolean(hasAdminClaim) ||
-          (Boolean(adminSnap?.exists()) && adminSnap?.data()?.isActive !== false);
+        const adminSnap = hasAdminClaim
+          ? await getDoc(doc(db, 'admins', user.uid)).catch(() => null)
+          : null;
+        const adminData = adminSnap?.exists() ? (adminSnap.data() as Omit<AdminProfile, 'id'>) : null;
+        const isExplicitlyDeactivated = Boolean(adminData && adminData.isActive === false);
+
+        if (hasAdminClaim && isExplicitlyDeactivated) {
+          await signOut(auth).catch(() => undefined);
+          setSessionExpiredReason('This administrator account has been deactivated.');
+          setSessionChecked(true);
+          return;
+        }
+
+        const isAdminUser = Boolean(hasAdminClaim) && !isExplicitlyDeactivated;
 
         if (isAdminUser) {
           setUserRole('admin');
@@ -683,13 +723,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setVoterEligibilityRecord(null);
           setNeedsProfileCompletion(false);
 
-          if (adminSnap?.exists()) {
-            setAdmin({ id: adminSnap.id, ...(adminSnap.data() as Omit<AdminProfile, 'id'>) });
+          const resolvedRole = ((adminData?.role ||
+            tokenRes.claims?.role ||
+            'Electoral Commissioner') as AdminRoleType);
+
+          if (adminData && adminSnap) {
+            setAdmin({
+              ...adminData,
+              id: adminSnap.id,
+              uid: user.uid,
+              role: resolvedRole,
+              permissions:
+                Array.isArray(adminData.permissions) && adminData.permissions.length > 0
+                  ? adminData.permissions
+                  : getPermissionsForRole(resolvedRole),
+            });
+          } else {
+            setAdmin({
+              id: user.uid,
+              uid: user.uid,
+              staffId: (tokenRes.claims?.staffId as string) || `UCC/EC/${user.uid.slice(0, 6).toUpperCase()}`,
+              fullName: user.displayName || user.email || 'Electoral Administrator',
+              email: (user.email || '').toLowerCase(),
+              role: resolvedRole,
+              department: 'UCC Electoral Commission',
+              permissions: getPermissionsForRole(resolvedRole),
+              isActive: true,
+            });
           }
 
           privateUnsubs.push(
             subscribeAdminProfile(user.uid, (a) => {
-              if (a) setAdmin(a);
+              if (a) {
+                if (a.isActive === false) {
+                  signOut(auth).catch(() => undefined);
+                  return;
+                }
+                setAdmin(a);
+              }
             }),
             subscribeAllStudents(true, setAllStudents),
             subscribeAllEligibilityRecords(true, setEligibilityRecords),
@@ -752,7 +823,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, error: res.error || 'Could not verify email link.' };
     }
     setPendingEmailPrompt(false);
-    if (res.needsProfileActivation) {
+    if (res.isAdmin && res.admin) {
+      setAdmin(res.admin);
+      setUserRole('admin');
+      setStudentRaw(null);
+      setNeedsProfileCompletion(false);
+      setEmailLinkFeedback({
+        type: 'success',
+        text: 'Electoral Commission administrator sign-in verified.',
+      });
+      navigateTo('admin_dashboard');
+    } else if (res.needsProfileActivation) {
       setNeedsProfileCompletion(true);
       setEmailLinkFeedback({
         type: 'info',

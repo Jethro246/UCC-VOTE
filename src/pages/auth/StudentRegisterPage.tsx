@@ -161,7 +161,22 @@ export const StudentRegisterPage: React.FC = () => {
       if (res.redirected) {
         return;
       }
-      if (!res.success || !res.student) {
+      if (!res.success) {
+        setError(res.error || 'Unable to sign in. Please try again.');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      if (res.isAdmin && res.admin) {
+        setGoogleSuccessMessage('Administrator verified — opening Electoral Commission Console...');
+        setIsGoogleLoading(false);
+        setTimeout(() => {
+          loginWithUserPayload(res.admin, 'admin');
+        }, 350);
+        return;
+      }
+
+      if (!res.student) {
         setError(res.error || 'Unable to sign in. Please try again.');
         setIsGoogleLoading(false);
         return;

@@ -3,14 +3,15 @@ import { useApp } from '../../context/AppContext';
 import { LayoutDashboard, Vote, Users, Award, Bell } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
-  const { activeView, navigateTo, notifications, userRole } = useApp();
+  const { activeView, navigateTo, notifications, userRole, admin } = useApp();
   const unreadNotifs = notifications.filter(n => !n.read).length;
+  const isVerifiedAdmin = userRole === 'admin' && Boolean(admin);
 
   // Only show bottom nav if in mobile viewport and either logged in as student or exploring
   const navItems = [
     { 
-      id: userRole === 'admin' ? 'admin_dashboard' : 'student_dashboard', 
-      label: userRole === 'admin' ? 'Console' : 'Dashboard', 
+      id: isVerifiedAdmin ? 'admin_dashboard' : 'student_dashboard', 
+      label: isVerifiedAdmin ? 'Console' : 'Dashboard', 
       icon: LayoutDashboard 
     },
     { id: 'elections_directory', label: 'Elections', icon: Vote },

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
+import { GoogleAuthButton } from '../../components/common/GoogleAuthButton';
 import {
   ShieldCheck,
   Mail,
@@ -20,6 +21,7 @@ export const AdminLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +43,26 @@ export const AdminLoginPage: React.FC = () => {
     }
 
     loginWithUserPayload(res.user, 'admin');
+  };
+
+  const handleGoogleAdminLogin = async () => {
+    setError(null);
+    setIsGoogleLoading(true);
+    try {
+      const res = await authClient.adminLoginWithGoogle();
+      if (res.redirected) {
+        return;
+      }
+      setIsGoogleLoading(false);
+      if (!res.success || !res.admin) {
+        setError(res.error || 'Administrator Google sign-in failed.');
+        return;
+      }
+      loginWithUserPayload(res.admin, 'admin');
+    } catch {
+      setIsGoogleLoading(false);
+      setError('Unable to sign in with Google. Please try again.');
+    }
   };
 
   return (
@@ -91,6 +113,23 @@ export const AdminLoginPage: React.FC = () => {
               <span className="font-medium">{error}</span>
             </div>
           )}
+
+          <GoogleAuthButton
+            onClick={handleGoogleAdminLogin}
+            isLoading={isGoogleLoading}
+            disabled={isLoading}
+            label="Continue with Google"
+            loadingLabel="Verifying administrator..."
+            sublabel="For Google accounts granted Electoral Commission custom claims"
+          />
+
+          <div className="relative flex items-center py-0.5">
+            <div className="flex-grow border-t border-slate-200" />
+            <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              or sign in with password
+            </span>
+            <div className="flex-grow border-t border-slate-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
