@@ -1,6 +1,5 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Logo } from '../common/Logo';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -49,26 +48,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
     return (
       <aside className="w-64 shrink-0 bg-[#0B1F3A] text-slate-200 border-r border-slate-800 min-h-[calc(100vh-4rem)] flex flex-col justify-between hidden md:flex">
         <div className="p-4 space-y-5">
-          {/* Institutional Sidebar Header */}
-          <div className="px-1 pb-3 border-b border-slate-800">
-            <Logo variant="default" theme="dark" subtitle="Electoral Commission" />
-          </div>
-
           {/* Admin Identity Card */}
           <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700">
-            <div className="flex items-center gap-3">
-              <Logo variant="compact" theme="dark" showWordmark={false} />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-white truncate">
-                  {admin?.fullName || 'Dr. J. Tetteh'}
-                </p>
-                <p className="text-[11px] text-amber-400 font-medium truncate">
-                  {admin?.role || 'Electoral Commissioner'}
-                </p>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                  {admin?.staffId || 'UCC/EC/ST/2019/04'}
-                </p>
-              </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-xs font-semibold text-white truncate">
+                {admin?.fullName || 'Dr. J. Tetteh'}
+              </p>
+              <p className="text-[11px] text-amber-400 font-medium truncate">
+                {admin?.role || 'Electoral Commissioner'}
+              </p>
+              <p className="text-[10px] text-slate-400 font-mono pt-0.5 truncate">
+                {admin?.staffId || 'UCC/EC/ST/2019/04'}
+              </p>
             </div>
             {admin?.managedDomainIds && admin.managedDomainIds.length > 0 && (
               <div className="mt-2.5 pt-2 border-t border-slate-700/80 text-[10px] text-slate-300 leading-tight">
