@@ -5,6 +5,7 @@ import { EligibilityResult } from '../../services/interfaces';
 import { Candidate, Election, Position, VoteConfirmationReceipt } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import {
   Vote,
   CheckCircle2,
@@ -23,7 +24,8 @@ import {
   LogIn,
   ShieldAlert,
   Award,
-  Users
+  Users,
+  WifiOff
 } from 'lucide-react';
 
 interface DynamicBallotPosition {
@@ -59,6 +61,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     recentVoteReceipt
   } = useApp();
 
+  const { isOnline } = useOnlineStatus();
   const fallbackElection = elections.find((e) => e.id === selectedElectionId) || elections[0];
 
   const [isLoadingBallot, setIsLoadingBallot] = useState(true);
@@ -189,8 +192,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
     setShowFinalConfirmModal(false);
     setConfirmNoticeAgreed(false);
     idempotencyKeyRef.current = `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    loadAuthorizedBallot();
-  }, [selectedElectionId, sessionChecked, userRole, student?.id, sessionExpiredReason]);
+    if (isOnline) {
+      loadAuthorizedBallot();
+    }
+  }, [selectedElectionId, sessionChecked, userRole, student?.id, sessionExpiredReason, isOnline]);
 
   useEffect(() => {
     if (!election?.endDate) return;
@@ -252,6 +257,12 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
   const handleConfirmVoteSubmission = async () => {
     if (isSubmittingRef.current || !confirmNoticeAgreed || !election) return;
+    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      setSubmitError(
+        'Internet connection lost. Ballot submission requires an active connection to the UCC VOTE server and cannot be queued offline.'
+      );
+      return;
+    }
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -289,6 +300,57 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // =========================================================================
+  // OFFLINE SECURITY GUARD (NO OFFLINE VOTING OR BALLOT QUEUING)
+  // =========================================================================
+  if (!isOnline) {
+    return (
+      <div className="max-w-2xl mx-auto py-10 px-4">
+        <div className="bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 shadow-sm space-y-5">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <WifiOff className="w-6 h-6" />
+            </div>
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2">
+                <Logo variant="compact" showWordmark={false} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                  Online Verification Required
+                </span>
+              </div>
+              <h1 className="text-xl font-extrabold text-slate-900">
+                Internet Connection Required to Vote
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                For electoral security and ballot secrecy, digital ballots are never cached or queued offline. Please reconnect to mobile data or campus Wi-Fi to verify your eligibility and cast your vote directly on the UCC VOTE server.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                if (navigator.onLine) loadAuthorizedBallot();
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry Connection</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo('elections_directory')}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
+            >
+              Back to Elections Directory
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // =========================================================================
   // LOADING STATE

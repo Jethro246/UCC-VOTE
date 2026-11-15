@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Vote, ArrowRight } from 'lucide-react';
+import { PWAInstallBanner } from '../components/common/PWAInstallButton';
 
 export const LandingPage: React.FC = () => {
   const { navigateTo, userRole } = useApp();
@@ -67,6 +68,7 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
       </section>
+      <PWAInstallBanner />
     </div>
   );
 };

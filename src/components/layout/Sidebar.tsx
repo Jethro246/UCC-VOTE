@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { CandidateAvatar } from '../common/CandidateAvatar';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -122,6 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
 
         {/* Footer actions */}
         <div className="p-4 border-t border-slate-800 space-y-2">
+          <PWAInstallButton variant="sidebar" />
           <button
             onClick={() => navigateTo('elections_directory')}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
@@ -242,7 +244,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
       </div>
 
       {/* Footer sign out */}
-      <div className="p-4 border-t border-slate-200">
+      <div className="p-4 border-t border-slate-200 space-y-2">
+        <PWAInstallButton variant="sidebar" />
         <button
           onClick={logout}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"

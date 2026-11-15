@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
 import { CandidateAvatar } from '../common/CandidateAvatar';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 import { 
   Bell, 
   Menu, 
@@ -36,9 +37,9 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 pt-safe">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-8 h-16">
+        <div className="flex items-center justify-between gap-4 sm:gap-6 h-16">
           {/* Zone 1: Official UCC Crest & Brand Wordmark */}
           <button 
             onClick={() => handleNav('landing')} 
@@ -48,8 +49,8 @@ export const Navbar: React.FC = () => {
             <Logo variant="default" className="hidden sm:inline-flex" />
           </button>
 
-          {/* Zone 2: 4-5 Concise Single-Line Nav Links */}
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-slate-600">
+          {/* Zone 2: Concise Single-Line Nav Links */}
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-medium text-slate-600">
             <button
               onClick={() => handleNav('elections_directory')}
               className={`hover:text-[#123B70] transition-colors whitespace-nowrap cursor-pointer ${
@@ -108,8 +109,11 @@ export const Navbar: React.FC = () => {
             </button>
           </nav>
 
-          {/* Zone 3: 1 Primary Action */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zone 3: Install App + Primary Action */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <div className="hidden sm:block">
+              <PWAInstallButton variant="header" />
+            </div>
             {userRole === 'student' && student ? (
               <div className="flex items-center gap-3">
                 <button
@@ -227,6 +231,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             <div className="pt-3 border-t border-slate-100 space-y-2">
+              <PWAInstallButton variant="menu" />
               {userRole === 'student' ? (
                 <>
                   <button

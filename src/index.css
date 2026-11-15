@@ -11,11 +11,24 @@
     --color-ucc-lightgrey: #F4F6F9;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     font-family: var(--font-sans);
     background-color: #F4F6F9;
     color: #1e293b;
+    overscroll-behavior-y: contain;
   }
+}
+
+.pb-safe {
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
 /* Custom scrollbar */

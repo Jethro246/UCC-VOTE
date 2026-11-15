@@ -20,7 +20,7 @@ export const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 shadow-lg">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1.5 pb-safe shadow-lg">
       <div className="grid grid-cols-5 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -29,7 +29,7 @@ export const BottomNav: React.FC = () => {
             <button
               key={item.id}
               onClick={() => navigateTo(item.id as any)}
-              className={`flex flex-col items-center justify-center py-1 rounded-lg text-[10px] font-medium transition-colors relative ${
+              className={`min-h-[44px] flex flex-col items-center justify-center py-1 rounded-lg text-[10px] font-medium transition-colors relative ${
                 isActive
                   ? 'text-[#123B70] font-bold'
                   : item.highlight

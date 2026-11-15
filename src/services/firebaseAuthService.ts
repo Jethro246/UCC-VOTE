@@ -51,6 +51,13 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+function requireOnline(actionLabel: string): string | null {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return `An active internet connection is required for ${actionLabel}. Please reconnect and try again.`;
+  }
+  return null;
+}
+
 function savePendingAuthState(
   email: string,
   intent: 'activate' | 'login',
@@ -110,6 +117,10 @@ export async function sendStudentEmailLink(
   intent: 'activate' | 'login',
   activationDraft?: PendingActivationDraft
 ): Promise<{ success: boolean; email?: string; message?: string; error?: string }> {
+  const offlineError = requireOnline('sending a Firebase verification link');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
   const cleanEmail = email.trim().toLowerCase();
   if (!isValidEmail(cleanEmail)) {
     return {
@@ -419,6 +430,10 @@ export async function loginStudentWithPassword(
   needsProfileActivation?: boolean;
   error?: string;
 }> {
+  const offlineError = requireOnline('Firebase Authentication');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
   const cleanEmail = email.trim().toLowerCase();
   if (!isValidEmail(cleanEmail)) {
     return { success: false, error: 'Please enter a valid email address.' };
@@ -447,6 +462,10 @@ export async function loginStudentWithPassword(
 export async function sendFirebasePasswordReset(
   email: string
 ): Promise<{ success: boolean; message?: string; error?: string }> {
+  const offlineError = requireOnline('sending a password reset email');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
   const cleanEmail = email.trim().toLowerCase();
   if (!isValidEmail(cleanEmail)) {
     return { success: false, error: 'Please enter a valid email address.' };
@@ -475,6 +494,10 @@ export async function loginAdminWithFirebase(
   admin?: AdminProfile;
   error?: string;
 }> {
+  const offlineError = requireOnline('administrator authentication');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
   const cleanEmail = email.trim().toLowerCase();
   if (!isValidEmail(cleanEmail) || !password) {
     return { success: false, error: 'Please enter your administrator email and password.' };
@@ -799,6 +822,10 @@ export async function ensureGoogleStudentProfile(
 }
 
 export async function signInWithGoogle(): Promise<GoogleAuthResult> {
+  const offlineError = requireOnline('Google Sign-In');
+  if (offlineError) {
+    return { success: false, error: offlineError };
+  }
   const provider = buildGoogleAuthProvider();
   try {
     const result = await signInWithPopup(auth, provider);

@@ -5,16 +5,19 @@ import { adminService } from '../../services/adminService';
 import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { ElectionResultsPayload, DomainId } from '../../types';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import {
   Award,
   Download,
   ShieldCheck,
   FileText,
-  Lock
+  Lock,
+  WifiOff
 } from 'lucide-react';
 
 export const ElectionResultsPage: React.FC = () => {
   const { elections, domains, selectedElectionId, userRole } = useApp();
+  const { isOnline } = useOnlineStatus();
 
   const [selectedDomainTab, setSelectedDomainTab] = useState<DomainId | 'All'>('All');
   const [activeElectionId, setActiveElectionId] = useState<string>(
@@ -120,6 +123,22 @@ export const ElectionResultsPage: React.FC = () => {
       });
     }
   };
+
+  if (!isOnline) {
+    return (
+      <div className="bg-white p-8 sm:p-10 rounded-2xl border border-amber-200 text-center space-y-3 max-w-2xl mx-auto">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+          <WifiOff className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-extrabold text-slate-900">
+          Internet Connection Required for Certified Results
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+          Official election tallies and declarations are retrieved live from Cloud Firestore to prevent displaying stale or unverified counts. Reconnect to the internet to view published results.
+        </p>
+      </div>
+    );
+  }
 
   if (!election) {
     return (

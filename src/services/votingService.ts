@@ -30,6 +30,16 @@ function mapDoc<T>(id: string, data: Record<string, any>): T {
 
 class FirebaseVotingService {
   async getBallot(electionId: string) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return {
+        success: false,
+        httpStatus: 503,
+        code: 'OFFLINE_BLOCKED',
+        error:
+          'An active internet connection is required to verify voter eligibility and load your official ballot. Offline ballot queuing is disabled for electoral security.',
+      };
+    }
+
     const user = auth.currentUser;
     if (!user) {
       return {
@@ -145,6 +155,16 @@ class FirebaseVotingService {
     selections: BallotSelectionMap,
     idempotencyKey?: string
   ) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return {
+        success: false,
+        httpStatus: 503,
+        code: 'OFFLINE_BLOCKED',
+        error:
+          'An active internet connection is required to submit your ballot. Offline ballot queuing is disabled for electoral security.',
+      };
+    }
+
     const user = auth.currentUser;
     if (!user) {
       return {
