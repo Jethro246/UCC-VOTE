@@ -382,3 +382,22 @@ export function verifyCandidateCandidacyEligibility(
     details
   };
 }
+
+export function recomputeAllElectionCounts(ballotsByElection?: Map<string, number>): void {
+  for (const [electionId, election] of ELECTIONS_STORE.entries()) {
+    const positions = POSITIONS_STORE.get(electionId) || [];
+    election.positionsCount = positions.length;
+
+    if (ballotsByElection) {
+      const ballotCount = ballotsByElection.get(electionId);
+      if (typeof ballotCount === 'number' && ballotCount > (election.totalVotesCast || 0)) {
+        election.totalVotesCast = ballotCount;
+      }
+    }
+
+    election.turnoutPercentage =
+      election.totalEligibleVoters > 0
+        ? Number(((election.totalVotesCast / election.totalEligibleVoters) * 100).toFixed(1))
+        : 0;
+  }
+}

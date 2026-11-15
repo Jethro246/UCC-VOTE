@@ -73,8 +73,10 @@ export type ElectionCategory =
 
 export interface HallUnit {
   id: string;
+  code?: string;
   name: string;
   shortName: string;
+  displayName?: string;
   motto?: string;
   affiliationNote?: string;
 }
