@@ -1,0 +1,103 @@
+{
+  "projectId": "ucc-vote",
+  "database": "(default)",
+  "entities": {
+    "StudentProfile": {
+      "collection": "students",
+      "documentId": "{uid}",
+      "description": "Activated student account linked 1:1 with Firebase Auth UID.",
+      "fields": {
+        "uid": "string (Firebase Auth UID)",
+        "studentId": "string (official UCC student ID)",
+        "fullName": "string",
+        "email": "string (any verified valid email)",
+        "emailVerified": "boolean (inbox verification only)",
+        "faculty": "string",
+        "department": "string",
+        "programme": "string",
+        "level": "string",
+        "hall": "string",
+        "isEligible": "boolean (authoritative EC voter clearance, defaults false)",
+        "eligibilityStatus": "pending_verification | eligible | suspended | ineligible",
+        "status": "active | suspended",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "VoterEligibility": {
+      "collection": "voter_eligibility",
+      "documentId": "{uid}",
+      "description": "Authoritative EC voter eligibility record, decoupled from email verification."
+    },
+    "AdminProfile": {
+      "collection": "admins",
+      "documentId": "{uid}",
+      "description": "Electoral Commission / Domain Administrator record aligned with Auth custom claims."
+    },
+    "Election": {
+      "collection": "elections",
+      "documentId": "{electionId}",
+      "description": "Election configuration, scheduling, domain scope, eligibility criteria, and guidelinesUrl."
+    },
+    "Position": {
+      "collection": "positions",
+      "documentId": "{positionId}",
+      "description": "Contested portfolio linked via electionId."
+    },
+    "Candidate": {
+      "collection": "candidates",
+      "documentId": "{candidateId}",
+      "description": "Aspirant nomination, vetting status, Firebase Storage photoUrl, manifesto, and tallies."
+    },
+    "VoterAuthorisation": {
+      "collection": "voter_authorisations",
+      "documentId": "{electionId}_{uid}",
+      "description": "Transactional duplicate-vote prevention lock written strictly by submitBallot Cloud Function."
+    },
+    "Ballot": {
+      "collection": "ballots",
+      "documentId": "{autoId}",
+      "description": "Anonymized ballot box record containing ONLY electionId, selections map, and castAt (zero uid/studentId)."
+    },
+    "VoteConfirmation": {
+      "collection": "vote_confirmations",
+      "documentId": "{electionId}_{uid}",
+      "description": "Voter receipt confirmation without candidate choices."
+    },
+    "ElectionResult": {
+      "collection": "election_results",
+      "documentId": "{electionId}",
+      "description": "Certified or staged election results published only after authorization."
+    },
+    "Notification": {
+      "collection": "notifications",
+      "documentId": "{notificationId}",
+      "description": "Broadcast (targetUid == null) or targeted (targetUid == uid) alerts."
+    },
+    "NotificationRead": {
+      "collection": "notification_reads",
+      "documentId": "{uid}_{notificationId}",
+      "description": "Per-user read marker for notifications."
+    },
+    "Announcement": {
+      "collection": "announcements",
+      "documentId": "{announcementId}",
+      "description": "Official Electoral Commission announcements."
+    },
+    "CalendarEvent": {
+      "collection": "calendar_events",
+      "documentId": "{eventId}",
+      "description": "Election timeline milestones."
+    },
+    "Complaint": {
+      "collection": "complaints",
+      "documentId": "{complaintId}",
+      "description": "Student electoral complaint or support ticket with optional Storage attachment."
+    },
+    "AuditLog": {
+      "collection": "audit_logs",
+      "documentId": "{logId}",
+      "description": "Immutable administrative and security audit trail."
+    }
+  }
+}

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 export const NotificationsPage: React.FC = () => {
-  const { notifications, domains, markNotificationAsRead, navigateTo } = useApp();
+  const { notifications, domains, markNotificationAsRead, markAllNotificationsAsRead, navigateTo, isLoadingData } = useApp();
   const [domainFilter, setDomainFilter] = useState<string>('all');
 
   const filteredNotifications = notifications.filter((item) => {
@@ -54,15 +54,15 @@ export const NotificationsPage: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              notifications.forEach(n => markNotificationAsRead(n.id));
-            }}
-            className="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Check className="w-3.5 h-3.5" />
-            <span>Mark All Read</span>
-          </button>
+          {notifications.length > 0 && (
+            <button
+              onClick={() => markAllNotificationsAsRead()}
+              className="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Mark All Read</span>
+            </button>
+          )}
         </div>
 
         {/* Domain Filter Strip */}
@@ -89,77 +89,90 @@ export const NotificationsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications List */}
-      <div className="space-y-3">
-        {filteredNotifications.map((item) => {
-          const domObj = item.domainId ? domains.find((d) => d.id === item.domainId) : null;
-          return (
-            <div
-              key={item.id}
-              onClick={() => {
-                markNotificationAsRead(item.id);
-                if (item.linkAction) {
-                  navigateTo(
-                    item.linkAction as any,
-                    item.domainId && item.linkAction === 'domain_elections'
-                      ? { domainId: item.domainId }
-                      : undefined
-                  );
-                }
-              }}
-              className={`p-5 rounded-2xl border transition-colors cursor-pointer flex items-start gap-4 bg-white ${
-                item.read
-                  ? 'border-slate-200 opacity-90'
-                  : 'border-[#123B70]/40'
-              }`}
-            >
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
-                {getCategoryIcon(item.category)}
-              </div>
-
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="font-bold text-[#123B70] uppercase tracking-wider">
-                      {item.category}
-                    </span>
-                    {domObj && (
-                      <>
-                        <span className="text-slate-300">·</span>
-                        <span className="font-semibold text-slate-700">{domObj.name}</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-xs font-mono text-slate-400">
-                    {item.timestamp}
-                  </span>
+      {/* Notifications List / Empty State */}
+      {isLoadingData ? (
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
+          Loading notifications from Cloud Firestore...
+        </div>
+      ) : filteredNotifications.length === 0 ? (
+        <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-2">
+          <p className="text-sm font-bold text-slate-800">No notifications available.</p>
+          <p className="text-xs text-slate-500">
+            Official electoral notices, polling reminders, and personal alerts will appear here once published.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredNotifications.map((item) => {
+            const domObj = item.domainId ? domains.find((d) => d.id === item.domainId) : null;
+            return (
+              <div
+                key={item.id}
+                onClick={() => {
+                  markNotificationAsRead(item.id);
+                  if (item.linkAction) {
+                    navigateTo(
+                      item.linkAction as any,
+                      item.domainId && item.linkAction === 'domain_elections'
+                        ? { domainId: item.domainId }
+                        : undefined
+                    );
+                  }
+                }}
+                className={`p-5 rounded-2xl border transition-colors cursor-pointer flex items-start gap-4 bg-white ${
+                  item.read
+                    ? 'border-slate-200 opacity-90'
+                    : 'border-[#123B70]/40'
+                }`}
+              >
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
+                  {getCategoryIcon(item.category)}
                 </div>
 
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  {item.title}
-                </h3>
-
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  {item.message}
-                </p>
-
-                {item.linkAction && (
-                  <div className="pt-2">
-                    <span className="text-xs font-bold text-[#123B70] hover:underline inline-flex items-center gap-1">
-                      <span>Open Domain Portal</span>
-                      <ArrowRight className="w-3 h-3" />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="font-bold text-[#123B70] uppercase tracking-wider">
+                        {item.category}
+                      </span>
+                      {domObj && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="font-semibold text-slate-700">{domObj.name}</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono text-slate-400">
+                      {item.timestamp ? new Date(item.timestamp).toLocaleString() : ''}
                     </span>
                   </div>
+
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                    {item.title}
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    {item.message}
+                  </p>
+
+                  {item.linkAction && (
+                    <div className="pt-2">
+                      <span className="text-xs font-bold text-[#123B70] hover:underline inline-flex items-center gap-1">
+                        <span>Open Domain Portal</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {!item.read && (
+                  <span className="w-2.5 h-2.5 bg-[#C62828] rounded-full shrink-0 mt-2" />
                 )}
               </div>
-
-              {!item.read && (
-                <span className="w-2.5 h-2.5 bg-[#C62828] rounded-full shrink-0 mt-2" />
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
     </div>
   );

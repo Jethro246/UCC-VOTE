@@ -11,7 +11,8 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { Election } from '../../types';
-import { electionClient, EligibilityResult } from '../../services/electionClient';
+import { electionClient } from '../../services/electionClient';
+import { EligibilityResult } from '../../services/interfaces';
 
 interface EligibilityTesterModalProps {
   isOpen: boolean;
@@ -19,19 +20,12 @@ interface EligibilityTesterModalProps {
   onClose: () => void;
 }
 
-const TEST_STUDENT_PRESETS = [
-  { label: 'Kofi Mensah Sarbah (L300 CS & IT, Casford)', id: 'PS/CSC/22/0089' },
-  { label: 'Nana Akua Afriyie Osei (L400 Psychology, Adehye)', id: 'ED/EPS/21/0034' },
-  { label: 'Kwame Osei (L100 General Arts, Oguaa)', id: 'AS/COM/22/0104' },
-  { label: 'Kojo Danquah (Suspended Student Account)', id: 'AS/HIS/22/0055' }
-];
-
 export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
   isOpen,
   election,
   onClose
 }) => {
-  const [studentIdInput, setStudentIdInput] = useState('PS/CSC/22/0089');
+  const [studentIdInput, setStudentIdInput] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [result, setResult] = useState<EligibilityResult | null>(null);
   const [studentName, setStudentName] = useState('');
@@ -67,60 +61,36 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
-              <span>DAA Server-Side Eligibility Engine</span>
+              <span>Firebase Voter Eligibility Engine</span>
             </div>
             <h3 className="text-lg font-black text-slate-900 tracking-tight">
-              Test Student Voter Eligibility
+              Verify Student Voter Eligibility
             </h3>
             <p className="text-xs text-slate-500">
               Evaluating criteria against: <span className="font-bold text-slate-800">{election.title}</span>
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-xl text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="p-1 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Quick Presets */}
-        <div className="space-y-1.5 text-xs">
-          <label className="font-bold text-slate-700">Quick Test Persona Presets:</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-            {TEST_STUDENT_PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setStudentIdInput(p.id);
-                  handleTestEligibility(p.id);
-                }}
-                className={`p-2 rounded-xl text-left border text-[11px] transition-all ${
-                  studentIdInput === p.id
-                    ? 'bg-blue-50 border-[#123B70] text-[#123B70] font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Custom Input */}
+        {/* Student Lookup Input */}
         <div className="space-y-2 text-xs">
-          <label className="font-bold text-slate-700">Or Enter Student ID:</label>
+          <label className="font-bold text-slate-700">Enter Registered Student ID or Firebase UID:</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={studentIdInput}
               onChange={(e) => setStudentIdInput(e.target.value)}
-              placeholder="e.g. PS/CSC/22/0089"
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 font-mono text-slate-900 uppercase"
+              placeholder="Enter Student ID or UID"
+              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 font-mono text-slate-900"
             />
             <button
               type="button"
               onClick={() => handleTestEligibility()}
-              disabled={evaluating}
-              className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              disabled={evaluating || !studentIdInput.trim()}
+              className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
               <span>{evaluating ? 'Evaluating...' : 'Evaluate'}</span>

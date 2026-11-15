@@ -1,9 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_AUDIT_LOGS } from '../../data/mockData';
-import { electionClient } from '../../services/electionClient';
-import { authClient } from '../../services/authClient';
+import { adminService } from '../../services/adminService';
+import {
+  createAnnouncement,
+  createCalendarEvent,
+  createNotification,
+  deleteAnnouncement,
+  updateComplaintTicket,
+  updateStudentEligibilityAndStatus,
+  writeAuditLog,
+} from '../../services/firebaseDbService';
 import { Logo } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { domainIdToCategory } from '../../data/uccStructure';
 import {
   LayoutDashboard,
   Vote,
@@ -14,14 +23,18 @@ import {
   Plus,
   Search,
   CheckCircle2,
-  XCircle,
-  Clock,
   AlertTriangle,
   FileText,
   RefreshCw,
   UserPlus,
   Building,
-  Layers
+  Layers,
+  Megaphone,
+  Calendar,
+  MessageSquareWarning,
+  Trash2,
+  Send,
+  ExternalLink,
 } from 'lucide-react';
 import { AdminProfile, AdminRoleType, DomainId, Election, Candidate } from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
@@ -39,7 +52,12 @@ function matchesHallScope(criteriaHalls: string[] | undefined, managedHalls: str
     managedHalls.some((mh) => {
       const a = ch.toLowerCase();
       const b = mh.toLowerCase();
-      return a.includes(b) || b.includes(a) || (a.includes('casford') && b.includes('casely')) || (a.includes('casely') && b.includes('casford'));
+      return (
+        a.includes(b) ||
+        b.includes(a) ||
+        (a.includes('casford') && b.includes('casely')) ||
+        (a.includes('casely') && b.includes('casford'))
+      );
     })
   );
 }
@@ -51,13 +69,18 @@ export const AdminDashboard: React.FC = () => {
     domains,
     halls,
     faculties,
-    departments,
     positionsByElection,
     navigateTo,
     refreshElections,
     refreshDomains,
     candidates,
-    refreshCandidates
+    refreshCandidates,
+    allStudents,
+    eligibilityRecords,
+    auditLogs,
+    complaints,
+    announcements,
+    calendarEvents,
   } = useApp();
 
   const isGlobalGovernanceAdmin =
@@ -81,50 +104,95 @@ export const AdminDashboard: React.FC = () => {
   }, [admin?.id]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'elections' | 'candidates' | 'voters' | 'results' | 'domains_rbac' | 'audit'
+    | 'overview'
+    | 'elections'
+    | 'candidates'
+    | 'voters'
+    | 'results'
+    | 'communications'
+    | 'domains_rbac'
+    | 'audit'
   >('overview');
 
-  const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
-  const [inspectStudentId, setInspectStudentId] = useState('PS/CSC/22/0089');
+  const [manualAuditLogs, setManualAuditLogs] = useState<typeof auditLogs>([]);
+  const [inspectStudentId, setInspectStudentId] = useState('');
   const [secrecyTestResult, setSecrecyTestResult] = useState<{ code?: string; message: string } | null>(null);
   const [vaultAuditSummary, setVaultAuditSummary] = useState<any>(null);
 
-  const fetchAuditLogs = async () => {
-    try {
-      const res = await authClient.authorizedFetch('/api/admin/audit-logs');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.logs)) {
-        setLiveAuditLogs(data.logs);
+  // Scope elections strictly by Admin RBAC + selected Domain Workspace
+  const rbacElections = useMemo(() => {
+    return elections.filter((el) => {
+      if (admin?.managedDomainIds?.length && el.domainId && !admin.managedDomainIds.includes(el.domainId)) {
+        return false;
       }
-    } catch {
-      // fallback
+      if (admin?.managedHalls?.length && el.domainId === 'jcrc_hall') {
+        if (!matchesHallScope(el.eligibilityCriteria?.halls, admin.managedHalls)) {
+          return false;
+        }
+      }
+      if (admin?.managedFaculties?.length && (el.domainId === 'faculty_school' || el.domainId === 'departmental')) {
+        const facs = el.eligibilityCriteria?.faculties || [];
+        if (!facs.some((f) => admin.managedFaculties!.some((mf) => f.toLowerCase().includes(mf.toLowerCase())))) {
+          return false;
+        }
+      }
+      if (admin?.managedDepartments?.length && el.domainId === 'departmental') {
+        const depts = el.eligibilityCriteria?.departments || [];
+        if (!depts.some((d) => admin.managedDepartments!.some((md) => d.toLowerCase().includes(md.toLowerCase())))) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [elections, admin]);
+
+  const scopedElections = useMemo(() => {
+    return selectedDomainWorkspace === 'all'
+      ? rbacElections
+      : rbacElections.filter((e) => e.domainId === selectedDomainWorkspace);
+  }, [rbacElections, selectedDomainWorkspace]);
+
+  const scopedElectionIds = useMemo(() => new Set(scopedElections.map((e) => e.id)), [scopedElections]);
+  const scopedCandidates = useMemo(
+    () => candidates.filter((c) => scopedElectionIds.has(c.electionId)),
+    [candidates, scopedElectionIds]
+  );
+
+  const fetchAuditLogs = async () => {
+    const res = await adminService.getAuditLogs();
+    if (res.success && Array.isArray(res.logs)) {
+      setManualAuditLogs(res.logs);
     }
   };
 
   useEffect(() => {
     if (activeTab === 'audit') {
       fetchAuditLogs();
-      const firstElectionId = scopedElections[0]?.id || 'UCC-SRC-2026';
-      electionClient.getVotingAuditSummary(firstElectionId).then((r) => {
-        if (r.success && r.summary) setVaultAuditSummary(r.summary);
-      });
+      const firstElectionId = scopedElections[0]?.id;
+      if (firstElectionId) {
+        adminService.getVotingAuditSummary(firstElectionId).then((r) => {
+          if (r.success && r.summary) setVaultAuditSummary(r.summary);
+        });
+      } else {
+        setVaultAuditSummary(null);
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, scopedElections]);
 
-  // Domain & RBAC Management State (Super Admin / EC)
+  // Domain & RBAC Management State
   const [adminAccounts, setAdminAccounts] = useState<AdminProfile[]>([]);
   const [rbacError, setRbacError] = useState('');
   const [newDomainName, setNewDomainName] = useState('');
   const [newDomainShortName, setNewDomainShortName] = useState('');
   const [newDomainCategory, setNewDomainCategory] = useState<'Other' | 'Faculty / School' | 'Departmental'>('Other');
-  const [newDomainDesc, setNewDomainDesc] = useState('');
   const [newDomainEligSummary, setNewDomainEligSummary] = useState('');
 
   const [subTargetDomain, setSubTargetDomain] = useState<DomainId>('jcrc_hall');
   const [newSubName, setNewSubName] = useState('');
   const [newSubShort, setNewSubShort] = useState('');
-  const [newSubFacultyId, setNewSubFacultyId] = useState('fac-sps');
+  const [newSubFacultyId, setNewSubFacultyId] = useState(faculties[0]?.id || 'fac-sps');
 
+  const [newAdminUid, setNewAdminUid] = useState('');
   const [newAdminStaffId, setNewAdminStaffId] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -135,7 +203,7 @@ export const AdminDashboard: React.FC = () => {
 
   const loadAdminAccounts = async () => {
     if (!isGlobalGovernanceAdmin) return;
-    const res = await electionClient.getAdminAccounts();
+    const res = await adminService.getAdminAccounts();
     if (res.success) {
       setAdminAccounts(res.admins);
     }
@@ -147,13 +215,16 @@ export const AdminDashboard: React.FC = () => {
     }
   }, [activeTab, isGlobalGovernanceAdmin]);
 
+  // Voter Roll & Eligibility State
   const [searchStudent, setSearchStudent] = useState('');
+  const [voterBusyUid, setVoterBusyUid] = useState<string | null>(null);
+
+  // Election & Candidate Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
 
-  // Candidate Management State
   const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<Candidate | null>(null);
   const [selectedCandidateForEdit, setSelectedCandidateForEdit] = useState<Candidate | null>(null);
   const [showCandidateRegisterModal, setShowCandidateRegisterModal] = useState(false);
@@ -161,113 +232,143 @@ export const AdminDashboard: React.FC = () => {
   const [candidateFilterElection, setCandidateFilterElection] = useState<string>('all');
   const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
 
+  // Announcements, Calendar & Complaints State
+  const [annTitle, setAnnTitle] = useState('');
+  const [annMessage, setAnnMessage] = useState('');
+  const [annCategory, setAnnCategory] = useState<'general' | 'election' | 'deadline' | 'results' | 'security'>('election');
+  const [annPinned, setAnnPinned] = useState(false);
+
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifCategory, setNotifCategory] = useState<'election' | 'security' | 'deadline' | 'results'>('election');
+
+  const [calTitle, setCalTitle] = useState('');
+  const [calDate, setCalDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [calCategory, setCalCategory] = useState<'nomination' | 'vetting' | 'campaign' | 'voting' | 'results'>('voting');
+  const [calDesc, setCalDesc] = useState('');
+
+  const [complaintDrafts, setComplaintDrafts] = useState<
+    Record<string, { status: 'pending' | 'in_review' | 'resolved'; response: string }>
+  >({});
+
   const [statusActionMsg, setStatusActionMsg] = useState('');
-
-  // Sample student registry for management
-  const [studentRegistry, setStudentRegistry] = useState([
-    { id: '1', studentId: 'PS/CSC/22/0089', name: 'Kofi Mensah Sarbah', programme: 'B.Sc. Computer Science', level: '300', hall: 'Casely Hayford Hall', isEligible: true, status: 'active' },
-    { id: '2', studentId: 'ED/EPS/21/0034', name: 'Nana Akua Afriyie Osei', programme: 'B.Ed. Psychology', level: '400', hall: 'Adehye Hall', isEligible: true, status: 'active' },
-    { id: '3', studentId: 'PG/CSC/25/0018', name: 'Ama Serwaa Darko (Postgraduate Demo)', programme: 'M.Phil. Computer Science', level: 'Postgraduate', hall: 'Casely Hayford Hall', isEligible: true, status: 'active' },
-    { id: '4', studentId: 'MED/SMS/24/0012', name: 'Kwame Osei Mensah', programme: 'MB ChB Medicine & Surgery', level: '100', hall: 'Off-Campus Private Hostel', isEligible: true, status: 'active' },
-    { id: '5', studentId: 'SB/ACC/21/0112', name: 'Richmond Kwabena Frimpong', programme: 'B.Com. Accounting', level: '400', hall: 'Valco Hall', isEligible: true, status: 'active' },
-    { id: '6', studentId: 'AS/COM/22/0104', name: 'Emmanuel Kofi Annan', programme: 'B.A. Communication', level: '300', hall: 'Valco Hall', isEligible: true, status: 'active' },
-    { id: '7', studentId: 'AS/HIS/22/0055', name: 'Kojo Adomako Danquah', programme: 'B.A. History', level: '300', hall: 'Casely Hayford Hall', isEligible: false, status: 'suspended' }
-  ]);
-
-  const toggleEligibility = async (studentId: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/admin/students/${encodeURIComponent(studentId)}/status`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus, reason: 'Administrative commission action' })
-        }
-      );
-      const data = await res.json();
-      if (data.success) {
-        setStatusActionMsg(`Account ${studentId} marked as ${newStatus.toUpperCase()}.`);
-        setTimeout(() => setStatusActionMsg(''), 3000);
-      }
-    } catch {
-      // ignore transient error
-    }
-
-    setStudentRegistry((prev) =>
-      prev.map((s) =>
-        s.studentId === studentId
-          ? { ...s, isEligible: newStatus === 'active', status: newStatus }
-          : s
-      )
-    );
-  };
-
-  // Scope elections strictly by Admin RBAC + selected Domain Workspace
-  const rbacElections = elections.filter((el) => {
-    if (admin?.managedDomainIds?.length && el.domainId && !admin.managedDomainIds.includes(el.domainId)) {
-      return false;
-    }
-    if (admin?.managedHalls?.length && el.domainId === 'jcrc_hall') {
-      if (!matchesHallScope(el.eligibilityCriteria?.halls, admin.managedHalls)) {
-        return false;
-      }
-    }
-    if (admin?.managedFaculties?.length && (el.domainId === 'faculty_school' || el.domainId === 'departmental')) {
-      const facs = el.eligibilityCriteria?.faculties || [];
-      if (!facs.some((f) => admin.managedFaculties!.some((mf) => f.toLowerCase().includes(mf.toLowerCase())))) {
-        return false;
-      }
-    }
-    if (admin?.managedDepartments?.length && el.domainId === 'departmental') {
-      const depts = el.eligibilityCriteria?.departments || [];
-      if (!depts.some((d) => admin.managedDepartments!.some((md) => d.toLowerCase().includes(md.toLowerCase())))) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const scopedElections =
-    selectedDomainWorkspace === 'all'
-      ? rbacElections
-      : rbacElections.filter((e) => e.domainId === selectedDomainWorkspace);
-
-  const scopedElectionIds = new Set(scopedElections.map((e) => e.id));
-  const scopedCandidates = candidates.filter((c) => scopedElectionIds.has(c.electionId));
-
-  const filteredStudents = studentRegistry.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchStudent.toLowerCase()) ||
-      s.studentId.toLowerCase().includes(searchStudent.toLowerCase()) ||
-      s.hall.toLowerCase().includes(searchStudent.toLowerCase())
-  );
 
   const showSuccessToast = (msg: string) => {
     setStatusActionMsg(msg);
     setTimeout(() => setStatusActionMsg(''), 4000);
   };
 
+  // Merge live Firestore students + voter_eligibility records
+  const mergedStudents = useMemo(() => {
+    const eligMap = new Map(eligibilityRecords.map((r) => [r.uid || r.id, r]));
+    return allStudents.map((s) => {
+      const uid = s.uid || s.id;
+      const elig = eligMap.get(uid);
+      const effectiveStatus = elig?.status || s.eligibilityStatus || (s.isEligible ? 'eligible' : 'pending_verification');
+      const effectiveEligible = elig ? elig.isEligible === true && elig.status === 'eligible' : Boolean(s.isEligible);
+      return {
+        ...s,
+        uid,
+        effectiveStatus,
+        effectiveEligible,
+      };
+    });
+  }, [allStudents, eligibilityRecords]);
+
+  const filteredStudents = useMemo(() => {
+    const q = searchStudent.trim().toLowerCase();
+    if (!q) return mergedStudents;
+    return mergedStudents.filter(
+      (s) =>
+        s.fullName?.toLowerCase().includes(q) ||
+        s.studentId?.toLowerCase().includes(q) ||
+        s.email?.toLowerCase().includes(q) ||
+        s.hall?.toLowerCase().includes(q) ||
+        s.programme?.toLowerCase().includes(q)
+    );
+  }, [mergedStudents, searchStudent]);
+
+  const handleVoterEligibilityAction = async (
+    studentUid: string,
+    studentLabel: string,
+    action: 'approve' | 'suspend' | 'ineligible'
+  ) => {
+    setVoterBusyUid(studentUid);
+    try {
+      const actorName = admin?.fullName || admin?.email || 'Electoral Commission';
+      if (action === 'approve') {
+        await updateStudentEligibilityAndStatus(studentUid, {
+          isEligible: true,
+          eligibilityStatus: 'eligible',
+          status: 'active',
+          reason: 'Verified against UCC electoral roll',
+          verifiedBy: actorName,
+        });
+        await writeAuditLog({
+          adminName: actorName,
+          adminRole: admin?.role || 'Administrator',
+          action: 'Approved UCC Voter Eligibility',
+          target: studentLabel,
+        });
+        showSuccessToast(`${studentLabel} approved for eligible elections.`);
+      } else if (action === 'suspend') {
+        await updateStudentEligibilityAndStatus(studentUid, {
+          isEligible: false,
+          eligibilityStatus: 'suspended',
+          status: 'suspended',
+          reason: 'Account suspended by Electoral Commission',
+          verifiedBy: actorName,
+        });
+        await writeAuditLog({
+          adminName: actorName,
+          adminRole: admin?.role || 'Administrator',
+          action: 'Suspended Voter Account',
+          target: studentLabel,
+          status: 'warning',
+        });
+        showSuccessToast(`${studentLabel} suspended.`);
+      } else {
+        await updateStudentEligibilityAndStatus(studentUid, {
+          isEligible: false,
+          eligibilityStatus: 'ineligible',
+          status: 'active',
+          reason: 'Marked ineligible during electoral roll audit',
+          verifiedBy: actorName,
+        });
+        await writeAuditLog({
+          adminName: actorName,
+          adminRole: admin?.role || 'Administrator',
+          action: 'Marked Voter Ineligible',
+          target: studentLabel,
+        });
+        showSuccessToast(`${studentLabel} marked ineligible.`);
+      }
+    } catch (err: any) {
+      setRbacError(err?.message || 'Unable to update student eligibility.');
+    } finally {
+      setVoterBusyUid(null);
+    }
+  };
+
   const handleCreateDomain = async (e: React.FormEvent) => {
     e.preventDefault();
     setRbacError('');
-    const res = await electionClient.createDomain({
+    const res = await adminService.createDomain({
       name: newDomainName.trim(),
       shortName: newDomainShortName.trim() || undefined,
       category: newDomainCategory,
-      description: newDomainDesc.trim() || `${newDomainName.trim()} student governance domain.`,
+      description: `${newDomainName.trim()} student governance domain.`,
       eligibilityRuleSummary:
-        newDomainEligSummary.trim() || 'Accredited UCC student membership verified against registry.'
+        newDomainEligSummary.trim() || 'Accredited UCC student membership verified against registry.',
     });
     if (res.success) {
       await refreshDomains();
       setNewDomainName('');
       setNewDomainShortName('');
-      setNewDomainDesc('');
       setNewDomainEligSummary('');
       showSuccessToast(`New election domain "${res.domain?.name}" registered.`);
     } else {
-      setRbacError(res.error || 'Failed to create domain.');
+      setRbacError('Failed to create domain.');
     }
   };
 
@@ -281,51 +382,118 @@ export const AdminDashboard: React.FC = () => {
         ? 'faculty'
         : 'department';
     const facObj = faculties.find((f) => f.id === newSubFacultyId);
-    const res = await electionClient.createSubdomain(subTargetDomain, {
+    const res = await adminService.createSubdomain(subTargetDomain, {
       type,
       name: newSubName.trim(),
       shortName: newSubShort.trim() || undefined,
       facultyId: type === 'department' ? newSubFacultyId : undefined,
-      facultyName: type === 'department' ? facObj?.name : undefined
+      facultyName: type === 'department' ? facObj?.name : undefined,
     });
     if (res.success) {
       await refreshDomains();
       setNewSubName('');
       setNewSubShort('');
-      showSuccessToast(`Subdomain "${res.subdomain?.name}" added to ${subTargetDomain}.`);
+      showSuccessToast(`Subdomain "${res.subdomain?.name}" added.`);
     } else {
-      setRbacError(res.error || 'Failed to add subdomain.');
+      setRbacError('Failed to add subdomain.');
     }
   };
 
   const handleCreateScopedAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setRbacError('');
-    const res = await electionClient.createAdminAccount({
+    const res = await adminService.createAdminAccount({
+      uid: newAdminUid.trim() || undefined,
       staffId: newAdminStaffId.trim(),
       fullName: newAdminName.trim(),
       email: newAdminEmail.trim(),
       role: newAdminRole,
       department: newAdminDept.trim() || 'Electoral Administration',
       managedDomainIds: [newAdminDomainId],
-      managedHalls: newAdminDomainId === 'jcrc_hall' && newAdminHallScope ? [newAdminHallScope] : undefined
+      managedHalls: newAdminDomainId === 'jcrc_hall' && newAdminHallScope ? [newAdminHallScope] : undefined,
     });
     if (res.success) {
       await loadAdminAccounts();
+      setNewAdminUid('');
       setNewAdminStaffId('');
       setNewAdminName('');
       setNewAdminEmail('');
       setNewAdminDept('');
       setNewAdminHallScope('');
-      showSuccessToast(`Administrator ${res.admin?.staffId} provisioned.`);
+      showSuccessToast(`Administrator ${res.admin?.staffId || newAdminStaffId} provisioned.`);
     } else {
       setRbacError(res.error || 'Failed to create admin account.');
     }
   };
 
+  const handlePublishAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!annTitle.trim() || !annMessage.trim()) return;
+    await createAnnouncement({
+      title: annTitle,
+      message: annMessage,
+      category: annCategory,
+      domainId: selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace,
+      publishedBy: admin?.fullName || 'Electoral Commission',
+      pinned: annPinned,
+    });
+    setAnnTitle('');
+    setAnnMessage('');
+    setAnnPinned(false);
+    showSuccessToast('Official announcement published to Firestore.');
+  };
+
+  const handlePublishNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifMessage.trim()) return;
+    await createNotification({
+      title: notifTitle,
+      message: notifMessage,
+      category: notifCategory,
+      domainId: selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace,
+    });
+    setNotifTitle('');
+    setNotifMessage('');
+    showSuccessToast('Notification dispatched to authenticated voters.');
+  };
+
+  const handleCreateCalendarEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calTitle.trim() || !calDate) return;
+    await createCalendarEvent({
+      title: calTitle.trim(),
+      electionCategory:
+        selectedDomainWorkspace === 'all' ? 'SRC' : domainIdToCategory(selectedDomainWorkspace),
+      startDate: calDate,
+      endDate: calDate,
+      type: calCategory,
+      location: 'UCC Campus & Online Voting Portal',
+      description: calDesc.trim() || 'Official UCC Electoral Commission milestone.',
+      domainId: selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace,
+    });
+    setCalTitle('');
+    setCalDesc('');
+    showSuccessToast('Milestone added to Election Calendar.');
+  };
+
+  const handleSaveComplaintUpdate = async (complaintId: string) => {
+    const existing = complaints.find((c) => c.id === complaintId);
+    const draft = complaintDrafts[complaintId] || {
+      status: existing?.status || 'in_review',
+      response: existing?.response || '',
+    };
+    await updateComplaintTicket(complaintId, {
+      status: draft.status,
+      response: draft.response,
+      resolvedBy: admin?.fullName || admin?.email || 'Electoral Commission',
+    });
+    showSuccessToast('Complaint ticket updated in Firestore.');
+  };
+
+  const displayedAuditLogs = auditLogs.length > 0 ? auditLogs : manualAuditLogs;
+
   return (
     <div className="space-y-6">
-
       {/* Admin Commission Header */}
       <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-start sm:items-center gap-4">
@@ -357,7 +525,7 @@ export const AdminDashboard: React.FC = () => {
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300">
-              Multi-domain governance for University of Cape Coast student elections, portfolios, vetting, and certified results.
+              Live Firebase governance console for University of Cape Coast elections, voter eligibility verification, vetting, and certified results.
             </p>
           </div>
         </div>
@@ -421,10 +589,11 @@ export const AdminDashboard: React.FC = () => {
           { id: 'candidates', label: 'Candidate Nominations', icon: Users },
           { id: 'voters', label: 'Voter Roll & Eligibility', icon: FileText },
           { id: 'results', label: 'Results Certification', icon: Award },
+          { id: 'communications', label: 'Announcements & Support', icon: Megaphone },
           ...(isGlobalGovernanceAdmin
             ? [{ id: 'domains_rbac', label: 'Domains & RBAC', icon: Building }]
             : []),
-          { id: 'audit', label: 'Security & Audit Trail', icon: Lock }
+          { id: 'audit', label: 'Security & Audit Trail', icon: Lock },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -473,12 +642,14 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Active Polling Portals
+                Registered Students
               </span>
               <span className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-1 block">
-                {scopedElections.filter((e) => e.status === 'live').length} Live
+                {allStudents.length}
               </span>
-              <span className="text-[10px] text-slate-500 mt-0.5 block">Currently accepting ballots</span>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">
+                {mergedStudents.filter((s) => s.effectiveEligible).length} verified eligible
+              </span>
             </div>
 
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
@@ -489,7 +660,7 @@ export const AdminDashboard: React.FC = () => {
                 ENFORCED
               </span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">
-                Identity & ballot stores decoupled
+                Firestore rules &amp; Cloud Function vault
               </span>
             </div>
           </div>
@@ -500,7 +671,7 @@ export const AdminDashboard: React.FC = () => {
                 <h3 className="text-base font-bold text-slate-900">
                   Domain-by-Domain Participation Overview
                 </h3>
-                <span className="text-xs text-slate-500 font-mono">Live domain registry</span>
+                <span className="text-xs text-slate-500 font-mono">Live Firestore counts</span>
               </div>
 
               <div className="space-y-3">
@@ -508,7 +679,10 @@ export const AdminDashboard: React.FC = () => {
                   const domElections = rbacElections.filter((e) => e.domainId === dom.id);
                   const totalCast = domElections.reduce((s, e) => s + (e.totalVotesCast || 0), 0);
                   const totalEligible = domElections.reduce((s, e) => s + (e.totalEligibleVoters || 0), 0);
-                  const pct = totalEligible > 0 ? Math.min(100, Math.round((totalCast / totalEligible) * 1000) / 10) : 0;
+                  const pct =
+                    totalEligible > 0
+                      ? Math.min(100, Math.round((totalCast / totalEligible) * 1000) / 10)
+                      : 0;
 
                   return (
                     <div key={dom.id} className="space-y-1">
@@ -533,9 +707,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-              <h3 className="text-base font-bold text-slate-900">
-                Participating Halls Registry
-              </h3>
+              <h3 className="text-base font-bold text-slate-900">Participating Halls Registry</h3>
               <div className="space-y-2.5 text-xs">
                 {halls.map((h) => {
                   const hallElections = rbacElections.filter(
@@ -544,7 +716,10 @@ export const AdminDashboard: React.FC = () => {
                       (e.hallId === h.id || matchesHallScope(e.eligibilityCriteria?.halls, [h.name]))
                   );
                   return (
-                    <div key={h.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <div
+                      key={h.id}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100"
+                    >
                       <span className="font-medium text-slate-700">{h.name}</span>
                       <span className="font-mono font-bold text-[#123B70] tabular-nums">
                         {hallElections.length} {hallElections.length === 1 ? 'poll' : 'polls'}
@@ -563,9 +738,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Elections Management Table
-              </h3>
+              <h3 className="text-base font-bold text-slate-900">Elections Management Table</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Configure schedules, state transitions, and dynamic portfolios within your authorized domains.
               </p>
@@ -583,8 +756,8 @@ export const AdminDashboard: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Election Code & Title</th>
-                  <th className="py-3 px-4">Domain & Subdomain</th>
+                  <th className="py-3 px-4">Election Code &amp; Title</th>
+                  <th className="py-3 px-4">Domain &amp; Subdomain</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Portfolios</th>
                   <th className="py-3 px-4">Turnout</th>
@@ -595,7 +768,7 @@ export const AdminDashboard: React.FC = () => {
                 {scopedElections.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                      No elections found inside this domain workspace.
+                      No active elections at the moment.
                     </td>
                   </tr>
                 ) : (
@@ -623,7 +796,6 @@ export const AdminDashboard: React.FC = () => {
                         <button
                           onClick={() => setSelectedElectionForPositions(el)}
                           className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                          title="Configure Contested Portfolios"
                         >
                           {el.positionsCount} Portfolios
                         </button>
@@ -661,251 +833,288 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* TAB 3: CANDIDATE NOMINATIONS & VETTING */}
-      {activeTab === 'candidates' && (() => {
-        const filteredCandidates = scopedCandidates.filter((cand) => {
-          const matchesStatus =
-            candidateFilterStatus === 'all' ||
-            cand.applicationStatus.toLowerCase() === candidateFilterStatus.toLowerCase();
+      {activeTab === 'candidates' &&
+        (() => {
+          const filteredCandidates = scopedCandidates.filter((cand) => {
+            const matchesStatus =
+              candidateFilterStatus === 'all' ||
+              cand.applicationStatus.toLowerCase() === candidateFilterStatus.toLowerCase();
 
-          const matchesElection =
-            candidateFilterElection === 'all' || cand.electionId === candidateFilterElection;
+            const matchesElection =
+              candidateFilterElection === 'all' || cand.electionId === candidateFilterElection;
 
-          const matchesSearch =
-            !candidateSearchQuery ||
-            cand.fullName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
-            cand.studentId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
-            cand.department.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
-            cand.positionId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
-            (cand.nickname && cand.nickname.toLowerCase().includes(candidateSearchQuery.toLowerCase()));
+            const matchesSearch =
+              !candidateSearchQuery ||
+              cand.fullName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+              cand.studentId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+              cand.department.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+              cand.positionId.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+              (cand.nickname && cand.nickname.toLowerCase().includes(candidateSearchQuery.toLowerCase()));
 
-          return matchesStatus && matchesElection && matchesSearch;
-        });
+            return matchesStatus && matchesElection && matchesSearch;
+          });
 
-        const pendingCount = scopedCandidates.filter(
-          (c) => c.applicationStatus === 'Submitted' || c.applicationStatus === 'Under review'
-        ).length;
-        const approvedCount = scopedCandidates.filter((c) => c.applicationStatus === 'Approved').length;
-        const rejectedCount = scopedCandidates.filter(
-          (c) => c.applicationStatus === 'Rejected' || c.applicationStatus === 'Withdrawn'
-        ).length;
+          const pendingCount = scopedCandidates.filter(
+            (c) => c.applicationStatus === 'Submitted' || c.applicationStatus === 'Under review'
+          ).length;
+          const approvedCount = scopedCandidates.filter((c) => c.applicationStatus === 'Approved').length;
+          const rejectedCount = scopedCandidates.filter(
+            (c) => c.applicationStatus === 'Rejected' || c.applicationStatus === 'Withdrawn'
+          ).length;
 
-        return (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-[#123B70]" />
-                  <span>Candidate Applications & Vetting Desk</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Review aspirant applications strictly scoped to your authorized election domains.
-                </p>
-              </div>
+          return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-[#123B70]" />
+                    <span>Candidate Applications &amp; Vetting Desk</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Review aspirant nominations and upload portraits stored in Firebase Storage.
+                  </p>
+                </div>
 
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={async () => {
-                    await refreshCandidates();
-                    showSuccessToast('Candidate registry refreshed.');
-                  }}
-                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
-                  title="Refresh Candidate Applications"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => {
-                    setSelectedCandidateForEdit(null);
-                    setShowCandidateRegisterModal(true);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <UserPlus className="w-4 h-4 text-amber-400" />
-                  <span>Register New Candidate</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Applications</span>
-                <span className="text-xl font-bold font-mono text-slate-900 mt-0.5 block">{scopedCandidates.length}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200">
-                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Pending Vetting</span>
-                <span className="text-xl font-bold font-mono text-purple-900 mt-0.5 block">{pendingCount}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Approved on Ballot</span>
-                <span className="text-xl font-bold font-mono text-emerald-900 mt-0.5 block">{approvedCount}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-red-50/70 border border-red-200">
-                <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">Rejected / Withdrawn</span>
-                <span className="text-xl font-bold font-mono text-red-900 mt-0.5 block">{rejectedCount}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-                {[
-                  { id: 'all', label: 'All', count: scopedCandidates.length },
-                  { id: 'submitted', label: 'Submitted', count: scopedCandidates.filter((c) => c.applicationStatus === 'Submitted').length },
-                  { id: 'under review', label: 'Under Review', count: scopedCandidates.filter((c) => c.applicationStatus === 'Under review').length },
-                  { id: 'approved', label: 'Approved', count: approvedCount },
-                  { id: 'rejected', label: 'Rejected', count: scopedCandidates.filter((c) => c.applicationStatus === 'Rejected').length },
-                  { id: 'draft', label: 'Draft', count: scopedCandidates.filter((c) => c.applicationStatus === 'Draft').length },
-                  { id: 'withdrawn', label: 'Withdrawn', count: scopedCandidates.filter((c) => c.applicationStatus === 'Withdrawn').length }
-                ].map((s) => (
+                <div className="flex items-center gap-2.5">
                   <button
-                    key={s.id}
-                    onClick={() => setCandidateFilterStatus(s.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                      candidateFilterStatus === s.id
-                        ? 'bg-[#123B70] text-white font-bold'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                    onClick={async () => {
+                      await refreshCandidates();
+                      showSuccessToast('Candidate registry refreshed.');
+                    }}
+                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+                    title="Refresh Candidate Applications"
                   >
-                    {s.label} ({s.count})
+                    <RefreshCw className="w-4 h-4" />
                   </button>
-                ))}
-              </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  value={candidateFilterElection}
-                  onChange={(e) => setCandidateFilterElection(e.target.value)}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
-                >
-                  <option value="all">All Scoped Elections</option>
-                  {scopedElections.map((el) => (
-                    <option key={el.id} value={el.id}>
-                      {el.title}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="relative w-52">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={candidateSearchQuery}
-                    onChange={(e) => setCandidateSearchQuery(e.target.value)}
-                    placeholder="Search candidate, ID..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
-                  />
+                  <button
+                    onClick={() => {
+                      setSelectedCandidateForEdit(null);
+                      setShowCandidateRegisterModal(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <UserPlus className="w-4 h-4 text-amber-400" />
+                    <span>Register New Candidate</span>
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Candidate & Student ID</th>
-                    <th className="py-3 px-4">Contested Portfolio & Election</th>
-                    <th className="py-3 px-4">Programme & Hall</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">SIS Verification</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredCandidates.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                        No candidate applications found matching the selected filters.
-                      </td>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Total Applications
+                  </span>
+                  <span className="text-xl font-bold font-mono text-slate-900 mt-0.5 block">
+                    {scopedCandidates.length}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200">
+                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
+                    Pending Vetting
+                  </span>
+                  <span className="text-xl font-bold font-mono text-purple-900 mt-0.5 block">
+                    {pendingCount}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                    Approved on Ballot
+                  </span>
+                  <span className="text-xl font-bold font-mono text-emerald-900 mt-0.5 block">
+                    {approvedCount}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-red-50/70 border border-red-200">
+                  <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">
+                    Rejected / Withdrawn
+                  </span>
+                  <span className="text-xl font-bold font-mono text-red-900 mt-0.5 block">
+                    {rejectedCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                  {[
+                    { id: 'all', label: 'All', count: scopedCandidates.length },
+                    {
+                      id: 'submitted',
+                      label: 'Submitted',
+                      count: scopedCandidates.filter((c) => c.applicationStatus === 'Submitted').length,
+                    },
+                    {
+                      id: 'under review',
+                      label: 'Under Review',
+                      count: scopedCandidates.filter((c) => c.applicationStatus === 'Under review').length,
+                    },
+                    { id: 'approved', label: 'Approved', count: approvedCount },
+                    {
+                      id: 'rejected',
+                      label: 'Rejected',
+                      count: scopedCandidates.filter((c) => c.applicationStatus === 'Rejected').length,
+                    },
+                    {
+                      id: 'draft',
+                      label: 'Draft',
+                      count: scopedCandidates.filter((c) => c.applicationStatus === 'Draft').length,
+                    },
+                    {
+                      id: 'withdrawn',
+                      label: 'Withdrawn',
+                      count: scopedCandidates.filter((c) => c.applicationStatus === 'Withdrawn').length,
+                    },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setCandidateFilterStatus(s.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                        candidateFilterStatus === s.id
+                          ? 'bg-[#123B70] text-white font-bold'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {s.label} ({s.count})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={candidateFilterElection}
+                    onChange={(e) => setCandidateFilterElection(e.target.value)}
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
+                  >
+                    <option value="all">All Scoped Elections</option>
+                    {scopedElections.map((el) => (
+                      <option key={el.id} value={el.id}>
+                        {el.title}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="relative w-52">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={candidateSearchQuery}
+                      onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                      placeholder="Search candidate, ID..."
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Candidate &amp; Student ID</th>
+                      <th className="py-3 px-4">Contested Portfolio &amp; Election</th>
+                      <th className="py-3 px-4">Programme &amp; Hall</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Verification</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ) : (
-                    filteredCandidates.map((cand) => {
-                      const el = elections.find((e) => e.id === cand.electionId);
-                      const elPositions = positionsByElection[cand.electionId] || [];
-                      const pos = elPositions.find((p) => p.id === cand.positionId);
-                      const posTitle = pos ? pos.title : cand.positionId;
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredCandidates.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                          No candidates have been added yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCandidates.map((cand) => {
+                        const el = elections.find((e) => e.id === cand.electionId);
+                        const elPositions = positionsByElection[cand.electionId] || [];
+                        const pos = elPositions.find((p) => p.id === cand.positionId);
+                        const posTitle = pos ? pos.title : cand.positionId;
 
-                      return (
-                        <tr key={cand.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={cand.photoUrl}
-                                alt={cand.fullName}
-                                className="w-11 h-11 rounded-xl object-cover object-top border border-slate-200 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <div className="font-bold text-slate-900 truncate">{cand.fullName}</div>
-                                <div className="font-mono text-[10px] text-slate-500">{cand.studentId}</div>
+                        return (
+                          <tr key={cand.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <CandidateAvatar
+                                  src={cand.photoUrl}
+                                  alt={cand.fullName}
+                                  className="w-11 h-11 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 truncate">{cand.fullName}</div>
+                                  <div className="font-mono text-[10px] text-slate-500">{cand.studentId}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-900 text-xs">{posTitle}</div>
-                            <div className="text-[11px] text-[#123B70] truncate max-w-[200px]">
-                              {el?.title || cand.electionId}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-slate-700">
-                            <div className="truncate max-w-[180px] font-medium">
-                              {cand.programme || cand.department}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              Level {cand.level} · {cand.hall || 'Off Campus'}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-bold text-[11px]">
-                            <span
-                              className={
-                                cand.applicationStatus === 'Approved'
-                                  ? 'text-emerald-700'
-                                  : cand.applicationStatus === 'Rejected'
-                                  ? 'text-red-700'
-                                  : 'text-slate-700'
-                              }
-                            >
-                              {cand.applicationStatus}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            {cand.eligibilityVerified ? (
-                              <span className="text-emerald-700 font-bold text-[11px] inline-flex items-center gap-1">
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                Verified
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-slate-900 text-xs">{posTitle}</div>
+                              <div className="text-[11px] text-[#123B70] truncate max-w-[200px]">
+                                {el?.title || cand.electionId}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-slate-700">
+                              <div className="truncate max-w-[180px] font-medium">
+                                {cand.programme || cand.department}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Level {cand.level} · {cand.hall || 'Off Campus'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-[11px]">
+                              <span
+                                className={
+                                  cand.applicationStatus === 'Approved'
+                                    ? 'text-emerald-700'
+                                    : cand.applicationStatus === 'Rejected'
+                                    ? 'text-red-700'
+                                    : 'text-slate-700'
+                                }
+                              >
+                                {cand.applicationStatus}
                               </span>
-                            ) : (
-                              <span className="text-amber-600 font-semibold text-[11px] inline-flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                Pending
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                            <button
-                              onClick={() => setSelectedCandidateForReview(cand)}
-                              className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] cursor-pointer"
-                            >
-                              Review & Vet
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedCandidateForEdit(cand);
-                                setShowCandidateRegisterModal(true);
-                              }}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                            </td>
+                            <td className="py-3 px-4">
+                              {cand.eligibilityVerified ? (
+                                <span className="text-emerald-700 font-bold text-[11px] inline-flex items-center gap-1">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="text-amber-600 font-semibold text-[11px] inline-flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  Pending
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                onClick={() => setSelectedCandidateForReview(cand)}
+                                className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] cursor-pointer"
+                              >
+                                Review &amp; Vet
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedCandidateForEdit(cand);
+                                  setShowCandidateRegisterModal(true);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* TAB 4: VOTER ROLL & ELIGIBILITY */}
       {activeTab === 'voters' && (
@@ -913,10 +1122,10 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Demonstration Student Voter Roll
+                Registered Voters &amp; UCC Eligibility Verification
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Inspect student registry affiliations (Undergraduate, Postgraduate, Hall) and toggle clearance.
+                Email verification only proves inbox control; use this panel to approve or restrict official UCC voting eligibility.
               </p>
             </div>
 
@@ -926,7 +1135,7 @@ export const AdminDashboard: React.FC = () => {
                 type="text"
                 value={searchStudent}
                 onChange={(e) => setSearchStudent(e.target.value)}
-                placeholder="Search student ID, name..."
+                placeholder="Search student ID, name, email..."
                 className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
               />
             </div>
@@ -936,48 +1145,379 @@ export const AdminDashboard: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-3">Student Name</th>
+                  <th className="py-3 px-3">Student Name &amp; Email</th>
                   <th className="py-3 px-3">UCC Student ID</th>
-                  <th className="py-3 px-3">Programme & Level</th>
-                  <th className="py-3 px-3">Hall of Residence</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3 text-right">Action</th>
+                  <th className="py-3 px-3">Programme &amp; Hall</th>
+                  <th className="py-3 px-3">Email Auth</th>
+                  <th className="py-3 px-3">Voter Eligibility</th>
+                  <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 font-bold text-slate-900">{s.name}</td>
-                    <td className="py-3 px-3 font-mono text-slate-600">{s.studentId}</td>
-                    <td className="py-3 px-3 text-slate-700">{s.programme} · {s.level}</td>
-                    <td className="py-3 px-3 text-slate-700">{s.hall}</td>
-                    <td className="py-3 px-3 font-bold text-[11px]">
-                      <span className={s.isEligible ? 'text-emerald-700' : 'text-red-700'}>
-                        {s.isEligible ? 'Eligible' : 'Suspended'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => toggleEligibility(s.studentId, s.status || 'active')}
-                        className={`text-xs font-bold cursor-pointer ${
-                          s.isEligible ? 'text-red-600 hover:underline' : 'text-emerald-700 hover:underline'
-                        }`}
-                      >
-                        {s.isEligible ? 'Suspend' : 'Reinstate'}
-                      </button>
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-slate-500 text-xs">
+                      No registered student profiles found in Firestore.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredStudents.map((s) => (
+                    <tr key={s.uid} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900">{s.fullName}</div>
+                        <div className="text-[11px] text-slate-500">{s.email}</div>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-700">{s.studentId}</td>
+                      <td className="py-3 px-3 text-slate-700">
+                        <div>{s.programme} · Level {s.level}</div>
+                        <div className="text-[11px] text-slate-500">{s.hall}</div>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-[11px]">
+                        {s.emailVerified ? (
+                          <span className="text-emerald-700">Verified</span>
+                        ) : (
+                          <span className="text-amber-700">Unverified</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-bold text-[11px] uppercase">
+                        <span
+                          className={
+                            s.effectiveStatus === 'eligible'
+                              ? 'text-emerald-700'
+                              : s.effectiveStatus === 'suspended' || s.effectiveStatus === 'ineligible'
+                              ? 'text-red-700'
+                              : 'text-amber-700'
+                          }
+                        >
+                          {s.effectiveStatus.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right space-x-2 whitespace-nowrap">
+                        {s.effectiveStatus !== 'eligible' && (
+                          <button
+                            disabled={voterBusyUid === s.uid}
+                            onClick={() =>
+                              handleVoterEligibilityAction(s.uid, `${s.fullName} (${s.studentId})`, 'approve')
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Approve Eligibility
+                          </button>
+                        )}
+                        {s.status !== 'suspended' && (
+                          <button
+                            disabled={voterBusyUid === s.uid}
+                            onClick={() =>
+                              handleVoterEligibilityAction(s.uid, `${s.fullName} (${s.studentId})`, 'suspend')
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                        {s.effectiveStatus !== 'ineligible' && (
+                          <button
+                            disabled={voterBusyUid === s.uid}
+                            onClick={() =>
+                              handleVoterEligibilityAction(s.uid, `${s.fullName} (${s.studentId})`, 'ineligible')
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Mark Ineligible
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 5: RESULTS CERTIFICATION (Full Authoritative Panel) */}
+      {/* TAB 5: RESULTS CERTIFICATION */}
       {activeTab === 'results' && <AdminResultsPanel />}
 
-      {/* TAB 6: DOMAINS, SUBDOMAINS & RBAC GOVERNANCE (Super Admin / EC) */}
+      {/* TAB 6: ANNOUNCEMENTS, CALENDAR & COMPLAINTS */}
+      {activeTab === 'communications' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Publish Announcement */}
+            <form
+              onSubmit={handlePublishAnnouncement}
+              className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 text-xs"
+            >
+              <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                <Megaphone className="w-4 h-4 text-[#123B70]" />
+                <span>Publish Official Announcement</span>
+              </div>
+              <input
+                type="text"
+                required
+                value={annTitle}
+                onChange={(e) => setAnnTitle(e.target.value)}
+                placeholder="Announcement headline"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <select
+                value={annCategory}
+                onChange={(e) => setAnnCategory(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="election">Election Notice</option>
+                <option value="deadline">Deadline Reminder</option>
+                <option value="results">Results Bulletin</option>
+                <option value="security">Security Notice</option>
+                <option value="general">General Notice</option>
+              </select>
+              <textarea
+                rows={3}
+                required
+                value={annMessage}
+                onChange={(e) => setAnnMessage(e.target.value)}
+                placeholder="Announcement message for voters..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <label className="flex items-center gap-2 text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={annPinned}
+                  onChange={(e) => setAnnPinned(e.target.checked)}
+                />
+                <span>Pin announcement</span>
+              </label>
+              <button
+                type="submit"
+                className="w-full py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Publish Announcement</span>
+              </button>
+            </form>
+
+            {/* Broadcast Notification */}
+            <form
+              onSubmit={handlePublishNotification}
+              className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 text-xs"
+            >
+              <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                <Send className="w-4 h-4 text-[#123B70]" />
+                <span>Dispatch Voter Notification</span>
+              </div>
+              <input
+                type="text"
+                required
+                value={notifTitle}
+                onChange={(e) => setNotifTitle(e.target.value)}
+                placeholder="Notification title"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <select
+                value={notifCategory}
+                onChange={(e) => setNotifCategory(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="election">Election Alert</option>
+                <option value="deadline">Polling Deadline</option>
+                <option value="results">Results Update</option>
+                <option value="security">Security Alert</option>
+              </select>
+              <textarea
+                rows={4}
+                required
+                value={notifMessage}
+                onChange={(e) => setNotifMessage(e.target.value)}
+                placeholder="Notification content delivered to voter inboxes..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <button
+                type="submit"
+                className="w-full py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Notification</span>
+              </button>
+            </form>
+
+            {/* Add Calendar Milestone */}
+            <form
+              onSubmit={handleCreateCalendarEvent}
+              className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 text-xs"
+            >
+              <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                <Calendar className="w-4 h-4 text-[#123B70]" />
+                <span>Add Election Calendar Event</span>
+              </div>
+              <input
+                type="text"
+                required
+                value={calTitle}
+                onChange={(e) => setCalTitle(e.target.value)}
+                placeholder="Milestone title (e.g. Nominations Close)"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  required
+                  value={calDate}
+                  onChange={(e) => setCalDate(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-300"
+                />
+                <select
+                  value={calCategory}
+                  onChange={(e) => setCalCategory(e.target.value as any)}
+                  className="px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                >
+                  <option value="nomination">Nomination</option>
+                  <option value="vetting">Vetting</option>
+                  <option value="campaign">Campaign</option>
+                  <option value="voting">Voting Day</option>
+                  <option value="results">Results</option>
+                </select>
+              </div>
+              <textarea
+                rows={3}
+                value={calDesc}
+                onChange={(e) => setCalDesc(e.target.value)}
+                placeholder="Milestone summary and instructions..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+              />
+              <button
+                type="submit"
+                className="w-full py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Save Calendar Milestone</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Active Announcements */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <h3 className="text-base font-bold text-slate-900">
+              Published Announcements ({announcements.length}) &amp; Calendar Milestones ({calendarEvents.length})
+            </h3>
+            {announcements.length === 0 ? (
+              <p className="text-xs text-slate-500">No announcements available.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {announcements.map((a) => (
+                  <div
+                    key={a.id}
+                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="font-bold text-slate-900">{a.title}</div>
+                      <p className="text-slate-600">{a.message}</p>
+                      <div className="text-[10px] text-slate-400">
+                        {a.category} · {a.publishedBy}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteAnnouncement(a.id)}
+                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
+                      title="Delete announcement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Student Complaints Desk */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <MessageSquareWarning className="w-5 h-5 text-[#123B70]" />
+              <h3 className="text-base font-bold text-slate-900">
+                Electoral Petitions &amp; Student Support Tickets ({complaints.length})
+              </h3>
+            </div>
+
+            {complaints.length === 0 ? (
+              <p className="text-xs text-slate-500">No complaints or petitions submitted yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {complaints.map((ticket) => {
+                  const draft = complaintDrafts[ticket.id] || {
+                    status: ticket.status,
+                    response: ticket.response || '',
+                  };
+                  return (
+                    <div
+                      key={ticket.id}
+                      className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono font-bold text-[#123B70] mr-2">
+                            {ticket.ticketNumber}
+                          </span>
+                          <span className="font-bold text-slate-900">{ticket.subject}</span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          {ticket.studentName} ({ticket.studentId})
+                        </span>
+                      </div>
+                      <p className="text-slate-700">{ticket.description}</p>
+                      {ticket.attachmentUrl && (
+                        <a
+                          href={ticket.attachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[#123B70] font-semibold hover:underline"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>View Evidence Attachment</span>
+                        </a>
+                      )}
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <select
+                          value={draft.status}
+                          onChange={(e) =>
+                            setComplaintDrafts((prev) => ({
+                              ...prev,
+                              [ticket.id]: { ...draft, status: e.target.value as any },
+                            }))
+                          }
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_review">In Review</option>
+                          <option value="resolved">Resolved</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={draft.response}
+                          onChange={(e) =>
+                            setComplaintDrafts((prev) => ({
+                              ...prev,
+                              [ticket.id]: { ...draft, response: e.target.value },
+                            }))
+                          }
+                          placeholder="Write official commission resolution..."
+                          className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                        />
+                        <button
+                          onClick={() => handleSaveComplaintUpdate(ticket.id)}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold cursor-pointer"
+                        >
+                          Save Update
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: DOMAINS, SUBDOMAINS & RBAC GOVERNANCE (Super Admin / EC) */}
       {activeTab === 'domains_rbac' && isGlobalGovernanceAdmin && (
         <div className="space-y-6">
           {rbacError && (
@@ -986,13 +1526,12 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Create New Domain & Subdomain */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <form onSubmit={handleCreateDomain} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 text-xs">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Create New Election Domain</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Register an independent student governance domain (e.g. Sports Council, Judicial Board, Alumni Chapter).
+                  Register an independent student governance domain in Cloud Firestore.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1119,20 +1658,30 @@ export const AdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 text-xs">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Domain Administrators & RBAC Scope Assignment
+                Domain Administrators &amp; RBAC Scope Assignment
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Assign domain-specific or hall-specific administrative authority. Cross-domain modifications are enforced by backend RBAC (`403 DOMAIN_RBAC_DENIED`).
+                Assign domain-specific or hall-specific Firebase custom claims via the `setAdminRole` Cloud Function.
               </p>
             </div>
 
-            <form onSubmit={handleCreateScopedAdmin} className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <form
+              onSubmit={handleCreateScopedAdmin}
+              className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3"
+            >
+              <input
+                type="text"
+                value={newAdminUid}
+                onChange={(e) => setNewAdminUid(e.target.value)}
+                placeholder="Firebase Auth UID (optional if email registered)"
+                className="px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono"
+              />
               <input
                 type="text"
                 required
                 value={newAdminStaffId}
                 onChange={(e) => setNewAdminStaffId(e.target.value)}
-                placeholder="Staff ID (e.g. UCC/DOM/OGU/01)"
+                placeholder="Staff ID (e.g. UCC/EC/014)"
                 className="px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono"
               />
               <input
@@ -1178,7 +1727,7 @@ export const AdminDashboard: React.FC = () => {
                 <select
                   value={newAdminHallScope}
                   onChange={(e) => setNewAdminHallScope(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  className="px-3 py-2 rounded-lg border border-slate-300 bg-white sm:col-span-2"
                 >
                   <option value="">All Halls</option>
                   {halls.map((h) => (
@@ -1193,14 +1742,14 @@ export const AdminDashboard: React.FC = () => {
                   value={newAdminDept}
                   onChange={(e) => setNewAdminDept(e.target.value)}
                   placeholder="Unit / Board Label"
-                  className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  className="px-3 py-2 rounded-lg border border-slate-300 bg-white sm:col-span-2"
                 />
               )}
               <button
                 type="submit"
-                className="sm:col-span-3 px-4 py-2 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold cursor-pointer justify-self-start"
+                className="px-4 py-2 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold cursor-pointer justify-self-start"
               >
-                Provision Scoped Administrator (Demo Passkey: Admin@UCC2026)
+                Provision Scoped Administrator
               </button>
             </form>
 
@@ -1209,31 +1758,41 @@ export const AdminDashboard: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
                     <th className="py-2.5 px-3">Staff ID</th>
-                    <th className="py-2.5 px-3">Name & Unit</th>
+                    <th className="py-2.5 px-3">Name &amp; Unit</th>
                     <th className="py-2.5 px-3">Role</th>
-                    <th className="py-2.5 px-3">Domain & Subdomain Scope</th>
+                    <th className="py-2.5 px-3">Domain &amp; Subdomain Scope</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {adminAccounts.map((acc) => (
-                    <tr key={acc.staffId}>
-                      <td className="py-2.5 px-3 font-mono text-slate-700">{acc.staffId}</td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-900">{acc.fullName}</div>
-                        <div className="text-[11px] text-slate-500">{acc.department}</div>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-[#123B70]">{acc.role}</td>
-                      <td className="py-2.5 px-3 text-slate-600">
-                        <div>Domains: {(acc.managedDomainIds || ['All']).join(', ')}</div>
-                        {acc.managedHalls?.length ? (
-                          <div className="text-[11px] text-slate-500">Hall: {acc.managedHalls.join(', ')}</div>
-                        ) : null}
-                        {acc.managedDepartments?.length ? (
-                          <div className="text-[11px] text-slate-500">Dept: {acc.managedDepartments.join(', ')}</div>
-                        ) : null}
+                  {adminAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-slate-500">
+                        No administrator records loaded.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    adminAccounts.map((acc) => (
+                      <tr key={acc.id || acc.staffId}>
+                        <td className="py-2.5 px-3 font-mono text-slate-700">{acc.staffId}</td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-bold text-slate-900">{acc.fullName}</div>
+                          <div className="text-[11px] text-slate-500">{acc.department}</div>
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-[#123B70]">{acc.role}</td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          <div>Domains: {(acc.managedDomainIds || ['All']).join(', ')}</div>
+                          {acc.managedHalls?.length ? (
+                            <div className="text-[11px] text-slate-500">Hall: {acc.managedHalls.join(', ')}</div>
+                          ) : null}
+                          {acc.managedDepartments?.length ? (
+                            <div className="text-[11px] text-slate-500">
+                              Dept: {acc.managedDepartments.join(', ')}
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1241,7 +1800,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 7: SECURITY & AUDIT TRAIL */}
+      {/* TAB 8: SECURITY & AUDIT TRAIL */}
       {activeTab === 'audit' && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
@@ -1249,7 +1808,7 @@ export const AdminDashboard: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Lock className="w-4 h-4 text-[#123B70]" />
-                  <span>Ballot Secrecy & Vault Separation Audit</span>
+                  <span>Ballot Secrecy &amp; Vault Separation Audit</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Verify that administrators cannot inspect any individual student&apos;s candidate choices.
@@ -1257,9 +1816,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
               {vaultAuditSummary && (
                 <span className="text-xs font-mono font-bold text-emerald-700">
-                  {vaultAuditSummary.vaultCountBalanced
-                    ? `Vaults Balanced (${vaultAuditSummary.sessionParticipationRecords} participation = ${vaultAuditSummary.sessionAnonymousBallots} anonymous)`
-                    : 'Vault Audit Check'}
+                  {vaultAuditSummary.secrecyGuarantee}
                 </span>
               )}
             </div>
@@ -1269,15 +1826,15 @@ export const AdminDashboard: React.FC = () => {
                 type="text"
                 value={inspectStudentId}
                 onChange={(e) => setInspectStudentId(e.target.value)}
-                placeholder="Student ID (e.g. PS/CSC/22/0089)"
+                placeholder="Enter Student ID to verify secrecy guard"
                 className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:border-[#123B70]"
               />
               <button
                 onClick={async () => {
-                  const res = await electionClient.attemptAdminBallotInspect(inspectStudentId);
+                  const res = await adminService.attemptAdminBallotInspect(inspectStudentId.trim() || 'UNSPECIFIED');
                   setSecrecyTestResult({
                     code: res.code || 'BLOCKED',
-                    message: res.error || 'Access denied by ballot secrecy guard.'
+                    message: res.error || 'Access denied by ballot secrecy guard.',
                   });
                   await fetchAuditLogs();
                 }}
@@ -1290,7 +1847,7 @@ export const AdminDashboard: React.FC = () => {
             {secrecyTestResult && (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-1">
                 <div className="font-mono font-bold text-[11px] text-[#C62828]">
-                  SERVER ENFORCEMENT: 403 {secrecyTestResult.code}
+                  ZERO-TRUST GUARD: {secrecyTestResult.code}
                 </div>
                 <p>{secrecyTestResult.message}</p>
               </div>
@@ -1301,10 +1858,10 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Live Electoral Audit Trail & Security Events
+                  Live Electoral Audit Trail &amp; Security Events
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Server-recorded administrative actions, anonymized voting events, and RBAC blocks.
+                  Real-time Firestore audit log entries for administrative actions and security checks.
                 </p>
               </div>
               <button
@@ -1317,55 +1874,49 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              {(liveAuditLogs.length > 0
-                ? liveAuditLogs.map((l) => ({
-                    id: l.id,
-                    timestamp: l.timestamp,
-                    action: l.eventType,
-                    target: l.details,
-                    adminName: l.identifier,
-                    adminRole: l.role || 'System',
-                    ipAddress: l.ipAddress,
-                    status: l.status === 'FLAGGED' ? 'flagged' : l.status === 'WARNING' ? 'warning' : 'success'
-                  }))
-                : MOCK_AUDIT_LOGS
-              ).map((log) => (
-                <div
-                  key={log.id}
-                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
-                    log.status === 'flagged'
-                      ? 'bg-red-50/60 border-red-300'
-                      : log.status === 'warning'
-                      ? 'bg-amber-50/60 border-amber-300'
-                      : 'bg-slate-50/80 border-slate-200'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[10px] font-bold uppercase ${
-                          log.status === 'flagged'
-                            ? 'text-red-800'
-                            : log.status === 'warning'
-                            ? 'text-amber-800'
-                            : 'text-emerald-800'
-                        }`}
-                      >
-                        {log.action}
-                      </span>
-                      <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
+              {displayedAuditLogs.length === 0 ? (
+                <p className="font-sans text-xs text-slate-500 text-center py-6">
+                  No audit log entries recorded yet.
+                </p>
+              ) : (
+                displayedAuditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
+                      log.status === 'flagged'
+                        ? 'bg-red-50/60 border-red-300'
+                        : log.status === 'warning'
+                        ? 'bg-amber-50/60 border-amber-300'
+                        : 'bg-slate-50/80 border-slate-200'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[10px] font-bold uppercase ${
+                            log.status === 'flagged'
+                              ? 'text-red-800'
+                              : log.status === 'warning'
+                              ? 'text-amber-800'
+                              : 'text-emerald-800'
+                          }`}
+                        >
+                          {log.action}
+                        </span>
+                        <span className="text-slate-400 text-[10px]">{log.timestamp}</span>
+                      </div>
+                      <p className="font-sans text-xs font-bold text-slate-900 mt-1">{log.target}</p>
+                      <p className="text-slate-500 text-[11px]">
+                        Actor: {log.adminName} ({log.adminRole})
+                      </p>
                     </div>
-                    <p className="font-sans text-xs font-bold text-slate-900 mt-1">{log.target}</p>
-                    <p className="text-slate-500 text-[11px]">
-                      Actor: {log.adminName} ({log.adminRole})
-                    </p>
-                  </div>
 
-                  <div className="text-slate-400 text-[10px] text-right font-mono shrink-0">
-                    IP: {log.ipAddress}
+                    <div className="text-slate-400 text-[10px] text-right font-mono shrink-0">
+                      Source: {log.ipAddress || 'firebase-client'}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1440,7 +1991,6 @@ export const AdminDashboard: React.FC = () => {
           <span>{statusActionMsg}</span>
         </div>
       )}
-
     </div>
   );
 };

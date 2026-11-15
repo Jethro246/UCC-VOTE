@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { CandidateAvatar } from '../common/CandidateAvatar';
 import { 
   LayoutDashboard, 
   Vote, 
@@ -52,13 +53,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
           <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700">
             <div className="min-w-0 space-y-0.5">
               <p className="text-xs font-semibold text-white truncate">
-                {admin?.fullName || 'Dr. J. Tetteh'}
+                {admin?.fullName || 'Electoral Administrator'}
               </p>
               <p className="text-[11px] text-amber-400 font-medium truncate">
-                {admin?.role || 'Electoral Commissioner'}
+                {admin?.role || 'Administrator'}
               </p>
               <p className="text-[10px] text-slate-400 font-mono pt-0.5 truncate">
-                {admin?.staffId || 'UCC/EC/ST/2019/04'}
+                {admin?.staffId || admin?.email || 'Authenticated Staff'}
               </p>
             </div>
             {admin?.managedDomainIds && admin.managedDomainIds.length > 0 && (
@@ -122,10 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
         {/* Footer actions */}
         <div className="p-4 border-t border-slate-800 space-y-2">
           <button
-            onClick={() => navigateTo('student_dashboard')}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+            onClick={() => navigateTo('elections_directory')}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
           >
-            <span>Switch to Student View</span>
+            <span>View Public Portal</span>
           </button>
           <button
             onClick={logout}
@@ -158,20 +159,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin = false }) => {
         {/* Student Profile Quick Capsule */}
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
           <div className="flex items-center gap-3">
-            <img
-              src={student?.avatarUrl || '/src/assets/images/candidate_male_1794352938747.jpg'}
+            <CandidateAvatar
+              src={student?.avatarUrl}
               alt={student?.fullName || 'Student'}
-              className="w-10 h-10 rounded-full object-cover border border-slate-300 shrink-0"
+              className="w-10 h-10 rounded-full object-cover border border-slate-300 shrink-0 text-xs"
             />
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-900 truncate">
-                {student?.fullName || 'Kofi Mensah Sarbah'}
+                {student?.fullName || 'Authenticated Student'}
               </p>
               <p className="text-[11px] text-[#123B70] font-medium truncate">
-                {student?.programme || 'B.Sc. Computer Science'}
+                {student?.programme || 'UCC Student'}
               </p>
               <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                {student?.studentId || 'PS/CSC/22/0089'}
+                {student?.studentId || 'Pending Activation'}
               </p>
             </div>
           </div>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { authClient } from '../../services/authClient';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { 
   Vote, 
   CheckCircle2, 
@@ -60,56 +60,21 @@ export const StudentDashboard: React.FC = () => {
     elections,
     domains,
     positionsByElection,
+    notifications,
+    announcements,
+    isLoadingData,
     navigateTo, 
-    notifications, 
-    loginWithUserPayload, 
     logout,
+    withdrawCandidateAction,
     myCandidateApplication,
-    withdrawCandidateAction
   } = useApp();
 
   const [activeSectionTab, setActiveSectionTab] = useState<'available' | 'active' | 'upcoming' | 'completed'>('available');
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showCandidateAppModal, setShowCandidateAppModal] = useState(false);
 
-  // Fetch live dashboard data from backend API once session check completes
-  const fetchDashboard = async () => {
-    if (!sessionChecked) return;
-    if (userRole !== 'student' || !student) {
-      setDashboardData(null);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await authClient.getStudentDashboard();
-      if (res.success && res.data) {
-        setDashboardData(res.data);
-      } else {
-        setDashboardData(null);
-        if (res.code === 'NETWORK_ERROR' || res.code === 'SERVER_ERROR') {
-          setErrorMsg(res.error || 'Temporary issue refreshing live dashboard metrics.');
-        } else if (res.error && res.code !== 'AUTH_REQUIRED' && res.code !== 'SESSION_EXPIRED') {
-          setErrorMsg(res.error);
-        }
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to load dashboard from backend.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboard();
-  }, [sessionChecked, userRole, student?.id]);
-
-  if (!sessionChecked || (userRole === 'student' && student && isLoading && !dashboardData)) {
+  if (!sessionChecked || (userRole === 'student' && student && isLoadingData)) {
     return (
       <BrandedLoadingScreen
         title="Verifying your secure voting session..."
@@ -157,15 +122,21 @@ export const StudentDashboard: React.FC = () => {
     );
   }
 
-  const currentStudent = dashboardData?.student
-    ? { ...student, ...dashboardData.student }
-    : student;
-
+  const currentStudent = student;
   const isSuspended = currentStudent.status === 'suspended';
+  const isRollVerified = currentStudent.isEligible === true && currentStudent.eligibilityStatus === 'eligible';
 
-  // Helper to compute student eligibility for an election locally if backend data unavailable
+  // Compute student eligibility strictly using voter roll verification + election criteria
   const computeEligibility = (el: Election): { isEligible: boolean; reason: string } => {
     if (isSuspended) return { isEligible: false, reason: 'Account administratively suspended.' };
+    if (!isRollVerified) {
+      return {
+        isEligible: false,
+        reason:
+          currentStudent.eligibilityNotes ||
+          'Pending UCC Electoral Commission voter roll confirmation.',
+      };
+    }
     if (el.domainId === 'grasag' || el.category === 'GRASAG') {
       if (currentStudent.level !== 'Postgraduate') {
         return { isEligible: false, reason: 'Restricted exclusively to Postgraduate students' };
@@ -173,7 +144,7 @@ export const StudentDashboard: React.FC = () => {
       return { isEligible: true, reason: 'Verified Postgraduate voter (GRASAG)' };
     }
     const crit = el.eligibilityCriteria;
-    if (!crit) return { isEligible: true, reason: 'Open to all university students' };
+    if (!crit) return { isEligible: true, reason: 'Verified eligible UCC voter' };
 
     if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(currentStudent.level)) {
       return { isEligible: false, reason: `Requires Level ${crit.levels.join(', ')} (Your level: ${currentStudent.level})` };
@@ -193,30 +164,7 @@ export const StudentDashboard: React.FC = () => {
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  // Prefer authoritative backend processed election rows when available
-  const backendAllElections: any[] | null = dashboardData?.sections
-    ? Array.from(
-        new Map(
-          [
-            ...(dashboardData.sections.availableToMe || []),
-            ...(dashboardData.sections.active || []),
-            ...(dashboardData.sections.upcoming || []),
-            ...(dashboardData.sections.completed || [])
-          ].map((e: any) => [e.id, e])
-        ).values()
-      )
-    : null;
-
-  const allElectionsWithEligibility = (backendAllElections || elections).map((el: any) => {
-    if (el.studentEligibility) {
-      return {
-        ...el,
-        isEligible: el.studentEligibility.isEligible,
-        eligibilityReason: el.studentEligibility.reason,
-        hasVoted: el.studentEligibility.hasVoted,
-        canVoteNow: el.studentEligibility.canVoteNow
-      };
-    }
+  const allElectionsWithEligibility = elections.map((el: any) => {
     const { isEligible, reason } = computeEligibility(el);
     const hasVoted = currentStudent.hasVotedElections?.includes(el.id);
     const canVoteNow = isEligible && el.status === 'live' && !hasVoted && !isSuspended;
@@ -241,106 +189,31 @@ export const StudentDashboard: React.FC = () => {
   const pendingVotesCount = availableElections.filter(e => e.status === 'live' && !e.hasVoted).length;
   const closedEligibleCount = availableElections.filter(e => e.status === 'results_published' || e.status === 'closed').length;
 
-  const unreadAlerts = notifications.slice(0, 4);
-
-  // Testing Persona Switchers (all execute real backend PBKDF2 authentication)
-  const switchTestPersona = async (
-    personaType: 'kofi' | 'nana' | 'postgraduate' | 'suspended' | 'medical_freshman'
-  ) => {
-    setIsLoading(true);
-    setErrorMsg('');
-    let idToLogin = 'PS/CSC/22/0089';
-    if (personaType === 'nana') idToLogin = 'ED/EPS/21/0034';
-    if (personaType === 'postgraduate') idToLogin = 'PG/CSC/25/0018';
-    if (personaType === 'suspended') idToLogin = 'AS/HIS/22/0055';
-    if (personaType === 'medical_freshman') idToLogin = 'MED/SMS/24/0012';
-
-    try {
-      const res = await authClient.login(idToLogin, 'Vote@UCC2026', true);
-      if (res.success && res.user) {
-        loginWithUserPayload(res.user, 'student');
-      } else {
-        setErrorMsg(res.error || `Unable to switch persona to ${idToLogin}.`);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Network error switching persona.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const firstPendingElection = availableElections.find(e => e.canVoteNow);
 
   return (
     <div className="space-y-6">
-      
-      {/* Demonstration Account Switcher Bar */}
-      <div className="p-3.5 bg-white rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-          <span className="font-bold text-slate-800">Demo Account Switcher:</span>
-          <span className="text-slate-500 hidden sm:inline">Test eligibility across undergraduate, hall, and postgraduate domains</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
+      {!isSuspended && !isRollVerified && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm">Email Verified — Voter Eligibility Pending Review</h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Confirming your email proves account ownership. Voting access unlocks once the UCC Electoral Commission verifies your student record on the official voter roll.
+              </p>
+            </div>
+          </div>
           <button
-            onClick={() => switchTestPersona('kofi')}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              currentStudent.studentId === 'PS/CSC/22/0089' && !isSuspended
-                ? 'bg-[#123B70] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+            onClick={() => navigateTo('help_support')}
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap self-start sm:self-auto cursor-pointer"
           >
-            Kofi (L300 CS · Casford)
-          </button>
-
-          <button
-            onClick={() => switchTestPersona('nana')}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              currentStudent.studentId === 'ED/EPS/21/0034'
-                ? 'bg-[#123B70] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Nana Akua (L400 · Adehye)
-          </button>
-
-          <button
-            onClick={() => switchTestPersona('postgraduate')}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              currentStudent.studentId === 'PG/CSC/25/0018'
-                ? 'bg-[#123B70] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Ama Darko (Postgraduate · GRASAG)
-          </button>
-
-          <button
-            onClick={() => switchTestPersona('medical_freshman')}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              currentStudent.studentId === 'MED/SMS/24/0012'
-                ? 'bg-[#123B70] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Freshman (L100 · Off-Campus)
-          </button>
-
-          <button
-            onClick={() => switchTestPersona('suspended')}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              isSuspended
-                ? 'bg-red-600 text-white'
-                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-            }`}
-          >
-            Suspended Demo
+            Contact Electoral Desk
           </button>
         </div>
-      </div>
+      )}
 
-      {/* API / Persona Switch Feedback Banner */}
+      {/* Feedback Banner */}
       {errorMsg && (
         <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -384,15 +257,15 @@ export const StudentDashboard: React.FC = () => {
           {/* Left: Verified Name, Photo & Affiliation */}
           <div className="flex items-start sm:items-center gap-4">
             <div className="relative shrink-0">
-              <img
-                src={currentStudent.avatarUrl || '/src/assets/images/candidate_male_1794352938747.jpg'}
+              <CandidateAvatar
+                src={currentStudent.avatarUrl}
                 alt={currentStudent.fullName}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white/30 shadow-md"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white/30 shadow-md text-xl"
               />
               <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#0B1F3A] flex items-center justify-center text-[10px] font-bold ${
-                isSuspended ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
+                isSuspended ? 'bg-red-500 text-white' : isRollVerified ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
               }`}>
-                {isSuspended ? '✕' : '✓'}
+                {isSuspended ? '✕' : isRollVerified ? '✓' : '!'}
               </div>
             </div>
 
@@ -402,7 +275,11 @@ export const StudentDashboard: React.FC = () => {
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-[11px] text-sky-200">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                   <span>
-                    {isSuspended ? 'Account Suspended' : 'Verified UCC Voter · 2026/2027'}
+                    {isSuspended
+                      ? 'Account Suspended'
+                      : isRollVerified
+                      ? 'Verified UCC Voter'
+                      : 'Pending Roll Verification'}
                   </span>
                 </div>
               </div>
@@ -611,10 +488,10 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="flex flex-col md:flex-row items-start gap-4">
-            <img
+            <CandidateAvatar
               src={myCandidateApplication.photoUrl}
               alt={myCandidateApplication.fullName}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover object-top border-2 border-slate-200 shrink-0"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover object-top border-2 border-slate-200 shrink-0 text-lg"
             />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -796,9 +673,6 @@ export const StudentDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {domains.map((dom) => {
-              const domainSummary = Array.isArray(dashboardData?.domainsSummary)
-                ? dashboardData.domainsSummary.find((d: any) => d.domainId === dom.id)
-                : null;
               const eligibleInDomain = availableElections.filter((e) => e.domainId === dom.id).length;
               return (
                 <button
@@ -811,7 +685,7 @@ export const StudentDashboard: React.FC = () => {
                       {dom.shortName}
                     </span>
                     <span className="text-[11px] font-mono text-slate-600 tabular-nums">
-                      {dom.stats.activeElections} live · {domainSummary ? domainSummary.eligibleCount : eligibleInDomain} eligible
+                      {dom.stats.activeElections} live · {eligibleInDomain} eligible
                     </span>
                   </div>
                   <div className="text-sm font-bold text-slate-900 leading-snug">{dom.name}</div>
@@ -1132,52 +1006,36 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {[
-                {
-                  id: 'ann-1',
-                  tag: 'Official Polls Closing',
-                  title: '64th SRC General Elections: Polling Closes at 17:00 GMT',
-                  deadline: 'Tomorrow, 17:00 GMT',
-                  summary: 'Undergraduates are advised to confirm their secret ballot selections before the close of polls.'
-                },
-                {
-                  id: 'ann-2',
-                  tag: 'Hall Elections',
-                  title: 'Casely Hayford Hall Executive Voting Underway',
-                  deadline: 'Tomorrow, 16:00 GMT',
-                  summary: 'Registered gentlemen of Casford Hall can cast their votes online or at the Casford Forecourt kiosks.'
-                },
-                {
-                  id: 'ann-3',
-                  tag: 'Departmental Gazettes',
-                  title: 'NACOS-UCC (Computer Science) Presidential Debate',
-                  deadline: 'Nov 15, 16:00 GMT',
-                  summary: 'Manifesto town-hall presentations scheduled at Science Lecture Theatre 1.'
-                }
-              ].map((ann) => (
-                <div 
-                  key={ann.id}
-                  onClick={() => navigateTo('notifications')}
-                  className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors cursor-pointer space-y-1.5"
-                >
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold text-[#123B70] uppercase">
-                      {ann.tag}
-                    </span>
-                    <span className="text-amber-700 font-mono font-medium">
-                      {ann.deadline}
-                    </span>
-                  </div>
-
-                  <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                    {ann.title}
-                  </h4>
-
-                  <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
-                    {ann.summary}
-                  </p>
+              {announcements.length === 0 ? (
+                <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                  No announcements available.
                 </div>
-              ))}
+              ) : (
+                announcements.slice(0, 4).map((ann) => (
+                  <div
+                    key={ann.id}
+                    onClick={() => navigateTo('notifications')}
+                    className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition-colors cursor-pointer space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-[#123B70] uppercase">
+                        {ann.category}
+                      </span>
+                      <span className="text-slate-500 font-mono">
+                        {ann.publishedAt ? new Date(ann.publishedAt).toLocaleDateString() : ''}
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                      {ann.title}
+                    </h4>
+
+                    <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
+                      {ann.message}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

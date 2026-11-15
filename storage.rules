@@ -1,0 +1,49 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|webp)')
+        && request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    function isValidDocumentOrImage() {
+      return (
+        request.resource.contentType == 'application/pdf' ||
+        request.resource.contentType.matches('image/(jpeg|jpg|png|webp)')
+      ) && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // Candidate photographs
+    match /candidates/{candidateKey}/{fileName} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && isValidImage();
+      allow delete: if isAdmin();
+    }
+
+    // Election guidelines & official documents
+    match /elections/{electionId}/documents/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidDocumentOrImage();
+    }
+
+    // Student complaint attachments scoped to user UID
+    match /complaints/{uid}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSignedIn() && request.auth.uid == uid && isValidDocumentOrImage();
+      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
-import { authClient } from '../../services/authClient';
+import { adminService } from '../../services/adminService';
 import { Logo } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { ElectionResultsPayload, DomainId } from '../../types';
 import {
   Award,
@@ -17,7 +18,7 @@ export const ElectionResultsPage: React.FC = () => {
 
   const [selectedDomainTab, setSelectedDomainTab] = useState<DomainId | 'All'>('All');
   const [activeElectionId, setActiveElectionId] = useState<string>(
-    selectedElectionId || 'UCC-GRA-2025'
+    selectedElectionId || ''
   );
   const [resultsPayload, setResultsPayload] = useState<ElectionResultsPayload | null>(null);
   const [loadingResults, setLoadingResults] = useState<boolean>(false);
@@ -53,7 +54,11 @@ export const ElectionResultsPage: React.FC = () => {
     elections[0];
 
   useEffect(() => {
-    if (!election?.id) return;
+    if (!election?.id) {
+      setResultsPayload(null);
+      setLoadingResults(false);
+      return;
+    }
     let active = true;
     setLoadingResults(true);
     setResultsBlockedMsg(null);
@@ -61,26 +66,23 @@ export const ElectionResultsPage: React.FC = () => {
     async function fetchResults() {
       try {
         if (userRole === 'admin') {
-          const adminRes = await electionClient.getAdminElectionResults(election.id);
+          const adminRes = await adminService.getAdminElectionResults(election.id);
           if (active && adminRes.success && adminRes.results) {
             setResultsPayload(adminRes.results);
             setLoadingResults(false);
             return;
           }
         }
-        const res = await authClient.authorizedFetch(
-          `/api/results/${encodeURIComponent(election.id)}`
-        );
-        const data = await res.json();
+        const res = await electionClient.getPublishedResults(election.id);
         if (!active) return;
-        if (data.success && data.results) {
-          setResultsPayload(data.results);
+        if (res.success && res.results) {
+          setResultsPayload(res.results);
           setResultsBlockedMsg(null);
         } else {
           setResultsPayload(null);
           setResultsBlockedMsg(
-            data.error ||
-              'Individual candidate tallies remain withheld until results are certified and published.'
+            res.error ||
+              'Election results have not been published.'
           );
         }
       } catch {
@@ -99,24 +101,39 @@ export const ElectionResultsPage: React.FC = () => {
   }, [election?.id, userRole]);
 
   const handleExportPdf = async () => {
+    if (!election?.id) return;
     setIsExporting(true);
     setExportMsg(null);
-    const res = await electionClient.downloadElectionReport(election.id, 'pdf', 'full');
+    const res = await adminService.downloadElectionReport(election.id, 'pdf', 'full');
     setIsExporting(false);
     if (res.success) {
       setExportMsg({
         type: 'success',
-        text: `Official PDF declaration downloaded (${res.filename}).`
+        text: `Official declaration prepared (${res.filename}).`
       });
     } else {
       setExportMsg({
         type: 'error',
         text:
           res.error ||
-          'PDF declaration is available once results are published or to authorized Commission officials.'
+          'Declaration export is available once results are published or to authorized Commission officials.'
       });
     }
   };
+
+  if (!election) {
+    return (
+      <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-3">
+        <Award className="w-8 h-8 text-slate-400 mx-auto" />
+        <h2 className="text-base font-bold text-slate-900">
+          Election results have not been published.
+        </h2>
+        <p className="text-xs text-slate-500">
+          Certified returns will appear here once elections conclude and results are officially published by the UCC Electoral Commission.
+        </p>
+      </div>
+    );
+  }
 
   const isCertified =
     resultsPayload?.resultsCertified ||
@@ -370,10 +387,10 @@ export const ElectionResultsPage: React.FC = () => {
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                         <div className="flex items-center gap-3">
-                          <img
+                          <CandidateAvatar
                             src={cand.photoUrl}
                             alt={cand.fullName}
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-200"
+                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 text-xs"
                           />
                           <div>
                             <div className="flex items-center gap-2">
@@ -439,7 +456,9 @@ export const ElectionResultsPage: React.FC = () => {
               </h4>
             </div>
             <p className="text-xs text-slate-400 max-w-lg leading-relaxed">
-              Tallies are cryptographically verified against the UCC ballot ledger for this independent domain. Official sign-off: Dr. Joseph E. Tetteh, Electoral Commissioner.
+              {resultsPayload?.certifiedBy
+                ? `Tallies verified and certified by ${resultsPayload.certifiedBy}.`
+                : `Supervised by ${election.organizingBody || 'UCC Electoral Commission'}.`}
             </p>
           </div>
         </div>

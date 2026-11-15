@@ -3,9 +3,10 @@ import { useApp } from '../context/AppContext';
 import { Vote, ArrowRight } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { navigateTo, elections, userRole } = useApp();
+  const { navigateTo, elections, candidates, userRole } = useApp();
 
   const activeElectionCount = elections.filter(e => e.status === 'live').length;
+  const approvedCandidateCount = candidates.filter(c => c.applicationStatus === 'Approved').length;
 
   return (
     <div className="w-full">
@@ -67,19 +68,19 @@ export const LandingPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Key Institutional Trust Metrics */}
+            {/* Live Institutional Platform Counters */}
             <div className="pt-5 mt-2 border-t border-white/20 grid grid-cols-3 gap-4">
               <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">24,850+</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Eligible Student Voters</p>
+                <p className="text-lg sm:text-2xl font-extrabold text-white font-mono tabular-nums">{elections.length}</p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Registered Elections</p>
               </div>
               <div>
                 <p className="text-lg sm:text-2xl font-extrabold text-amber-300 font-mono tabular-nums">{activeElectionCount} Live</p>
                 <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Active Polling Portals</p>
               </div>
               <div>
-                <p className="text-lg sm:text-2xl font-extrabold text-emerald-300 font-mono tabular-nums">100%</p>
-                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Secret Ballot Secrecy</p>
+                <p className="text-lg sm:text-2xl font-extrabold text-emerald-300 font-mono tabular-nums">{approvedCandidateCount}</p>
+                <p className="text-slate-200 text-[11px] sm:text-xs mt-0.5">Approved Candidates</p>
               </div>
             </div>
           </div>

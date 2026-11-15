@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, testFirestoreConnection } from '../lib/firebase';
 import {
   ActiveView,
   UserRole,
@@ -10,23 +13,57 @@ import {
   Position,
   Candidate,
   NotificationItem,
+  AnnouncementItem,
+  CalendarEvent,
   ComplaintTicket,
+  AuditLogItem,
   BallotSelectionMap,
   VoteConfirmationReceipt,
+  VoterEligibilityRecord,
   DomainId,
+  DomainRegistryItem,
   HallUnit,
   FacultyUnit,
-  DepartmentUnit
+  DepartmentUnit,
 } from '../types';
 import {
-  MOCK_ELECTIONS,
-  MOCK_NOTIFICATIONS,
-  MOCK_COMPLAINTS,
-  MOCK_CANDIDATES,
-  MOCK_POSITIONS
-} from '../data/mockData';
+  DOMAIN_REGISTRY,
+  UCC_DEPARTMENTS,
+  UCC_FACULTIES,
+  UCC_HALLS,
+  categoryToDomainId,
+} from '../data/uccStructure';
 import { authClient } from '../services/authClient';
-import { electionClient, DomainWithStats } from '../services/electionClient';
+import { electionClient } from '../services/electionClient';
+import { votingService } from '../services/votingService';
+import { adminService } from '../services/adminService';
+import { DomainWithStats } from '../services/interfaces';
+import {
+  isIncomingEmailSignInLink,
+  completeEmailSignInLink,
+} from '../services/firebaseAuthService';
+import {
+  subscribeElections,
+  subscribePositions,
+  subscribeCandidates,
+  subscribeAnnouncements,
+  subscribeCalendarEvents,
+  subscribeNotifications,
+  subscribeNotificationReads,
+  subscribeStudentProfile,
+  subscribeVoterEligibility,
+  subscribeAdminProfile,
+  subscribeVoteConfirmations,
+  subscribeComplaints,
+  subscribeAllStudents,
+  subscribeAllEligibilityRecords,
+  subscribeAuditLogs,
+  subscribeDomains,
+  subscribeStructuralCollection,
+  markNotificationAsRead as markNotificationReadDb,
+  markAllNotificationsAsRead as markAllNotificationsReadDb,
+  createComplaintTicket,
+} from '../services/firebaseDbService';
 
 const ACTIVE_VIEW_STORAGE_KEY = 'ucc_vote_active_view';
 const SELECTED_ELECTION_STORAGE_KEY = 'ucc_vote_selected_election';
@@ -50,7 +87,7 @@ const VALID_VIEWS: ReadonlySet<ActiveView> = new Set<ActiveView>([
   'election_calendar',
   'student_profile',
   'help_support',
-  'admin_dashboard'
+  'admin_dashboard',
 ]);
 
 function parseRouteFromHashOrStorage(): {
@@ -59,7 +96,7 @@ function parseRouteFromHashOrStorage(): {
   domainId: DomainId;
 } {
   let view: ActiveView = 'landing';
-  let electionId = 'UCC-SRC-2026';
+  let electionId = '';
   let domainId: DomainId = 'src';
 
   try {
@@ -89,7 +126,7 @@ function parseRouteFromHashOrStorage(): {
       }
     }
   } catch {
-    // ignore storage/hash errors
+    // Ignore storage/hash errors
   }
 
   return { view, electionId, domainId };
@@ -98,12 +135,9 @@ function parseRouteFromHashOrStorage(): {
 function syncRouteToHashAndStorage(view: ActiveView, electionId?: string, domainId?: DomainId) {
   try {
     sessionStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
-    if (electionId) {
-      sessionStorage.setItem(SELECTED_ELECTION_STORAGE_KEY, electionId);
-    }
-    if (domainId) {
-      sessionStorage.setItem(SELECTED_DOMAIN_STORAGE_KEY, domainId);
-    }
+    if (electionId) sessionStorage.setItem(SELECTED_ELECTION_STORAGE_KEY, electionId);
+    if (domainId) sessionStorage.setItem(SELECTED_DOMAIN_STORAGE_KEY, domainId);
+
     let targetHash = `#${view}`;
     if (view === 'digital_ballot' && electionId) {
       targetHash = `#${view}?electionId=${encodeURIComponent(electionId)}`;
@@ -114,14 +148,16 @@ function syncRouteToHashAndStorage(view: ActiveView, electionId?: string, domain
       window.history.replaceState(null, '', targetHash);
     }
   } catch {
-    // ignore history/storage errors
+    // Ignore
   }
 }
 
 interface AppContextType {
   activeView: ActiveView;
   userRole: UserRole;
+  firebaseUser: User | null;
   student: StudentProfile | null;
+  voterEligibilityRecord: VoterEligibilityRecord | null;
   admin: AdminProfile | null;
   selectedElectionId: string;
   selectedDomainId: DomainId;
@@ -137,16 +173,26 @@ interface AppContextType {
   candidates: Candidate[];
   myCandidateApplication: Candidate | null;
   notifications: NotificationItem[];
+  announcements: AnnouncementItem[];
+  calendarEvents: CalendarEvent[];
   complaints: ComplaintTicket[];
+  voteConfirmations: VoteConfirmationReceipt[];
+  allStudents: StudentProfile[];
+  eligibilityRecords: VoterEligibilityRecord[];
+  auditLogs: AuditLogItem[];
   categoryFilter: ElectionCategory | 'All';
   statusFilter: ElectionStatus | 'All';
   searchQuery: string;
   recentVoteReceipt: VoteConfirmationReceipt | null;
   sessionChecked: boolean;
+  isLoadingData: boolean;
+  dataError: string | null;
   sessionExpiredReason: string | null;
   postLoginView: ActiveView | null;
+  pendingEmailPrompt: boolean;
+  emailLinkFeedback: { type: 'info' | 'success' | 'error'; text: string } | null;
+  needsProfileCompletion: boolean;
 
-  // Actions
   navigateTo: (
     view: ActiveView,
     params?: { electionId?: string; candidateId?: string; domainId?: DomainId; positionId?: string }
@@ -154,6 +200,9 @@ interface AppContextType {
   setSelectedDomainId: (id: DomainId) => void;
   setPostLoginView: (view: ActiveView | null) => void;
   clearSessionExpiredReason: () => void;
+  clearEmailLinkFeedback: () => void;
+  submitEmailLinkPrompt: (email: string) => Promise<{ success: boolean; error?: string }>;
+  dismissEmailLinkPrompt: () => void;
   refreshAuthSession: () => Promise<boolean>;
   refreshDomains: () => Promise<void>;
   refreshElections: () => Promise<void>;
@@ -194,8 +243,6 @@ interface AppContextType {
   verifyCandidateEligibilityAction: (
     id: string
   ) => Promise<{ success: boolean; isEligible?: boolean; reason?: string; details?: any; error?: string }>;
-  loginAsStudent: () => Promise<boolean>;
-  loginAsAdmin: () => Promise<boolean>;
   loginWithUserPayload: (user: any, role: 'student' | 'admin') => void;
   logout: () => Promise<void>;
   updateStudentProfile: (updates: Partial<StudentProfile>) => Promise<boolean>;
@@ -218,13 +265,15 @@ interface AppContextType {
     error?: string;
     receipt?: VoteConfirmationReceipt;
   }>;
-  markNotificationAsRead: (id: string) => void;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
   submitComplaint: (data: {
     category: ComplaintTicket['category'];
     subject: string;
     description: string;
     domainId?: DomainId;
-  }) => string;
+    attachmentUrl?: string;
+  }) => Promise<{ success: boolean; ticketNumber?: string; error?: string }>;
   toggleCompareCandidate: (candidateId: string) => void;
 }
 
@@ -235,44 +284,136 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [activeView, setActiveView] = useState<ActiveView>(initialRoute.view);
   const [userRole, setUserRole] = useState<UserRole>('guest');
-  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [studentRaw, setStudentRaw] = useState<StudentProfile | null>(null);
+  const [voterEligibilityRecord, setVoterEligibilityRecord] =
+    useState<VoterEligibilityRecord | null>(null);
   const [admin, setAdmin] = useState<AdminProfile | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [sessionExpiredReason, setSessionExpiredReason] = useState<string | null>(null);
   const [postLoginView, setPostLoginView] = useState<ActiveView | null>(null);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
+
+  const [pendingEmailPrompt, setPendingEmailPrompt] = useState(false);
+  const [emailLinkFeedback, setEmailLinkFeedback] = useState<{
+    type: 'info' | 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const [selectedElectionId, setSelectedElectionIdState] = useState<string>(initialRoute.electionId);
   const [selectedDomainId, setSelectedDomainIdState] = useState<DomainId>(initialRoute.domainId);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('cand-01');
-  const [compareCandidateIds, setCompareCandidateIds] = useState<[string, string] | null>([
-    'cand-01',
-    'cand-02'
-  ]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [compareCandidateIds, setCompareCandidateIds] = useState<[string, string] | null>(null);
   const [ballotSelections, setBallotSelections] = useState<BallotSelectionMap>({});
 
-  const [elections, setElections] = useState<Election[]>(MOCK_ELECTIONS);
-  const [domains, setDomains] = useState<DomainWithStats[]>([]);
-  const [halls, setHalls] = useState<HallUnit[]>([]);
-  const [faculties, setFaculties] = useState<FacultyUnit[]>([]);
-  const [departments, setDepartments] = useState<DepartmentUnit[]>([]);
-  const [positionsByElection, setPositionsByElection] =
-    useState<Record<string, Position[]>>(MOCK_POSITIONS);
-  const [candidates, setCandidates] = useState<Candidate[]>(Object.values(MOCK_CANDIDATES));
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
-  const [complaints, setComplaints] = useState<ComplaintTicket[]>(MOCK_COMPLAINTS);
+  const [elections, setElections] = useState<Election[]>([]);
+  const [rawDomains, setRawDomains] = useState<DomainRegistryItem[]>(DOMAIN_REGISTRY);
+  const [halls, setHalls] = useState<HallUnit[]>(UCC_HALLS);
+  const [faculties, setFaculties] = useState<FacultyUnit[]>(UCC_FACULTIES);
+  const [departments, setDepartments] = useState<DepartmentUnit[]>(UCC_DEPARTMENTS);
+  const [positionsByElection, setPositionsByElection] = useState<Record<string, Position[]>>({});
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [rawNotifications, setRawNotifications] = useState<NotificationItem[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [complaints, setComplaints] = useState<ComplaintTicket[]>([]);
+  const [voteConfirmations, setVoteConfirmations] = useState<VoteConfirmationReceipt[]>([]);
+  const [allStudents, setAllStudents] = useState<StudentProfile[]>([]);
+  const [eligibilityRecords, setEligibilityRecords] = useState<VoterEligibilityRecord[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
 
   const [categoryFilter, setCategoryFilter] = useState<ElectionCategory | 'All'>('All');
   const [statusFilter, setStatusFilter] = useState<ElectionStatus | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
-
   const [recentVoteReceipt, setRecentVoteReceipt] = useState<VoteConfirmationReceipt | null>(null);
+
+  // Merge voter_eligibility and vote_confirmations cleanly onto student state
+  const student: StudentProfile | null = useMemo(() => {
+    if (!studentRaw) return null;
+    const votedFromReceipts = voteConfirmations.map((r) => r.electionId);
+    const mergedVoted = Array.from(
+      new Set([...(studentRaw.hasVotedElections || []), ...votedFromReceipts])
+    );
+
+    const effectiveEligible =
+      voterEligibilityRecord !== null
+        ? voterEligibilityRecord.isEligible === true && voterEligibilityRecord.status === 'eligible'
+        : Boolean(studentRaw.isEligible) &&
+          studentRaw.status !== 'suspended' &&
+          studentRaw.eligibilityStatus === 'eligible';
+
+    const effectiveEligibilityStatus =
+      voterEligibilityRecord?.status ||
+      studentRaw.eligibilityStatus ||
+      (effectiveEligible ? 'eligible' : 'pending_verification');
+
+    return {
+      ...studentRaw,
+      emailVerified: firebaseUser?.emailVerified ?? studentRaw.emailVerified,
+      isEligible: effectiveEligible,
+      eligibilityStatus: effectiveEligibilityStatus,
+      eligibilityNotes: voterEligibilityRecord?.reason || studentRaw.eligibilityNotes,
+      hasVotedElections: mergedVoted,
+    };
+  }, [studentRaw, voterEligibilityRecord, voteConfirmations, firebaseUser]);
+
+  // Compute live DomainWithStats dynamically from Firestore elections & candidates
+  const domains: DomainWithStats[] = useMemo(() => {
+    return [...rawDomains]
+      .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+      .map((dom) => {
+        const domElections = elections.filter(
+          (e) => (e.domainId || categoryToDomainId(e.category)) === dom.id
+        );
+        const approvedCandCount = candidates.filter(
+          (c) =>
+            c.applicationStatus === 'Approved' &&
+            domElections.some((e) => e.id === c.electionId)
+        ).length;
+
+        return {
+          ...dom,
+          stats: {
+            totalElections: domElections.length,
+            activeElections: domElections.filter((e) => e.status === 'live').length,
+            upcomingElections: domElections.filter(
+              (e) => e.status === 'scheduled' || e.status === 'upcoming'
+            ).length,
+            completedElections: domElections.filter((e) =>
+              ['closed', 'results_pending_certification', 'results_published', 'archived'].includes(
+                e.status
+              )
+            ).length,
+            pendingCertification: domElections.filter(
+              (e) => e.status === 'results_pending_certification'
+            ).length,
+            totalVotesCast: domElections.reduce(
+              (sum, e) => sum + (Number(e.totalVotesCast) || 0),
+              0
+            ),
+            approvedCandidatesCount: approvedCandCount,
+          },
+        };
+      });
+  }, [rawDomains, elections, candidates]);
+
+  // Merge user-specific read states onto notifications
+  const notifications: NotificationItem[] = useMemo(() => {
+    return rawNotifications.map((n) => ({
+      ...n,
+      read: Boolean(n.read) || readNotificationIds.has(n.id),
+    }));
+  }, [rawNotifications, readNotificationIds]);
 
   const setSelectedElectionId = (id: string) => {
     setSelectedElectionIdState(id);
     try {
       sessionStorage.setItem(SELECTED_ELECTION_STORAGE_KEY, id);
     } catch {
-      // ignore storage errors
+      // Ignore
     }
   };
 
@@ -281,180 +422,336 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       sessionStorage.setItem(SELECTED_DOMAIN_STORAGE_KEY, id);
     } catch {
-      // ignore storage errors
+      // Ignore
     }
   };
 
-  const refreshDomains = async () => {
-    try {
-      const res = await electionClient.getDomains();
-      if (res.success) {
-        if (Array.isArray(res.domains)) setDomains(res.domains);
-        if (Array.isArray(res.halls)) setHalls(res.halls);
-        if (Array.isArray(res.faculties)) setFaculties(res.faculties);
-        if (Array.isArray(res.departments)) setDepartments(res.departments);
-        if (res.positionsByElection && typeof res.positionsByElection === 'object') {
-          setPositionsByElection(res.positionsByElection);
-        }
-      }
-    } catch {
-      // keep existing domain registry on transient error
+  // Auto-select first real election / candidates if current selection is empty
+  useEffect(() => {
+    if (elections.length > 0 && !elections.some((e) => e.id === selectedElectionId)) {
+      const preferred = elections.find((e) => e.status === 'live') || elections[0];
+      setSelectedElectionIdState(preferred.id);
+    } else if (elections.length === 0 && selectedElectionId) {
+      setSelectedElectionIdState('');
     }
-  };
-
-  const refreshElections = async () => {
-    try {
-      const res = await fetch('/api/elections', { credentials: 'include' });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.elections) && data.elections.length > 0) {
-        setElections(data.elections);
-      }
-      await refreshDomains();
-    } catch {
-      // keep existing elections list on transient fetch error
-    }
-  };
-
-  const refreshCandidates = async () => {
-    try {
-      const res = await electionClient.getCandidates();
-      if (res.success && Array.isArray(res.candidates) && res.candidates.length > 0) {
-        setCandidates(res.candidates);
-      }
-    } catch {
-      // keep existing candidates list on transient fetch error
-    }
-  };
+  }, [elections, selectedElectionId]);
 
   useEffect(() => {
-    refreshDomains();
-    refreshElections();
-    refreshCandidates();
-  }, []);
+    if (candidates.length > 0 && !candidates.some((c) => c.id === selectedCandidateId)) {
+      setSelectedCandidateId(candidates[0].id);
+    }
+  }, [candidates, selectedCandidateId]);
 
-  // Listen to browser hash navigation so back/forward/hash changes update active view cleanly
-  useEffect(() => {
-    const handleHashChange = () => {
-      const parsed = parseRouteFromHashOrStorage();
-      setActiveView(parsed.view);
-      if (parsed.electionId) {
-        setSelectedElectionIdState(parsed.electionId);
-      }
-      if (parsed.domainId) {
-        setSelectedDomainIdState(parsed.domainId);
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  // Subscribe to authClient session refresh / expiry events
-  useEffect(() => {
-    const unsubscribe = authClient.subscribe((event) => {
-      if (event.type === 'refreshed' || event.type === 'updated') {
-        setSessionExpiredReason(null);
-        if (event.role === 'student') {
-          setUserRole('student');
-          setStudent(event.user);
-          setAdmin(null);
-        } else {
-          setUserRole('admin');
-          setAdmin(event.user);
-          setStudent(null);
-        }
-      } else if (event.type === 'expired') {
-        setUserRole('guest');
-        setStudent(null);
-        setAdmin(null);
-        setSessionExpiredReason(
-          event.reason || 'Your session has expired. Please log in again to continue.'
-        );
-      } else if (event.type === 'cleared') {
-        setUserRole('guest');
-        setStudent(null);
-        setAdmin(null);
-      }
-    });
-    return unsubscribe;
-  }, []);
-
-  // Restore & verify session against backend before releasing protected routes
+  // Initial Firestore connectivity verification + public real-time listeners
   useEffect(() => {
     let active = true;
-    async function restoreSession() {
-      const hasToken = Boolean(authClient.getToken());
-      const hasRefresh = Boolean(authClient.getRefreshToken());
-      const storedUser = authClient.getStoredUser();
-      const storedRole = authClient.getStoredRole();
-
-      if (hasToken || hasRefresh) {
-        const res = await authClient.getMe();
-        if (!active) return;
-
-        if (res.success && res.user) {
-          setSessionExpiredReason(null);
-          if (res.userRole === 'admin') {
-            setAdmin(res.user);
-            setStudent(null);
-            setUserRole('admin');
-          } else {
-            setStudent(res.user);
-            setAdmin(null);
-            setUserRole('student');
-          }
-        } else if (res.code === 'NETWORK_ERROR' && storedUser && storedRole !== 'guest') {
-          // Do not unexpectedly log user out during temporary connectivity loss
-          if (storedRole === 'student') {
-            setStudent(storedUser);
-            setAdmin(null);
-            setUserRole('student');
-          } else {
-            setAdmin(storedUser);
-            setStudent(null);
-            setUserRole('admin');
-          }
-        } else {
-          setUserRole('guest');
-          setStudent(null);
-          setAdmin(null);
-          if (res.code === 'SESSION_EXPIRED' || res.code === 'TOKEN_EXPIRED' || res.code === 'ACCOUNT_SUSPENDED') {
-            setSessionExpiredReason(
-              res.error || 'Your session has expired. Please log in again to continue.'
-            );
-          }
-        }
+    testFirestoreConnection().then((res) => {
+      if (!active) return;
+      if (res.databaseMissing) {
+        setDataError(
+          res.error ||
+            'Cloud Firestore database "(default)" has not been created yet in Firebase project "ucc-vote". Enable Firestore Database in the Firebase Console.'
+        );
+        setIsLoadingData(false);
+      } else if (res.offline) {
+        setDataError(
+          'Unable to reach Cloud Firestore. Check your internet connection or Firebase project configuration.'
+        );
+        setIsLoadingData(false);
+      } else {
+        setDataError(null);
       }
+    });
 
-      if (active) {
-        setSessionChecked(true);
-      }
+    const handleErr = (err: Error) => {
+      if (!active) return;
+      console.warn('Firestore subscription notice:', err.message);
+      setIsLoadingData(false);
+    };
+
+    const unsubElections = subscribeElections((items) => {
+      setElections(items);
+      setIsLoadingData(false);
+      setDataError(null);
+    }, handleErr);
+
+    const unsubPositions = subscribePositions((grouped) => {
+      setPositionsByElection(grouped);
+    }, handleErr);
+
+    const unsubCandidates = subscribeCandidates((items) => {
+      setCandidates(items);
+    }, handleErr);
+
+    const unsubAnnouncements = subscribeAnnouncements((items) => {
+      setAnnouncements(items);
+    }, handleErr);
+
+    const unsubCalendar = subscribeCalendarEvents((items) => {
+      setCalendarEvents(items);
+    }, handleErr);
+
+    const unsubDomains = subscribeDomains((items) => {
+      if (items.length > 0) setRawDomains(items);
+    }, () => {});
+
+    const unsubHalls = subscribeStructuralCollection<HallUnit>('halls', (items) => {
+      if (items.length > 0) setHalls(items);
+    }, () => {});
+
+    const unsubFaculties = subscribeStructuralCollection<FacultyUnit>('faculties', (items) => {
+      if (items.length > 0) setFaculties(items);
+    }, () => {});
+
+    const unsubDepartments = subscribeStructuralCollection<DepartmentUnit>(
+      'departments',
+      (items) => {
+        if (items.length > 0) setDepartments(items);
+      },
+      () => {}
+    );
+
+    return () => {
+      active = false;
+      unsubElections();
+      unsubPositions();
+      unsubCandidates();
+      unsubAnnouncements();
+      unsubCalendar();
+      unsubDomains();
+      unsubHalls();
+      unsubFaculties();
+      unsubDepartments();
+    };
+  }, []);
+
+  // Handle incoming Firebase Email-Link authentication on initial mount
+  useEffect(() => {
+    if (!isIncomingEmailSignInLink(window.location.href)) {
+      return;
     }
 
-    restoreSession();
+    let active = true;
+    setEmailLinkFeedback({
+      type: 'info',
+      text: 'Verifying your Firebase email sign-in link...',
+    });
+
+    completeEmailSignInLink(undefined, window.location.href).then((res) => {
+      if (!active) return;
+      if (res.needsEmailPrompt) {
+        setPendingEmailPrompt(true);
+        setEmailLinkFeedback({
+          type: 'info',
+          text: 'To complete verification on this device/browser, please confirm the email address you used.',
+        });
+        return;
+      }
+
+      if (!res.success) {
+        setEmailLinkFeedback({
+          type: 'error',
+          text: res.error || 'Email sign-in link could not be verified.',
+        });
+        return;
+      }
+
+      if (res.needsProfileActivation) {
+        setNeedsProfileCompletion(true);
+        setEmailLinkFeedback({
+          type: 'info',
+          text: `Email (${res.email}) verified. Complete your UCC student details below to finish activating your profile.`,
+        });
+        navigateTo('student_register');
+        return;
+      }
+
+      setNeedsProfileCompletion(false);
+      setEmailLinkFeedback({
+        type: 'success',
+        text: 'Email verified and signed in to UCC VOTE.',
+      });
+      navigateTo('student_dashboard');
+    });
+
     return () => {
       active = false;
     };
   }, []);
 
-  const refreshAuthSession = async (): Promise<boolean> => {
-    const res = await authClient.refreshSession();
-    if (res.success && res.user) {
-      setSessionExpiredReason(null);
-      if (res.userRole === 'admin') {
-        setAdmin(res.user);
-        setStudent(null);
-        setUserRole('admin');
-      } else {
-        setStudent(res.user);
+  // Firebase Auth state listener & scoped private Firestore listeners
+  useEffect(() => {
+    let privateUnsubs: Array<() => void> = [];
+    const cleanupPrivate = () => {
+      privateUnsubs.forEach((u) => {
+        try {
+          u();
+        } catch {
+          // ignore
+        }
+      });
+      privateUnsubs = [];
+    };
+
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      cleanupPrivate();
+      setFirebaseUser(user);
+
+      if (!user) {
+        setUserRole('guest');
+        setStudentRaw(null);
+        setVoterEligibilityRecord(null);
         setAdmin(null);
-        setUserRole('student');
+        setRawNotifications([]);
+        setReadNotificationIds(new Set());
+        setComplaints([]);
+        setVoteConfirmations([]);
+        setAllStudents([]);
+        setEligibilityRecords([]);
+        setAuditLogs([]);
+        setNeedsProfileCompletion(false);
+        setSessionChecked(true);
+        return;
       }
-      return true;
+
+      try {
+        const tokenRes = await user.getIdTokenResult();
+        const hasAdminClaim = tokenRes.claims?.admin === true;
+        const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
+        const isAdminUser =
+          Boolean(hasAdminClaim) ||
+          (Boolean(adminSnap?.exists()) && adminSnap?.data()?.isActive !== false);
+
+        if (isAdminUser) {
+          setUserRole('admin');
+          setStudentRaw(null);
+          setVoterEligibilityRecord(null);
+          setNeedsProfileCompletion(false);
+
+          if (adminSnap?.exists()) {
+            setAdmin({ id: adminSnap.id, ...(adminSnap.data() as Omit<AdminProfile, 'id'>) });
+          }
+
+          privateUnsubs.push(
+            subscribeAdminProfile(user.uid, (a) => {
+              if (a) setAdmin(a);
+            }),
+            subscribeAllStudents(true, setAllStudents),
+            subscribeAllEligibilityRecords(true, setEligibilityRecords),
+            subscribeComplaints(user.uid, true, setComplaints),
+            subscribeAuditLogs(true, setAuditLogs),
+            subscribeNotifications(user.uid, setRawNotifications),
+            subscribeNotificationReads(user.uid, setReadNotificationIds)
+          );
+          setSessionChecked(true);
+          return;
+        }
+
+        // Student or newly email-verified account
+        privateUnsubs.push(
+          subscribeStudentProfile(user.uid, (stud) => {
+            if (stud) {
+              setStudentRaw(stud);
+              setUserRole('student');
+              setAdmin(null);
+              setNeedsProfileCompletion(false);
+            } else {
+              setStudentRaw(null);
+              setNeedsProfileCompletion(true);
+            }
+          }),
+          subscribeVoterEligibility(user.uid, setVoterEligibilityRecord),
+          subscribeVoteConfirmations(user.uid, setVoteConfirmations),
+          subscribeComplaints(user.uid, false, setComplaints),
+          subscribeNotifications(user.uid, setRawNotifications),
+          subscribeNotificationReads(user.uid, setReadNotificationIds)
+        );
+        setSessionChecked(true);
+      } catch (err) {
+        console.error('Auth listener resolution error:', err);
+        setSessionChecked(true);
+      }
+    });
+
+    return () => {
+      cleanupPrivate();
+      unsubAuth();
+    };
+  }, []);
+
+  // Hash navigation listener
+  useEffect(() => {
+    const handleHashChange = () => {
+      const parsed = parseRouteFromHashOrStorage();
+      setActiveView(parsed.view);
+      if (parsed.electionId) setSelectedElectionIdState(parsed.electionId);
+      if (parsed.domainId) setSelectedDomainIdState(parsed.domainId);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const submitEmailLinkPrompt = async (email: string) => {
+    const res = await completeEmailSignInLink(email, window.location.href);
+    if (!res.success) {
+      return { success: false, error: res.error || 'Could not verify email link.' };
     }
-    return false;
+    setPendingEmailPrompt(false);
+    if (res.needsProfileActivation) {
+      setNeedsProfileCompletion(true);
+      setEmailLinkFeedback({
+        type: 'info',
+        text: `Email (${res.email}) verified. Complete your UCC student details to finish activation.`,
+      });
+      navigateTo('student_register');
+    } else {
+      setEmailLinkFeedback({
+        type: 'success',
+        text: 'Email verified and signed in to UCC VOTE.',
+      });
+      navigateTo('student_dashboard');
+    }
+    return { success: true };
+  };
+
+  const dismissEmailLinkPrompt = () => {
+    setPendingEmailPrompt(false);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
+  const refreshDomains = async () => {
+    const res = await electionClient.getDomains();
+    if (res.success) {
+      if (res.halls?.length) setHalls(res.halls);
+      if (res.faculties?.length) setFaculties(res.faculties);
+      if (res.departments?.length) setDepartments(res.departments);
+    }
+  };
+
+  const refreshElections = async () => {
+    const res = await electionClient.getElections();
+    if (res.success) {
+      setElections(res.elections);
+    }
+  };
+
+  const refreshCandidates = async () => {
+    const res = await electionClient.getCandidates();
+    if (res.success) {
+      setCandidates(res.candidates);
+    }
+  };
+
+  const refreshAuthSession = async (): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    await auth.currentUser.reload();
+    return true;
   };
 
   const clearSessionExpiredReason = () => setSessionExpiredReason(null);
+  const clearEmailLinkFeedback = () => setEmailLinkFeedback(null);
 
   const navigateTo = (
     view: ActiveView,
@@ -473,49 +770,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loginWithUserPayload = (user: any, role: 'student' | 'admin') => {
     setSessionExpiredReason(null);
     setSessionChecked(true);
-
     if (role === 'student') {
       setUserRole('student');
-      setStudent(user);
+      setStudentRaw(user);
       setAdmin(null);
+      setNeedsProfileCompletion(false);
       const targetView =
         postLoginView && postLoginView !== 'admin_dashboard'
           ? postLoginView
           : 'student_dashboard';
       setPostLoginView(null);
-      setActiveView(targetView);
-      syncRouteToHashAndStorage(targetView, selectedElectionId);
+      navigateTo(targetView);
     } else {
       setUserRole('admin');
       setAdmin(user);
-      setStudent(null);
+      setStudentRaw(null);
       setPostLoginView(null);
-      setActiveView('admin_dashboard');
-      syncRouteToHashAndStorage('admin_dashboard', selectedElectionId);
+      navigateTo('admin_dashboard');
     }
-  };
-
-  const loginAsStudent = async (): Promise<boolean> => {
-    const res = await authClient.login('PS/CSC/22/0089', 'Vote@UCC2026', true);
-    if (res.success && res.user) {
-      loginWithUserPayload(res.user, 'student');
-      return true;
-    }
-    return false;
-  };
-
-  const loginAsAdmin = async (): Promise<boolean> => {
-    const res = await authClient.adminLogin(
-      'UCC/EC/ST/2019/04',
-      'Admin@UCC2026',
-      'Electoral Commissioner',
-      '9482'
-    );
-    if (res.success && res.user) {
-      loginWithUserPayload(res.user, 'admin');
-      return true;
-    }
-    return false;
   };
 
   const logout = async () => {
@@ -523,23 +795,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSessionExpiredReason(null);
     setPostLoginView(null);
     setUserRole('guest');
-    setStudent(null);
+    setStudentRaw(null);
+    setVoterEligibilityRecord(null);
     setAdmin(null);
     setBallotSelections({});
-    setActiveView('landing');
-    syncRouteToHashAndStorage('landing', selectedElectionId);
+    setNeedsProfileCompletion(false);
+    navigateTo('landing');
   };
 
   const createElectionAction = async (payload: any) => {
     try {
-      const res = await electionClient.createElection(payload);
+      const res = await adminService.createElection(payload);
       if (res.success && res.election) {
-        await refreshElections();
         return { success: true, election: res.election };
       }
       return { success: false, error: res.error || 'Failed to create election.' };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to create election.' };
     }
   };
 
@@ -549,95 +821,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     justification?: string
   ) => {
     try {
-      const res = await electionClient.changeStatus(id, newStatus, justification);
-      if (res.success && res.election) {
-        await refreshElections();
-        return { success: true, election: res.election };
-      }
-      return { success: false, error: res.error || 'Status update failed.' };
+      const res = await adminService.changeStatus(id, newStatus, justification);
+      return { success: res.success, election: res.election, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Status update failed.' };
     }
   };
 
   const registerCandidateAction = async (payload: any) => {
     try {
       const res = await electionClient.registerCandidate(payload);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to submit candidate application.' };
+      return {
+        success: res.success,
+        candidate: res.candidate,
+        error: res.error,
+        message: res.message,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to register candidate.' };
     }
   };
 
   const updateCandidateAction = async (id: string, updates: any) => {
     try {
       const res = await electionClient.updateCandidate(id, updates);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to update candidate.' };
+      return {
+        success: res.success,
+        candidate: res.candidate,
+        error: res.error,
+        message: res.message,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to update candidate.' };
     }
   };
 
   const approveCandidateAction = async (id: string) => {
     try {
-      const res = await electionClient.approveCandidate(id);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        await refreshElections();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to approve candidate nomination.' };
+      const res = await adminService.approveCandidate(id);
+      return { success: res.success, message: res.message, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to approve candidate.' };
     }
   };
 
   const rejectCandidateAction = async (id: string, reason: string) => {
     try {
-      const res = await electionClient.rejectCandidate(id, reason);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        await refreshElections();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to reject candidate nomination.' };
+      const res = await adminService.rejectCandidate(id, reason);
+      return { success: res.success, message: res.message, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to reject candidate.' };
     }
   };
 
   const requestCandidateCorrectionsAction = async (id: string, notes: string) => {
     try {
-      const res = await electionClient.requestCandidateCorrections(id, notes);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to submit correction request.' };
+      const res = await adminService.requestCandidateCorrections(id, notes);
+      return { success: res.success, message: res.message, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to request corrections.' };
     }
   };
 
   const withdrawCandidateAction = async (id: string, reason?: string) => {
     try {
-      const res = await electionClient.withdrawCandidate(id, reason);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        await refreshElections();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to withdraw candidate.' };
+      const res = await adminService.withdrawCandidate(id, reason);
+      return { success: res.success, message: res.message, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to withdraw candidate.' };
     }
   };
 
@@ -647,33 +898,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     positionId: string
   ) => {
     try {
-      const res = await electionClient.assignCandidatePosition(id, electionId, positionId);
-      if (res.success && res.candidate) {
-        await refreshCandidates();
-        await refreshElections();
-        return { success: true, candidate: res.candidate, message: res.message };
-      }
-      return { success: false, error: res.error || 'Failed to assign candidate position.' };
+      const res = await adminService.assignCandidatePosition(id, electionId, positionId);
+      return { success: res.success, message: res.message, error: res.error };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to assign position.' };
     }
   };
 
   const verifyCandidateEligibilityAction = async (id: string) => {
     try {
-      const res = await electionClient.verifyCandidateEligibility(id);
-      if (res.success) {
-        await refreshCandidates();
-        return {
-          success: true,
-          isEligible: res.isEligible,
-          reason: res.reason,
-          details: res.details
-        };
-      }
-      return { success: false, error: res.error || 'Candidate eligibility verification failed.' };
+      const res = await adminService.verifyCandidateEligibility(id);
+      return {
+        success: res.success,
+        isEligible: res.isEligible,
+        reason: res.reason,
+        details: res.details,
+        error: res.error,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Verification failed.' };
     }
   };
 
@@ -681,11 +924,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!student) return false;
     try {
       const res = await authClient.updateProfile(updates);
-      if (res.success && res.user) {
-        setStudent(res.user);
-        return true;
-      }
-      return false;
+      return res.success;
     } catch {
       return false;
     }
@@ -701,9 +940,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (current.includes(candidateId)) {
         return { ...prev, [positionId]: current.filter((id) => id !== candidateId) };
       }
-      if (current.length >= maxSelections) {
-        return prev;
-      }
+      if (current.length >= maxSelections) return prev;
       return { ...prev, [positionId]: [...current, candidateId] };
     });
   };
@@ -716,9 +953,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const resetBallot = () => {
-    setBallotSelections({});
-  };
+  const resetBallot = () => setBallotSelections({});
 
   const submitBallotAction = async (
     electionId: string,
@@ -726,85 +961,71 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     idempotencyKey?: string
   ) => {
     const payloadSelections = selectionsOverride ?? ballotSelections;
-    const res = await electionClient.submitBallot(electionId, payloadSelections, idempotencyKey);
-
+    const res = await votingService.submitBallot(electionId, payloadSelections, idempotencyKey);
     if (res.success && res.receipt) {
       setRecentVoteReceipt(res.receipt);
       setBallotSelections({});
-
-      if (student) {
-        const updatedVoted = student.hasVotedElections.includes(electionId)
-          ? student.hasVotedElections
-          : [...student.hasVotedElections, electionId];
-        setStudent({
-          ...student,
-          hasVotedElections: updatedVoted
-        });
-      }
-
-      if (res.updatedTurnout) {
-        setElections((prev) =>
-          prev.map((el) =>
-            el.id === electionId
-              ? {
-                  ...el,
-                  totalVotesCast: res.updatedTurnout!.totalVotesCast,
-                  turnoutPercentage: res.updatedTurnout!.turnoutPercentage
-                }
-              : el
-          )
-        );
-      }
-
-      refreshElections();
-      refreshCandidates();
     }
-
     return {
       success: res.success,
       code: res.code,
       message: res.message,
       error: res.error,
-      receipt: res.receipt
+      receipt: res.receipt,
     };
   };
 
-  const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const markNotificationAsRead = async (id: string) => {
+    if (!firebaseUser) return;
+    await markNotificationReadDb(firebaseUser.uid, id);
   };
 
-  const submitComplaint = (data: {
+  const markAllNotificationsAsRead = async () => {
+    if (!firebaseUser) return;
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      await markAllNotificationsReadDb(firebaseUser.uid, unreadIds);
+    }
+  };
+
+  const submitComplaint = async (data: {
     category: ComplaintTicket['category'];
     subject: string;
     description: string;
     domainId?: DomainId;
-  }): string => {
-    const ticketNumber =
-      'UCC-EC-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
-    const newComplaint: ComplaintTicket = {
-      id: 'comp-' + Date.now(),
-      ticketNumber,
-      studentName: student?.fullName || 'Anonymous Registered Student',
-      studentId: student?.studentId || 'UNAUTHENTICATED',
-      domainId: data.domainId,
-      category: data.category,
-      subject: data.subject,
-      description: data.description,
-      status: 'pending',
-      submittedAt: new Date().toISOString()
-    };
-    setComplaints((prev) => [newComplaint, ...prev]);
-    return ticketNumber;
+    attachmentUrl?: string;
+  }): Promise<{ success: boolean; ticketNumber?: string; error?: string }> => {
+    if (!firebaseUser || !student) {
+      return {
+        success: false,
+        error: 'Please sign in with your verified student account before submitting a formal complaint.',
+      };
+    }
+    try {
+      const created = await createComplaintTicket({
+        uid: firebaseUser.uid,
+        studentName: student.fullName,
+        studentId: student.studentId,
+        studentEmail: student.email,
+        domainId: data.domainId,
+        category: data.category,
+        subject: data.subject,
+        description: data.description,
+        attachmentUrl: data.attachmentUrl,
+      });
+      return { success: true, ticketNumber: created.ticketNumber };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to submit complaint.' };
+    }
   };
 
   const toggleCompareCandidate = (candidateId: string) => {
+    const fallbackSecond = candidates.find((c) => c.id !== candidateId)?.id;
     if (!compareCandidateIds) {
-      setCompareCandidateIds([candidateId, 'cand-02']);
+      if (fallbackSecond) setCompareCandidateIds([candidateId, fallbackSecond]);
       return;
     }
-    if (compareCandidateIds[0] === candidateId) {
-      return;
-    }
+    if (compareCandidateIds[0] === candidateId) return;
     setCompareCandidateIds([compareCandidateIds[0], candidateId]);
   };
 
@@ -817,7 +1038,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         activeView,
         userRole,
+        firebaseUser,
         student,
+        voterEligibilityRecord,
         admin,
         selectedElectionId,
         selectedDomainId,
@@ -833,18 +1056,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         candidates,
         myCandidateApplication,
         notifications,
+        announcements,
+        calendarEvents,
         complaints,
+        voteConfirmations,
+        allStudents,
+        eligibilityRecords,
+        auditLogs,
         categoryFilter,
         statusFilter,
         searchQuery,
         recentVoteReceipt,
         sessionChecked,
+        isLoadingData,
+        dataError,
         sessionExpiredReason,
         postLoginView,
+        pendingEmailPrompt,
+        emailLinkFeedback,
+        needsProfileCompletion,
         navigateTo,
         setSelectedDomainId,
         setPostLoginView,
         clearSessionExpiredReason,
+        clearEmailLinkFeedback,
+        submitEmailLinkPrompt,
+        dismissEmailLinkPrompt,
         refreshAuthSession,
         refreshDomains,
         refreshElections,
@@ -859,8 +1096,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         withdrawCandidateAction,
         assignCandidatePositionAction,
         verifyCandidateEligibilityAction,
-        loginAsStudent,
-        loginAsAdmin,
         loginWithUserPayload,
         logout,
         updateStudentProfile,
@@ -874,8 +1109,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         resetBallot,
         submitBallotAction,
         markNotificationAsRead,
+        markAllNotificationsAsRead,
         submitComplaint,
-        toggleCompareCandidate
+        toggleCompareCandidate,
       }}
     >
       {children}

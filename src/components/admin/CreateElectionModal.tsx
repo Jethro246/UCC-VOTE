@@ -12,7 +12,9 @@ import {
   Edit3
 } from 'lucide-react';
 import { DomainId, ElectionCategory } from '../../types';
-import { CreateElectionPayload, electionClient } from '../../services/electionClient';
+import { CreateElectionPayload } from '../../services/interfaces';
+import { adminService } from '../../services/adminService';
+import { uploadElectionDocument } from '../../services/firebaseStorageService';
 import { useApp } from '../../context/AppContext';
 
 interface CreateElectionModalProps {
@@ -152,14 +154,17 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [subdomainLabel, setSubdomainLabel] = useState<string>('');
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
-  const [academicYear, setAcademicYear] = useState('2026/2027');
+  const [academicYear, setAcademicYear] = useState(`${new Date().getFullYear()}/${new Date().getFullYear() + 1}`);
   const [organizingBody, setOrganizingBody] = useState('UCC Electoral Commission (EC-UCC)');
   const [description, setDescription] = useState('');
+  const [guidelinesUrl, setGuidelinesUrl] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   // Step 2: Schedule & Timeline
-  const [startDate, setStartDate] = useState('2026-11-12');
+  const todayIsoDate = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(todayIsoDate);
   const [startTime, setStartTime] = useState('08:00');
-  const [endDate, setEndDate] = useState('2026-11-12');
+  const [endDate, setEndDate] = useState(todayIsoDate);
   const [endTime, setEndTime] = useState('17:00');
 
   // Step 3: Eligibility Rules
@@ -448,10 +453,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         levels: domainId === 'grasag' ? ['Postgraduate'] : selectedLevels,
         halls: selectedHalls
       },
-      positions
-    };
+      positions,
+      ...(guidelinesUrl ? { guidelinesUrl } : {})
+    } as CreateElectionPayload;
 
-    const res = await electionClient.createElection(payload);
+    const res = await adminService.createElection(payload);
     setSubmitting(false);
 
     if (res.success && res.election) {
@@ -703,6 +709,38 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   placeholder="Detail constitutional mandate, domain constituency, and scope..."
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Optional Election Guidelines / Gazette Document (Firebase Storage)
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    disabled={uploadingDoc}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setErrorMsg('');
+                      setUploadingDoc(true);
+                      try {
+                        const uploaded = await uploadElectionDocument(file, code || 'election-doc');
+                        setGuidelinesUrl(uploaded.url);
+                      } catch (err: any) {
+                        setErrorMsg(err?.message || 'Document upload failed.');
+                      } finally {
+                        setUploadingDoc(false);
+                      }
+                    }}
+                    className="text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#EAF2FA] file:text-[#123B70] hover:file:bg-blue-100 cursor-pointer"
+                  />
+                  {uploadingDoc && <span className="text-xs text-[#123B70] font-semibold">Uploading...</span>}
+                  {guidelinesUrl && !uploadingDoc && (
+                    <span className="text-xs text-emerald-700 font-semibold">Document attached</span>
+                  )}
+                </div>
               </div>
             </div>
           )}

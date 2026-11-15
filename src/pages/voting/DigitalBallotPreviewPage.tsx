@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { electionClient, EligibilityResult } from '../../services/electionClient';
+import { votingService } from '../../services/votingService';
+import { EligibilityResult } from '../../services/interfaces';
 import { Candidate, Election, Position, VoteConfirmationReceipt } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
@@ -135,7 +136,16 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       return;
     }
 
-    const res = await electionClient.getBallot(selectedElectionId);
+    if (elections.length === 0 || !selectedElectionId) {
+      setBallotError({
+        code: 'NO_ACTIVE_ELECTIONS',
+        message: 'No active elections at the moment.'
+      });
+      setIsLoadingBallot(false);
+      return;
+    }
+
+    const res = await votingService.getBallot(selectedElectionId);
 
     if (res.election) {
       setServerElection(res.election);
@@ -152,7 +162,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
     if (!res.success) {
       setBallotError({
-        code: res.code,
+        code: (res as any).code || (res.httpStatus ? `HTTP_${res.httpStatus}` : undefined),
         message: res.error || 'Unable to load authorized digital ballot.',
         opensAt: res.opensAt || res.election?.startDate,
         closesAt: res.closesAt || res.election?.endDate
@@ -506,6 +516,8 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   ? 'Voter Account Suspended'
                   : ballotError.code === 'INELIGIBLE_VOTER'
                   ? 'Voter Eligibility Check Not Satisfied'
+                  : ballotError.code === 'NO_ACTIVE_ELECTIONS'
+                  ? 'No active elections at the moment.'
                   : ballotError.code === 'SERVER_ERROR'
                   ? 'Voting Service Temporarily Unavailable'
                   : ballotError.code === 'NETWORK_ERROR'

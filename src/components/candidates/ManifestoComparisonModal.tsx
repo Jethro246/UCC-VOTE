@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Candidate } from '../../types';
+import { CandidateAvatar } from '../common/CandidateAvatar';
 import {
   X,
   Scale,
@@ -52,10 +53,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
   );
 
   const [selectedElectionId, setSelectedElectionId] = useState<string>(
-    initialElectionId || 'UCC-SRC-2026'
+    initialElectionId || elections[0]?.id || ''
   );
   const [selectedPositionId, setSelectedPositionId] = useState<string>(
-    initialPositionId || 'pos-src-pres'
+    initialPositionId || ''
   );
   const [activeCandidateId1, setActiveCandidateId1] = useState<string>(
     initialCandidateIds[0] || ''
@@ -74,6 +75,8 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
         setSelectedElectionId(seed.electionId);
         setSelectedPositionId(seed.positionId);
       }
+    } else if (!selectedElectionId && elections[0]?.id) {
+      setSelectedElectionId(elections[0].id);
     }
     if (initialPositionId) {
       setSelectedPositionId(initialPositionId);
@@ -293,9 +296,9 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             {/* Candidate 1 Header Card */}
             <div className="p-5 rounded-2xl border-2 border-[#123B70]/30 bg-white shadow-xs space-y-3">
               <div className="flex items-center gap-4">
-                <img
+                <CandidateAvatar
                   src={candidate1?.photoUrl}
-                  alt={candidate1?.fullName}
+                  alt={candidate1?.fullName || 'Candidate A'}
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm shrink-0"
                 />
                 <div>
@@ -323,9 +326,9 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             {/* Candidate 2 Header Card */}
             <div className="p-5 rounded-2xl border-2 border-[#C62828]/30 bg-white shadow-xs space-y-3">
               <div className="flex items-center gap-4">
-                <img
+                <CandidateAvatar
                   src={candidate2?.photoUrl}
-                  alt={candidate2?.fullName}
+                  alt={candidate2?.fullName || 'Candidate B'}
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#C62828] shadow-sm shrink-0"
                 />
                 <div>
@@ -500,11 +503,14 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           <div className="flex items-center gap-3">
             <button
+              disabled={!candidate1?.electionId}
               onClick={() => {
                 onClose();
-                navigateTo('digital_ballot', { electionId: candidate1?.electionId });
+                if (candidate1?.electionId) {
+                  navigateTo('digital_ballot', { electionId: candidate1.electionId });
+                }
               }}
-              className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Vote className="w-4 h-4" />
               <span>Proceed to Digital Ballot</span>

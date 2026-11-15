@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { electionClient } from '../../services/electionClient';
+import { adminService } from '../../services/adminService';
 import { ElectionResultsPayload, ResultsWorkflowStage } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../common/Logo';
 import {
@@ -96,7 +96,7 @@ export const AdminResultsPanel: React.FC = () => {
 
   const [selectedId, setSelectedId] = useState<string>(() => {
     const pending = scopedElections.find(e => e.status === 'results_pending_certification');
-    return pending?.id || scopedElections[0]?.id || elections[0]?.id || 'UCC-BUS-2026';
+    return pending?.id || scopedElections[0]?.id || elections[0]?.id || '';
   });
 
   useEffect(() => {
@@ -114,9 +114,14 @@ export const AdminResultsPanel: React.FC = () => {
   const [exportingKey, setExportingKey] = useState<string | null>(null);
 
   const loadAdminResults = async (electionId: string) => {
+    if (!electionId) {
+      setResults(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setErrorMsg('');
-    const res = await electionClient.getAdminElectionResults(electionId);
+    const res = await adminService.getAdminElectionResults(electionId);
     if (res.success && res.results) {
       setResults(res.results);
     } else {
@@ -129,6 +134,9 @@ export const AdminResultsPanel: React.FC = () => {
   useEffect(() => {
     if (selectedId) {
       loadAdminResults(selectedId);
+    } else {
+      setResults(null);
+      setLoading(false);
     }
   }, [selectedId]);
 
@@ -148,7 +156,7 @@ export const AdminResultsPanel: React.FC = () => {
     setAdvancing(true);
     setFeedback(null);
 
-    const res = await electionClient.advanceResultsWorkflow(
+    const res = await adminService.advanceResultsWorkflow(
       results.electionId,
       nextStage.id,
       workflowNotes.trim() || `${nextStage.label} completed via Commission Console.`,
@@ -181,7 +189,7 @@ export const AdminResultsPanel: React.FC = () => {
     const key = `${format}-${reportType}`;
     setExportingKey(key);
     setFeedback(null);
-    const res = await electionClient.downloadElectionReport(results.electionId, format, reportType);
+    const res = await adminService.downloadElectionReport(results.electionId, format, reportType);
     setExportingKey(null);
     if (res.success) {
       setFeedback({
@@ -290,6 +298,14 @@ export const AdminResultsPanel: React.FC = () => {
           title="Computing Authoritative Election Tallies"
           subtitle="Reconciling encrypted ballot vaults and small-cohort privacy thresholds..."
         />
+      )}
+
+      {!loading && !selectedId && scopedElections.length === 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-2">
+          <Award className="w-8 h-8 text-slate-300 mx-auto" />
+          <p className="text-sm font-bold text-slate-800">No elections available for results review.</p>
+          <p className="text-xs text-slate-500">Create and conduct an election first to view or certify results.</p>
+        </div>
       )}
 
       {!loading && errorMsg && (

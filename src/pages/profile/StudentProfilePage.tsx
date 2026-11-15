@@ -2,21 +2,14 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { 
-  User, 
   ShieldCheck, 
   CheckCircle2, 
   Lock, 
-  Mail, 
   Phone, 
-  Building, 
-  GraduationCap, 
-  Home, 
   History, 
-  KeyRound,
-  FileText,
   AlertCircle,
-  Bell,
   Save,
   ShieldAlert
 } from 'lucide-react';
@@ -29,7 +22,7 @@ export const StudentProfilePage: React.FC = () => {
     sessionExpiredReason,
     setPostLoginView,
     navigateTo,
-    elections,
+    voteConfirmations,
     updateStudentProfile
   } = useApp();
 
@@ -111,7 +104,6 @@ export const StudentProfilePage: React.FC = () => {
   }
 
   const currentStudent = student;
-  const votedElections = elections.filter(e => currentStudent.hasVotedElections?.includes(e.id));
 
   const handleSavePermittedDetails = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,17 +174,29 @@ export const StudentProfilePage: React.FC = () => {
       
       {/* Profile Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
-        <img
-          src={currentStudent.avatarUrl || '/src/assets/images/candidate_male_1794352938747.jpg'}
+        <CandidateAvatar
+          src={currentStudent.avatarUrl}
           alt={currentStudent.fullName}
-          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-200 shadow-md shrink-0"
+          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-200 shadow-md shrink-0 text-2xl"
         />
 
         <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Verified Student Voter · Academic Year 2026/2027</span>
-          </div>
+          {currentStudent.status === 'suspended' ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold">
+              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+              <span>Account Suspended</span>
+            </div>
+          ) : currentStudent.isEligible ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Verified Eligible Voter</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              <span>Email Verified · Pending Voter Roll Confirmation</span>
+            </div>
+          )}
 
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
             {currentStudent.fullName}
@@ -247,7 +251,7 @@ export const StudentProfilePage: React.FC = () => {
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          Voting Participation History ({votedElections.length})
+          Voting Participation History ({voteConfirmations.length})
         </button>
       </div>
 
@@ -434,7 +438,7 @@ export const StudentProfilePage: React.FC = () => {
                 Update Portal Password
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">PBKDF2 ENCRYPTION</span>
+            <span className="text-[10px] font-mono text-slate-500">FIREBASE AUTHENTICATION</span>
           </div>
 
           {pwdMsg && (
@@ -506,20 +510,24 @@ export const StudentProfilePage: React.FC = () => {
           {/* Active Session Info */}
           <div className="pt-4 border-t border-slate-200">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Current Session Telemetry
+              Current Firebase Authentication Session
             </h3>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
               <div className="flex justify-between">
-                <span>Session Type:</span>
-                <span className="font-semibold text-slate-800">UCC Student Portal Bearer Session</span>
+                <span>Authentication Provider:</span>
+                <span className="font-semibold text-slate-800">Firebase Authentication (ucc-vote)</span>
               </div>
               <div className="flex justify-between">
-                <span>Auth Protocol:</span>
-                <span className="font-mono text-emerald-700 font-semibold">PBKDF2-SHA512 + HTTP-Only Cookie</span>
+                <span>Email Verification:</span>
+                <span className="font-mono text-emerald-700 font-semibold">
+                  {currentStudent.emailVerified ? 'Verified' : 'Pending'}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span>Account Status:</span>
-                <span className="text-emerald-700 font-bold uppercase">Active & Eligible</span>
+                <span>Voter Roll Eligibility:</span>
+                <span className={`font-bold uppercase ${currentStudent.isEligible ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {currentStudent.isEligible ? 'Eligible' : 'Pending Verification'}
+                </span>
               </div>
             </div>
           </div>
@@ -535,32 +543,45 @@ export const StudentProfilePage: React.FC = () => {
               <span>Personal Voting Participation Records</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              In strict accordance with electronic voting privacy standards, this ledger only records that you cast a valid ballot. 
+              In strict accordance with electronic voting privacy standards, your confirmation receipts record only participation metadata. 
               <strong> The candidates you chose are never stored in your profile.</strong>
             </p>
           </div>
 
-          <div className="space-y-3">
-            {votedElections.map((el) => (
-              <div key={el.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-[#123B70] uppercase">{el.category}</span>
-                  <h4 className="text-sm font-bold text-slate-900">{el.title}</h4>
-                  <p className="text-xs text-slate-500 font-mono">Academic Year: {el.academicYear}</p>
-                </div>
+          {voteConfirmations.length === 0 ? (
+            <div className="p-8 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+              No voting participation records found yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {voteConfirmations.map((receipt) => (
+                <div
+                  key={receipt.confirmationRef}
+                  className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-[#123B70] uppercase">
+                      {receipt.electionCategory}
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">{receipt.electionTitle}</h4>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Submitted: {receipt.submittedAt ? new Date(receipt.submittedAt).toLocaleString() : ''}
+                    </p>
+                  </div>
 
-                <div className="sm:text-right shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Ballot Recorded</span>
-                  </span>
-                  <p className="text-[10px] text-slate-400 font-mono mt-1">
-                    Receipt Token: UCC-{el.id.slice(-4)}-{Math.floor(1000 + Math.random() * 9000)}
-                  </p>
+                  <div className="sm:text-right shrink-0">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Ballot Confirmed</span>
+                    </span>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                      Ref: {receipt.confirmationRef}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Position, Election } from '../../types';
 import { electionClient } from '../../services/electionClient';
+import { adminService } from '../../services/adminService';
 import { useApp } from '../../context/AppContext';
 
 interface PositionManagerModalProps {
@@ -85,7 +86,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       return;
     }
 
-    const res = await electionClient.addPosition(election.id, {
+    const res = await adminService.addPosition(election.id, {
       title: title.trim(),
       description: description.trim() || `Contested portfolio for ${title.trim()}`,
       maxSelections,
@@ -94,9 +95,9 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       votingRules
     });
 
-    if (res.success && res.allPositions) {
-      setPositions(res.allPositions);
-      onPositionsUpdated(res.allPositions.length);
+    if (res?.success) {
+      await loadPositions();
+      onPositionsUpdated(positions.length + 1);
       await refreshDomains();
       setSuccessMsg(`Position '${title}' created successfully.`);
       setTitle('');
@@ -105,7 +106,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       setAllowsSkip(false);
       setTimeout(() => setSuccessMsg(''), 3000);
     } else {
-      setErrorMsg(res.error || 'Failed to add position.');
+      setErrorMsg('Failed to add position.');
     }
   };
 
@@ -128,7 +129,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    const res = await electionClient.updatePosition(election.id, posId, {
+    const res = await adminService.updatePosition(election.id, posId, {
       title: editTitle.trim(),
       description: editDescription.trim(),
       maxSelections: editMaxSelections,
@@ -137,15 +138,15 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       votingRules: editVotingRules.trim()
     });
 
-    if (res.success && res.allPositions) {
-      setPositions(res.allPositions);
-      onPositionsUpdated(res.allPositions.length);
+    if (res?.success) {
+      await loadPositions();
+      onPositionsUpdated(positions.length);
       await refreshDomains();
       setEditingPosId(null);
       setSuccessMsg(`Portfolio '${editTitle.trim()}' updated.`);
       setTimeout(() => setSuccessMsg(''), 3000);
     } else {
-      setErrorMsg(res.error || 'Failed to update position.');
+      setErrorMsg('Failed to update position.');
     }
   };
 
@@ -153,15 +154,16 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    const res = await electionClient.deletePosition(election.id, posId);
-    if (res.success && res.remainingPositions) {
-      setPositions(res.remainingPositions);
-      onPositionsUpdated(res.remainingPositions.length);
+    const res = await adminService.deletePosition(election.id, posId);
+    if (res?.success) {
+      const updated = res.remainingPositions || positions.filter((p) => p.id !== posId);
+      setPositions(updated);
+      onPositionsUpdated(updated.length);
       await refreshDomains();
       setSuccessMsg('Position removed.');
       setTimeout(() => setSuccessMsg(''), 3000);
     } else {
-      setErrorMsg(res.error || 'Failed to delete position.');
+      setErrorMsg('Failed to delete position.');
     }
   };
 

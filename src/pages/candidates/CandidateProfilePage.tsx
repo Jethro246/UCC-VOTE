@@ -34,13 +34,17 @@ export const CandidateProfilePage: React.FC = () => {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-4">
         <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
-        <h2 className="text-lg font-bold text-slate-900">Candidate Not Found</h2>
+        <h2 className="text-lg font-bold text-slate-900">
+          {candidates.length === 0 ? 'No candidates have been added yet.' : 'Candidate Not Found'}
+        </h2>
         <p className="text-xs text-slate-500 max-w-sm mx-auto">
-          The requested aspirant profile could not be located in the electoral register.
+          {candidates.length === 0
+            ? 'No candidate nominations have been published to the electoral register yet.'
+            : 'The requested aspirant profile could not be located in the electoral register.'}
         </p>
         <button
           onClick={() => navigateTo('candidate_directory')}
-          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold"
+          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer"
         >
           Return to Candidate Directory
         </button>

@@ -9,7 +9,7 @@ import {
   Clock
 } from 'lucide-react';
 import { Election, ElectionStatus } from '../../types';
-import { electionClient } from '../../services/electionClient';
+import { adminService } from '../../services/adminService';
 
 interface StatusTransitionModalProps {
   isOpen: boolean;
@@ -90,14 +90,14 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
     }
 
     setSubmitting(true);
-    const res = await electionClient.changeStatus(election.id, targetStatus as ElectionStatus, justification);
+    const res = await adminService.changeStatus(election.id, targetStatus as ElectionStatus, justification);
     setSubmitting(false);
 
-    if (res.success && res.election) {
+    if (res?.success && res.election) {
       onSuccess(res.election);
       onClose();
     } else {
-      setErrorMsg(res.error || 'Failed to update status.');
+      setErrorMsg('Failed to update status.');
     }
   };
 

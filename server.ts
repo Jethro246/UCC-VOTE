@@ -3,14 +3,6 @@ import http from 'http';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { authRouter } from './src/server/authRoutes.ts';
-import { adminRouter } from './src/server/adminRoutes.ts';
-import { studentDashboardRouter } from './src/server/studentDashboardRoutes.ts';
-import { electionRouter } from './src/server/electionRoutes.ts';
-import { candidateRouter } from './src/server/candidateRoutes.ts';
-import { votingRouter } from './src/server/votingRoutes.ts';
-import { resultsRouter } from './src/server/resultsRoutes.ts';
-import { domainRouter } from './src/server/domainRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,37 +22,24 @@ async function startServer() {
       ? parseInt(process.env.PORT, 10)
       : 3000;
 
-  // Middlewares
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  // Mount API Routers
-  app.use('/api/auth', authRouter);
-  app.use('/api/admin', adminRouter);
-  app.use('/api/domains', domainRouter);
-  app.use('/api/student', studentDashboardRouter);
-  app.use('/api/voting', votingRouter);
-  app.use('/api/results', resultsRouter);
-  app.use('/api/candidates', candidateRouter);
-  app.use('/api/elections/candidates', candidateRouter);
-  app.use('/api/elections', electionRouter);
-
   // Health check route
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'healthy',
       institution: 'University of Cape Coast, Ghana',
       platform: 'UCC VOTE',
-      timestamp: new Date().toISOString()
+      backend: 'Firebase (ucc-vote)',
+      timestamp: new Date().toISOString(),
     });
   });
 
-  // Check if running in production or development
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (!isProduction) {
-    // Development mode: Mount Vite middleware
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
@@ -71,10 +50,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Production mode: Serve static assets from dist
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   }

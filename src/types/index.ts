@@ -24,17 +24,21 @@ export type AdminRoleType =
 
 export interface StudentProfile {
   id: string;
+  uid?: string;
   studentId: string; // e.g. PS/CSC/21/0042
   indexNumber: string;
   fullName: string;
   email: string;
+  emailVerified?: boolean;
   phone: string;
   department: string;
   faculty: string;
   programme: string;
   level: '100' | '200' | '300' | '400' | 'Postgraduate';
-  hall: string; // e.g. Casely Hayford Hall, Valco Hall, Oguaa Hall, Kwame Nkrumah Hall, Atlantic Hall, Adehye Hall
+  hall: string;
   isEligible: boolean;
+  eligibilityStatus?: 'eligible' | 'pending_verification' | 'suspended' | 'ineligible';
+  eligibilityNotes?: string;
   status?: 'active' | 'suspended' | 'unverified';
   avatarUrl?: string;
   emergencyContact?: string;
@@ -44,11 +48,13 @@ export interface StudentProfile {
     resultsAnnouncements: boolean;
   };
   hasVotedElections: string[]; // election IDs
-  isDemoAccount?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AdminProfile {
   id: string;
+  uid?: string;
   staffId: string;
   fullName: string;
   email: string;
@@ -59,7 +65,28 @@ export interface AdminProfile {
   managedHalls?: string[];
   managedFaculties?: string[];
   managedDepartments?: string[];
-  isDemoAccount?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VoterEligibilityRecord {
+  id: string; // usually uid or normalized studentId
+  uid?: string;
+  studentId: string;
+  fullName?: string;
+  email?: string;
+  faculty: string;
+  department: string;
+  programme?: string;
+  level: string;
+  hall: string;
+  isEligible: boolean;
+  status: 'eligible' | 'pending_verification' | 'suspended' | 'ineligible';
+  reason?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  updatedAt?: string;
 }
 
 export type ElectionCategory =
@@ -235,7 +262,7 @@ export interface Election {
   createdAt?: string;
   updatedAt?: string;
   approvedBy?: string;
-  isDemoRecord?: boolean;
+  guidelinesUrl?: string;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;
@@ -262,9 +289,22 @@ export interface NotificationItem {
   message: string;
   category: 'election' | 'security' | 'deadline' | 'results';
   domainId?: DomainId;
+  targetUid?: string | null;
   timestamp: string;
   read: boolean;
   linkAction?: string;
+}
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  message: string;
+  category: 'general' | 'election' | 'deadline' | 'results' | 'security';
+  domainId?: DomainId;
+  publishedBy: string;
+  publishedAt: string;
+  pinned?: boolean;
+  active?: boolean;
 }
 
 export interface CalendarEvent {
@@ -282,16 +322,21 @@ export interface CalendarEvent {
 
 export interface ComplaintTicket {
   id: string;
+  uid?: string;
   ticketNumber: string;
   studentName: string;
   studentId: string;
+  studentEmail?: string;
   domainId?: DomainId;
   category: 'technical' | 'eligibility' | 'irregularity' | 'general';
   subject: string;
   description: string;
+  attachmentUrl?: string;
   status: 'pending' | 'in_review' | 'resolved';
   submittedAt: string;
+  updatedAt?: string;
   response?: string;
+  resolvedBy?: string;
 }
 
 export type ResultsWorkflowStage =

@@ -221,20 +221,26 @@ export const ElectionsDirectoryPage: React.FC = () => {
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
               <Search className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-slate-900">No elections found</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              {elections.length === 0 ? 'No active elections at the moment.' : 'No elections found'}
+            </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Try adjusting your search query or reset the filters to view all available university ballots.
+              {elections.length === 0
+                ? 'Elections configured by the UCC Electoral Commission will appear here automatically once published.'
+                : 'Try adjusting your search query or reset the filters to view all available university ballots.'}
             </p>
-            <button
-              onClick={() => {
-                setCategoryFilter('All');
-                setStatusFilter('All');
-                setSearch('');
-              }}
-              className="px-4 py-2 text-xs font-semibold text-[#123B70] bg-[#EAF2FA] rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
-            >
-              Reset Filters
-            </button>
+            {elections.length > 0 && (
+              <button
+                onClick={() => {
+                  setCategoryFilter('All');
+                  setStatusFilter('All');
+                  setSearch('');
+                }}
+                className="px-4 py-2 text-xs font-semibold text-[#123B70] bg-[#EAF2FA] rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

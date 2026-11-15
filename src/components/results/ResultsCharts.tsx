@@ -6,6 +6,7 @@ import {
   CandidateResultRow
 } from '../../types';
 import { Award, ShieldCheck, Lock, AlertTriangle, BarChart3, PieChart } from 'lucide-react';
+import { CandidateAvatar } from '../common/CandidateAvatar';
 
 const CHART_PALETTE = [
   '#123B70', // UCC Blue
@@ -406,10 +407,10 @@ export const CandidateBarChart: React.FC<{
                 <span className="text-xs font-mono font-bold text-slate-400 w-5 shrink-0 tabular-nums">
                   #{cand.rank}
                 </span>
-                <img
+                <CandidateAvatar
                   src={cand.photoUrl}
                   alt={cand.fullName}
-                  className="w-11 h-11 rounded-lg object-cover object-top border border-slate-200 shrink-0"
+                  className="w-11 h-11 rounded-lg object-cover object-top border border-slate-200 shrink-0 text-xs"
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">

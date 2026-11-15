@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import {
   Search,
   Users,
@@ -395,22 +396,30 @@ export const CandidateDirectoryPage: React.FC = () => {
       {groupedSections.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
           <Users className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="text-base font-bold text-slate-800">No Approved Candidates Found</h3>
+          <h3 className="text-base font-bold text-slate-800">
+            {approvedCandidates.length === 0
+              ? 'No candidates have been added yet.'
+              : 'No Approved Candidates Found'}
+          </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            No candidates matched your search criteria. Try modifying your domain, election, or position filters.
+            {approvedCandidates.length === 0
+              ? 'Approved election candidates will appear here once vetted and published in Firestore.'
+              : 'No candidates matched your search criteria. Try modifying your domain, election, or position filters.'}
           </p>
-          <button
-            onClick={() => {
-              setSelectedDomain('All');
-              setSelectedElection('All');
-              setSelectedPosition('All');
-              setSelectedFaculty('All');
-              setSearch('');
-            }}
-            className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-semibold hover:bg-[#0B1F3A] cursor-pointer"
-          >
-            Clear All Filters
-          </button>
+          {approvedCandidates.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedDomain('All');
+                setSelectedElection('All');
+                setSelectedPosition('All');
+                setSelectedFaculty('All');
+                setSearch('');
+              }}
+              className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-semibold hover:bg-[#0B1F3A] cursor-pointer"
+            >
+              Clear All Filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-8">
@@ -464,7 +473,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                       <div>
                         <div className="p-5 flex items-start gap-4">
                           <div className="relative shrink-0">
-                            <img
+                            <CandidateAvatar
                               src={cand.photoUrl}
                               alt={cand.fullName}
                               className="w-20 h-20 rounded-2xl object-cover object-center border-2 border-slate-200 shrink-0"

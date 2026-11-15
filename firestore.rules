@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive != false
+        )
+      );
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Student profiles: users can read/create own pending profile and update non-privileged fields.
+    // Eligibility and account status can only be modified by verified Administrators or Admin SDK.
+    match /students/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.isEligible == false
+        && request.resource.data.eligibilityStatus == 'pending_verification';
+      allow update: if isAdmin() || (
+        isOwner(uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'isEligible',
+          'eligibilityStatus',
+          'eligibilityNotes',
+          'status',
+          'role',
+          'uid'
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Authoritative UCC voter eligibility records (Admin-managed only)
+    match /voter_eligibility/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Duplicate-vote lock collection: written exclusively by Cloud Functions Admin SDK
+    match /voter_authorisations/{authDocId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Anonymous ballots: never readable or writable directly from client SDKs
+    match /ballots/{ballotId} {
+      allow read, write: if false;
+    }
+
+    // Vote receipts (no candidate selections stored): written exclusively by Cloud Functions Admin SDK
+    match /vote_confirmations/{receiptId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Elections and Contested Positions
+    match /elections/{electionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /positions/{positionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Candidate Nominations
+    match /candidates/{candidateId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.submittedByUid == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'applicationStatus',
+          'eligibilityVerified',
+          'reviewedBy',
+          'reviewedAt',
+          'votesReceived',
+          'rejectionReason'
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Certified / Published Election Results
+    match /election_results/{electionId} {
+      allow read: if (resource != null && resource.data.isPublished == true) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Structural UCC Governance Registry
+    match /domains/{domainId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /halls/{hallId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /faculties/{facultyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /departments/{departmentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Public Announcements & Election Calendar
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /calendar_events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Notifications (global targetUid == null or user-targeted) & per-user read tracking
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (
+        resource.data.targetUid == null ||
+        resource.data.targetUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    match /notification_reads/{readId} {
+      allow read: if isSignedIn() && (
+        (resource != null && resource.data.uid == request.auth.uid) ||
+        readId.matches('^' + request.auth.uid + '_.*')
+      );
+      allow write: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        readId.matches('^' + request.auth.uid + '_.*');
+    }
+
+    // Student Complaints / Petitions
+    match /complaints/{complaintId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Administrator accounts
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Immutable Audit Logs
+    match /audit_logs/{logId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

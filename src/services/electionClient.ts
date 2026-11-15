@@ -1,239 +1,277 @@
 import {
-  Election,
-  ElectionCategory,
-  ElectionStatus,
-  Position,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
+import {
+  DOMAIN_REGISTRY,
+  UCC_DEPARTMENTS,
+  UCC_FACULTIES,
+  UCC_HALLS,
+  categoryToDomainId,
+} from '../data/uccStructure';
+import {
   Candidate,
-  BallotSelectionMap,
-  VoteConfirmationReceipt,
-  ElectionResultsPayload,
-  ResultsWorkflowStage,
+  DepartmentUnit,
   DomainId,
   DomainRegistryItem,
-  HallUnit,
+  Election,
+  ElectionResultsPayload,
   FacultyUnit,
-  DepartmentUnit,
-  AdminProfile,
-  AdminRoleType
+  HallUnit,
+  Position,
+  StudentProfile,
+  VoterEligibilityRecord,
 } from '../types';
-import { authClient } from './authClient';
+import { DomainWithStats, EligibilityResult } from './interfaces';
+import { convertTimestamp } from './firebaseDbService';
 
-export interface DomainWithStats extends DomainRegistryItem {
-  stats: {
-    totalElections: number;
-    activeElections: number;
-    upcomingElections: number;
-    completedElections: number;
-    pendingCertification: number;
-    totalVotesCast: number;
-    approvedCandidatesCount: number;
-  };
-}
-
-export interface CreateElectionPayload {
-  title: string;
-  code?: string;
-  description: string;
-  category: ElectionCategory;
-  domainId?: DomainId;
-  hallId?: string;
-  facultyId?: string;
-  departmentId?: string;
-  subdomainLabel?: string;
-  academicYear: string;
-  startDate: string;
-  endDate: string;
-  startTime?: string;
-  endTime?: string;
-  organizingBody: string;
-  rules: string[];
-  eligibilityCriteria: {
-    faculties?: string[];
-    departments?: string[];
-    programmes?: string[];
-    levels?: string[];
-    halls?: string[];
-  };
-  positions?: {
-    title: string;
-    description?: string;
-    maxSelections?: number;
-    allowsSkip?: boolean;
-    candidateEligibilityRules?: string;
-    votingRules?: string;
-  }[];
-}
-
-export interface EligibilityResult {
-  isEligible: boolean;
-  reason?: string;
-  checks: Record<string, boolean>;
-}
-
-async function safeJson(res: Response): Promise<any | null> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
+function mapDoc<T>(id: string, data: Record<string, any>): T {
+  const out: Record<string, any> = { id };
+  for (const [k, v] of Object.entries(data)) {
+    out[k] = v && typeof v?.toDate === 'function' ? convertTimestamp(v) : v;
   }
+  return out as T;
 }
 
-export const electionClient = {
-  /**
-   * Fetch all institutional election domains, halls, faculties, departments, and positions
-   */
-  async getDomains(): Promise<{
-    success: boolean;
-    domains: DomainWithStats[];
-    halls: HallUnit[];
-    faculties: FacultyUnit[];
-    departments: DepartmentUnit[];
-    positionsByElection: Record<string, Position[]>;
-    error?: string;
-  }> {
+export function evaluateStudentEligibilityLocal(
+  student: StudentProfile,
+  election: Election,
+  eligibilityRecord?: VoterEligibilityRecord | null
+): EligibilityResult {
+  const checks: Record<string, boolean> = {
+    accountActive: student.status !== 'suspended' && student.status !== 'unverified',
+    emailVerified: Boolean(student.emailVerified),
+    rollVerified:
+      eligibilityRecord !== undefined && eligibilityRecord !== null
+        ? eligibilityRecord.isEligible === true && eligibilityRecord.status === 'eligible'
+        : student.isEligible === true && student.eligibilityStatus !== 'suspended' && student.eligibilityStatus !== 'pending_verification',
+    facultyMatch: true,
+    departmentMatch: true,
+    levelMatch: true,
+    hallMatch: true,
+  };
+
+  if (!checks.accountActive) {
+    return {
+      isEligible: false,
+      reason: 'Your student account is suspended or unverified.',
+      checks,
+    };
+  }
+
+  if (!checks.rollVerified) {
+    return {
+      isEligible: false,
+      reason:
+        eligibilityRecord?.reason ||
+        student.eligibilityNotes ||
+        'Your email is verified, but your student record has not yet been confirmed on the UCC Electoral Commission voter roll.',
+      checks,
+    };
+  }
+
+  const criteria = election.eligibilityCriteria || {};
+  if (criteria.faculties && criteria.faculties.length > 0) {
+    checks.facultyMatch = criteria.faculties.some(
+      (f) => f.toLowerCase() === student.faculty.toLowerCase()
+    );
+  }
+  if (criteria.departments && criteria.departments.length > 0) {
+    checks.departmentMatch = criteria.departments.some(
+      (d) => d.toLowerCase() === student.department.toLowerCase()
+    );
+  }
+  if (criteria.levels && criteria.levels.length > 0) {
+    checks.levelMatch = criteria.levels.some(
+      (l) => l.toLowerCase() === String(student.level).toLowerCase()
+    );
+  }
+  if (criteria.halls && criteria.halls.length > 0) {
+    checks.hallMatch = criteria.halls.some(
+      (h) => h.toLowerCase() === student.hall.toLowerCase()
+    );
+  }
+
+  if (election.category === 'GRASAG' && student.level !== 'Postgraduate') {
+    checks.levelMatch = false;
+  }
+
+  const failedReasons: string[] = [];
+  if (!checks.facultyMatch) failedReasons.push(`Restricted to faculty: ${criteria.faculties?.join(', ')}`);
+  if (!checks.departmentMatch) failedReasons.push(`Restricted to department: ${criteria.departments?.join(', ')}`);
+  if (!checks.levelMatch) {
+    failedReasons.push(
+      election.category === 'GRASAG'
+        ? 'GRASAG elections require Postgraduate enrolment.'
+        : `Restricted to level(s): ${criteria.levels?.join(', ')}`
+    );
+  }
+  if (!checks.hallMatch) failedReasons.push(`Restricted to hall: ${criteria.halls?.join(', ')}`);
+
+  return {
+    isEligible: failedReasons.length === 0,
+    reason:
+      failedReasons.length > 0
+        ? failedReasons.join(' ')
+        : 'Verified eligible UCC voter for this election.',
+    checks,
+  };
+}
+
+class FirebaseElectionClient {
+  async getDomains() {
     try {
-      const res = await fetch('/api/domains', { credentials: 'include' });
-      return (
-        (await safeJson(res)) || {
-          success: false,
-          domains: [],
-          halls: [],
-          faculties: [],
-          departments: [],
-          positionsByElection: {},
-          error: `Server error (${res.status})`
-        }
+      const [domainsSnap, hallsSnap, facSnap, deptSnap, electionsSnap, posSnap, candSnap] =
+        await Promise.all([
+          getDocs(collection(db, 'domains')).catch(() => null),
+          getDocs(collection(db, 'halls')).catch(() => null),
+          getDocs(collection(db, 'faculties')).catch(() => null),
+          getDocs(collection(db, 'departments')).catch(() => null),
+          getDocs(collection(db, 'elections')),
+          getDocs(collection(db, 'positions')),
+          getDocs(collection(db, 'candidates')),
+        ]);
+
+      const rawDomains: DomainRegistryItem[] =
+        domainsSnap && !domainsSnap.empty
+          ? domainsSnap.docs.map((d) => mapDoc<DomainRegistryItem>(d.id, d.data()))
+          : DOMAIN_REGISTRY;
+
+      const halls: HallUnit[] =
+        hallsSnap && !hallsSnap.empty
+          ? hallsSnap.docs.map((d) => mapDoc<HallUnit>(d.id, d.data()))
+          : UCC_HALLS;
+
+      const faculties: FacultyUnit[] =
+        facSnap && !facSnap.empty
+          ? facSnap.docs.map((d) => mapDoc<FacultyUnit>(d.id, d.data()))
+          : UCC_FACULTIES;
+
+      const departments: DepartmentUnit[] =
+        deptSnap && !deptSnap.empty
+          ? deptSnap.docs.map((d) => mapDoc<DepartmentUnit>(d.id, d.data()))
+          : UCC_DEPARTMENTS;
+
+      const elections = electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+      const candidates = candSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()));
+
+      const positionsByElection: Record<string, Position[]> = {};
+      posSnap.docs.forEach((d) => {
+        const pos = mapDoc<Position>(d.id, d.data());
+        if (!pos.electionId) return;
+        if (!positionsByElection[pos.electionId]) positionsByElection[pos.electionId] = [];
+        positionsByElection[pos.electionId].push(pos);
+      });
+      Object.values(positionsByElection).forEach((arr) =>
+        arr.sort((a, b) => (a.order || 0) - (b.order || 0))
       );
+
+      const domains: DomainWithStats[] = rawDomains
+        .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+        .map((dom) => {
+          const domElections = elections.filter(
+            (e) => (e.domainId || categoryToDomainId(e.category)) === dom.id
+          );
+          const domCandCount = candidates.filter(
+            (c) =>
+              c.applicationStatus === 'Approved' &&
+              domElections.some((e) => e.id === c.electionId)
+          ).length;
+
+          return {
+            ...dom,
+            stats: {
+              totalElections: domElections.length,
+              activeElections: domElections.filter((e) => e.status === 'live').length,
+              upcomingElections: domElections.filter(
+                (e) => e.status === 'scheduled' || e.status === 'upcoming'
+              ).length,
+              completedElections: domElections.filter((e) =>
+                ['closed', 'results_pending_certification', 'results_published', 'archived'].includes(
+                  e.status
+                )
+              ).length,
+              pendingCertification: domElections.filter(
+                (e) => e.status === 'results_pending_certification'
+              ).length,
+              totalVotesCast: domElections.reduce(
+                (sum, e) => sum + (Number(e.totalVotesCast) || 0),
+                0
+              ),
+              approvedCandidatesCount: domCandCount,
+            },
+          };
+        });
+
+      return {
+        success: true,
+        domains,
+        halls,
+        faculties,
+        departments,
+        positionsByElection,
+      };
     } catch (err: any) {
       return {
         success: false,
         domains: [],
-        halls: [],
-        faculties: [],
-        departments: [],
+        halls: UCC_HALLS,
+        faculties: UCC_FACULTIES,
+        departments: UCC_DEPARTMENTS,
         positionsByElection: {},
-        error: err.message
+        error: err?.message || 'Unable to load domain registry.',
       };
     }
-  },
+  }
 
-  /**
-   * Fetch a single domain with filtered elections, positions, candidates, and subdomain units
-   */
   async getDomainById(
     domainId: DomainId,
     filters?: { hallId?: string; facultyId?: string; departmentId?: string; status?: string }
-  ): Promise<{
-    success: boolean;
-    domain?: DomainRegistryItem;
-    elections: Election[];
-    positionsByElection: Record<string, Position[]>;
-    candidates: Candidate[];
-    subdomains?: {
-      halls: HallUnit[];
-      faculties: FacultyUnit[];
-      departments: DepartmentUnit[];
+  ) {
+    const res = await this.getDomains();
+    const domain = res.domains.find((d) => d.id === domainId);
+    const electionsSnap = await getDocs(collection(db, 'elections'));
+    const candidatesSnap = await getDocs(collection(db, 'candidates'));
+
+    let elections = electionsSnap.docs
+      .map((d) => mapDoc<Election>(d.id, d.data()))
+      .filter((e) => (e.domainId || categoryToDomainId(e.category)) === domainId);
+
+    if (filters?.hallId) elections = elections.filter((e) => e.hallId === filters.hallId);
+    if (filters?.facultyId) elections = elections.filter((e) => e.facultyId === filters.facultyId);
+    if (filters?.departmentId) {
+      elections = elections.filter((e) => e.departmentId === filters.departmentId);
+    }
+    if (filters?.status) elections = elections.filter((e) => e.status === filters.status);
+
+    const electionIds = new Set(elections.map((e) => e.id));
+    const candidates = candidatesSnap.docs
+      .map((d) => mapDoc<Candidate>(d.id, d.data()))
+      .filter((c) => electionIds.has(c.electionId));
+
+    return {
+      success: Boolean(domain),
+      domain,
+      elections,
+      positionsByElection: res.positionsByElection,
+      candidates,
+      subdomains: {
+        halls: res.halls,
+        faculties: res.faculties,
+        departments: res.departments,
+      },
     };
-    error?: string;
-  }> {
-    try {
-      const query = new URLSearchParams();
-      if (filters?.hallId) query.append('hallId', filters.hallId);
-      if (filters?.facultyId) query.append('facultyId', filters.facultyId);
-      if (filters?.departmentId) query.append('departmentId', filters.departmentId);
-      if (filters?.status) query.append('status', filters.status);
+  }
 
-      const res = await fetch(`/api/domains/${encodeURIComponent(domainId)}?${query.toString()}`, {
-        credentials: 'include'
-      });
-      return (
-        (await safeJson(res)) || {
-          success: false,
-          elections: [],
-          positionsByElection: {},
-          candidates: [],
-          error: `Server error (${res.status})`
-        }
-      );
-    } catch (err: any) {
-      return {
-        success: false,
-        elections: [],
-        positionsByElection: {},
-        candidates: [],
-        error: err.message
-      };
-    }
-  },
-
-  /**
-   * Super Admin: Create a new university election domain dynamically
-   */
-  async createDomain(payload: {
-    id?: string;
-    name: string;
-    shortName?: string;
-    category?: ElectionCategory;
-    description: string;
-    governanceScope?: string;
-    eligibilityRuleSummary?: string;
-    positionsPolicyNote?: string;
-    supportsSubdomains?: boolean;
-    subdomainType?: 'hall' | 'department' | 'faculty' | 'none';
-  }): Promise<{ success: boolean; domain?: DomainRegistryItem; message?: string; error?: string }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/domains', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Super Admin / EC: Add a new Hall, Faculty/School, or Department subdomain
-   */
-  async createSubdomain(
-    domainId: DomainId,
-    payload: {
-      type?: 'hall' | 'faculty' | 'department';
-      name: string;
-      shortName?: string;
-      code?: string;
-      college?: string;
-      facultyId?: string;
-      facultyName?: string;
-      programmes?: string[];
-    }
-  ): Promise<{
-    success: boolean;
-    subdomain?: any;
-    halls?: HallUnit[];
-    faculties?: FacultyUnit[];
-    departments?: DepartmentUnit[];
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/domains/${encodeURIComponent(domainId)}/subdomains`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Fetch all elections with optional domain/subdomain filters
-   */
   async getElections(params?: {
     category?: string;
     domainId?: string;
@@ -242,814 +280,302 @@ export const electionClient = {
     departmentId?: string;
     status?: string;
     search?: string;
-  }): Promise<{
-    success: boolean;
-    total: number;
-    elections: Election[];
-    error?: string;
-  }> {
+  }) {
     try {
-      const query = new URLSearchParams();
-      if (params?.category) query.append('category', params.category);
-      if (params?.domainId) query.append('domainId', params.domainId);
-      if (params?.hallId) query.append('hallId', params.hallId);
-      if (params?.facultyId) query.append('facultyId', params.facultyId);
-      if (params?.departmentId) query.append('departmentId', params.departmentId);
-      if (params?.status) query.append('status', params.status);
-      if (params?.search) query.append('search', params.search);
-
-      const res = await fetch(`/api/elections?${query.toString()}`, { credentials: 'include' });
-      return (await safeJson(res)) || { success: false, total: 0, elections: [], error: `Server error (${res.status})` };
+      const snap = await getDocs(collection(db, 'elections'));
+      let items = snap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+      if (params?.category) items = items.filter((e) => e.category === params.category);
+      if (params?.domainId) {
+        items = items.filter(
+          (e) => (e.domainId || categoryToDomainId(e.category)) === params.domainId
+        );
+      }
+      if (params?.hallId) items = items.filter((e) => e.hallId === params.hallId);
+      if (params?.facultyId) items = items.filter((e) => e.facultyId === params.facultyId);
+      if (params?.departmentId) {
+        items = items.filter((e) => e.departmentId === params.departmentId);
+      }
+      if (params?.status) items = items.filter((e) => e.status === params.status);
+      if (params?.search) {
+        const q = params.search.toLowerCase();
+        items = items.filter(
+          (e) =>
+            e.title.toLowerCase().includes(q) ||
+            e.code.toLowerCase().includes(q) ||
+            e.description.toLowerCase().includes(q)
+        );
+      }
+      return { success: true, total: items.length, elections: items };
     } catch (err: any) {
-      return { success: false, total: 0, elections: [], error: err.message };
+      return {
+        success: false,
+        total: 0,
+        elections: [],
+        error: err?.message || 'Unable to load elections from Firestore.',
+      };
     }
-  },
+  }
 
-  /**
-   * Get single election with positions
-   */
-  async getElectionById(id: string): Promise<{
-    success: boolean;
-    election?: Election;
-    positions?: Position[];
-    error?: string;
-  }> {
+  async getElectionById(id: string) {
     try {
-      const res = await fetch(`/api/elections/${encodeURIComponent(id)}`, { credentials: 'include' });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+      const [eSnap, pSnap] = await Promise.all([
+        getDoc(doc(db, 'elections', id)),
+        getDocs(query(collection(db, 'positions'), where('electionId', '==', id))),
+      ]);
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election not found.' };
+      }
+      const positions = pSnap.docs
+        .map((d) => mapDoc<Position>(d.id, d.data()))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      return {
+        success: true,
+        election: mapDoc<Election>(eSnap.id, eSnap.data()),
+        positions,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Unable to fetch election.' };
     }
-  },
+  }
 
-  /**
-   * Check eligibility for a student
-   */
-  async checkEligibility(electionId: string, studentId?: string): Promise<{
-    success: boolean;
-    result?: EligibilityResult;
-    studentId?: string;
-    studentName?: string;
-    error?: string;
-  }> {
+  async checkEligibility(electionId: string, studentIdOrUid?: string) {
     try {
-      const res = await authClient.authorizedFetch(
-        `/api/elections/${encodeURIComponent(electionId)}/check-eligibility`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId })
+      const eSnap = await getDoc(doc(db, 'elections', electionId));
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election record not found.' };
+      }
+      const election = mapDoc<Election>(eSnap.id, eSnap.data());
+
+      // Try trusted Cloud Function first if deployed
+      try {
+        const fn = httpsCallable(functions, 'checkVoterEligibility');
+        const res = await fn({ electionId, studentId: studentIdOrUid });
+        const payload = res.data as any;
+        if (payload && typeof payload.isEligible === 'boolean') {
+          return {
+            success: true,
+            result: {
+              isEligible: payload.isEligible,
+              reason: payload.reason,
+              checks: payload.checks || {},
+            },
+            studentId: payload.studentId,
+            studentName: payload.studentName,
+          };
         }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
+      } catch {
+        // Fallback to direct Firestore evaluation below
+      }
 
-  /**
-   * Create a new election (Admin)
-   */
-  async createElection(payload: CreateElectionPayload): Promise<{
-    success: boolean;
-    election?: Election;
-    positions?: Position[];
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/elections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
+      let student: StudentProfile | null = null;
+      let eligRecord: VoterEligibilityRecord | null = null;
 
-  /**
-   * Update election parameters (Admin)
-   */
-  async updateElection(id: string, updates: Partial<Election>): Promise<{
-    success: boolean;
-    election?: Election;
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/elections/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Change election status (State Machine transition)
-   */
-  async changeStatus(id: string, newStatus: ElectionStatus, justification?: string): Promise<{
-    success: boolean;
-    election?: Election;
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/elections/${encodeURIComponent(id)}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newStatus, justification })
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Add a position to an election
-   */
-  async addPosition(electionId: string, position: {
-    title: string;
-    description?: string;
-    maxSelections?: number;
-    allowsSkip?: boolean;
-    candidateEligibilityRules?: string;
-    votingRules?: string;
-  }): Promise<{
-    success: boolean;
-    position?: Position;
-    allPositions?: Position[];
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/elections/${encodeURIComponent(electionId)}/positions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(position)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Update a position within an election dynamically
-   */
-  async updatePosition(
-    electionId: string,
-    posId: string,
-    updates: {
-      title?: string;
-      description?: string;
-      maxSelections?: number;
-      allowsSkip?: boolean;
-      candidateEligibilityRules?: string;
-      votingRules?: string;
-    }
-  ): Promise<{
-    success: boolean;
-    position?: Position;
-    allPositions?: Position[];
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(posId)}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates)
+      if (studentIdOrUid) {
+        const q = query(
+          collection(db, 'students'),
+          where('studentId', '==', studentIdOrUid.trim().toUpperCase())
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          student = mapDoc<StudentProfile>(snap.docs[0].id, snap.docs[0].data());
+        } else {
+          const byUid = await getDoc(doc(db, 'students', studentIdOrUid.trim()));
+          if (byUid.exists()) {
+            student = mapDoc<StudentProfile>(byUid.id, byUid.data());
+          }
         }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
+      } else if (auth.currentUser) {
+        const byUid = await getDoc(doc(db, 'students', auth.currentUser.uid));
+        if (byUid.exists()) {
+          student = mapDoc<StudentProfile>(byUid.id, byUid.data());
+        }
+      }
 
-  /**
-   * Delete a position from an election
-   */
-  async deletePosition(electionId: string, posId: string): Promise<{
-    success: boolean;
-    remainingPositions?: Position[];
-    error?: string;
-    message?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(posId)}`,
-        { method: 'DELETE' }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
+      if (!student) {
+        return {
+          success: false,
+          error: 'No matching registered student profile found in Cloud Firestore.',
+        };
+      }
 
-  /**
-   * Fetch candidates with optional filters
-   */
+      const eligSnap = await getDoc(doc(db, 'voter_eligibility', student.uid || student.id));
+      if (eligSnap.exists()) {
+        eligRecord = mapDoc<VoterEligibilityRecord>(eligSnap.id, eligSnap.data());
+      }
+
+      const result = evaluateStudentEligibilityLocal(student, election, eligRecord);
+      return {
+        success: true,
+        result,
+        studentId: student.studentId,
+        studentName: student.fullName,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to verify voter eligibility.',
+      };
+    }
+  }
+
   async getCandidates(params?: {
     electionId?: string;
     positionId?: string;
     domainId?: string;
     status?: string;
     approvedOnly?: boolean;
-    department?: string;
-    faculty?: string;
     search?: string;
-  }): Promise<{
-    success: boolean;
-    total: number;
-    candidates: Candidate[];
-    error?: string;
-  }> {
+  }) {
     try {
-      const query = new URLSearchParams();
-      if (params?.electionId) query.append('electionId', params.electionId);
-      if (params?.positionId) query.append('positionId', params.positionId);
-      if (params?.domainId) query.append('domainId', params.domainId);
-      if (params?.status) query.append('status', params.status);
-      if (params?.approvedOnly) query.append('approvedOnly', 'true');
-      if (params?.department) query.append('department', params.department);
-      if (params?.faculty) query.append('faculty', params.faculty);
-      if (params?.search) query.append('search', params.search);
-
-      const res = await fetch(`/api/candidates?${query.toString()}`, { credentials: 'include' });
-      return (await safeJson(res)) || { success: false, total: 0, candidates: [], error: `Server error (${res.status})` };
+      const snap = await getDocs(collection(db, 'candidates'));
+      let items = snap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()));
+      if (params?.electionId) items = items.filter((c) => c.electionId === params.electionId);
+      if (params?.positionId) items = items.filter((c) => c.positionId === params.positionId);
+      if (params?.domainId) items = items.filter((c) => c.domainId === params.domainId);
+      if (params?.approvedOnly) {
+        items = items.filter((c) => c.applicationStatus === 'Approved');
+      } else if (params?.status) {
+        items = items.filter((c) => c.applicationStatus === params.status);
+      }
+      if (params?.search) {
+        const q = params.search.toLowerCase();
+        items = items.filter(
+          (c) =>
+            c.fullName.toLowerCase().includes(q) ||
+            c.studentId.toLowerCase().includes(q) ||
+            c.department.toLowerCase().includes(q)
+        );
+      }
+      return { success: true, total: items.length, candidates: items };
     } catch (err: any) {
-      return { success: false, total: 0, candidates: [], error: err.message };
+      return {
+        success: false,
+        total: 0,
+        candidates: [],
+        error: err?.message || 'Unable to load candidates.',
+      };
     }
-  },
+  }
 
-  /**
-   * Fetch single candidate by ID
-   */
-  async getCandidateById(id: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    error?: string;
-  }> {
+  async getCandidateById(id: string) {
     try {
-      const res = await fetch(`/api/candidates/${encodeURIComponent(id)}`, { credentials: 'include' });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
+      const snap = await getDoc(doc(db, 'candidates', id));
+      if (!snap.exists()) return { success: false, error: 'Candidate not found.' };
+      return { success: true, candidate: mapDoc<Candidate>(snap.id, snap.data()) };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Unable to load candidate.' };
     }
-  },
+  }
 
-  /**
-   * Submit / Register Candidate Application
-   */
   async registerCandidate(payload: Partial<Candidate> & { isDraft?: boolean }): Promise<{
     success: boolean;
     candidate?: Candidate;
     message?: string;
     error?: string;
   }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/candidates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: 'You must be signed in to submit a candidate nomination.' };
     }
-  },
 
-  /**
-   * Update candidate profile / details
-   */
-  async updateCandidate(id: string, updates: Partial<Candidate> & { resubmit?: boolean }): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/candidates/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
+    const candId = payload.id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const status = payload.isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
 
-  /**
-   * Automated Student Registry & Eligibility Verification
-   */
-  async verifyCandidateEligibility(id: string): Promise<{
-    success: boolean;
-    isEligible?: boolean;
-    reason?: string;
-    details?: any;
-    candidate?: Candidate;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/candidates/${encodeURIComponent(id)}/verify-eligibility`,
-        { method: 'POST' }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin approves candidate nomination
-   */
-  async approveCandidate(id: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/candidates/${encodeURIComponent(id)}/approve`, {
-        method: 'POST'
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin rejects candidate nomination with stated reason
-   */
-  async rejectCandidate(id: string, reason: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/candidates/${encodeURIComponent(id)}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin requests corrections from candidate
-   */
-  async requestCandidateCorrections(id: string, notes: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/candidates/${encodeURIComponent(id)}/request-corrections`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notes })
-        }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Candidate or Admin voluntary withdrawal
-   */
-  async withdrawCandidate(id: string, reason?: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(`/api/candidates/${encodeURIComponent(id)}/withdraw`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin assigns candidate to position
-   */
-  async assignCandidatePosition(id: string, electionId: string, positionId: string): Promise<{
-    success: boolean;
-    candidate?: Candidate;
-    message?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/candidates/${encodeURIComponent(id)}/assign-position`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ electionId, positionId })
-        }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  // ==========================================
-  // SECURE DIGITAL VOTING ENGINE
-  // ==========================================
-
-  /**
-   * Load dynamic authorized digital ballot for an election
-   */
-  async getBallot(electionId: string): Promise<{
-    success: boolean;
-    httpStatus?: number;
-    code?: string;
-    error?: string;
-    opensAt?: string;
-    closesAt?: string;
-    alreadyVoted?: boolean;
-    receipt?: VoteConfirmationReceipt;
-    election?: Election;
-    eligibility?: EligibilityResult;
-    positions?: Array<{
-      position: Position;
-      candidates: Candidate[];
-    }>;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/voting/ballot/${encodeURIComponent(electionId)}`
-      );
-      const data = await safeJson(res);
-
-      if (!data) {
-        return {
-          success: false,
-          httpStatus: res.status,
-          code: res.status >= 500 ? 'SERVER_ERROR' : 'BALLOT_LOAD_FAILED',
-          error:
-            res.status >= 500
-              ? 'The election voting service is temporarily unavailable. Please try again.'
-              : `Unable to load ballot (HTTP ${res.status}).`
-        };
-      }
-
-      if (res.status >= 500) {
-        return {
-          ...data,
-          success: false,
-          httpStatus: res.status,
-          code: data.code || 'SERVER_ERROR',
-          error:
-            data.error ||
-            'The election voting service encountered a temporary server error. Please retry.'
-        };
-      }
-
-      if (res.status === 401) {
-        return {
-          ...data,
-          success: false,
-          httpStatus: 401,
-          code: data.code || 'SESSION_EXPIRED',
-          error:
-            data.code === 'AUTH_REQUIRED'
-              ? data.error
-              : 'Your session has expired. Please log in again to continue.'
-        };
-      }
-
-      return { ...data, httpStatus: res.status };
-    } catch (err: any) {
-      return {
-        success: false,
-        code: 'NETWORK_ERROR',
-        error: err.message || 'Network connection lost while loading ballot.'
-      };
-    }
-  },
-
-  /**
-   * Submit digital ballot atomically to the server
-   */
-  async submitBallot(
-    electionId: string,
-    selections: BallotSelectionMap,
-    idempotencyKey?: string
-  ): Promise<{
-    success: boolean;
-    httpStatus?: number;
-    code?: string;
-    message?: string;
-    error?: string;
-    receipt?: VoteConfirmationReceipt;
-    updatedTurnout?: {
-      totalVotesCast: number;
-      totalEligibleVoters: number;
-      turnoutPercentage: number;
+    const docPayload = {
+      ...payload,
+      id: candId,
+      submittedByUid: user.uid,
+      applicationStatus: status,
+      photoUrl: payload.photoUrl || '',
+      submittedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
     };
-  }> {
+
     try {
-      const res = await authClient.authorizedFetch('/api/voting/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ electionId, selections, idempotencyKey })
-      });
-      const data = await safeJson(res);
-
-      if (!data) {
-        return {
-          success: false,
-          httpStatus: res.status,
-          code: res.status >= 500 ? 'SERVER_ERROR' : 'SUBMISSION_FAILED',
-          error:
-            res.status >= 500
-              ? 'Server error during ballot submission. Please verify your participation status before retrying.'
-              : `Ballot submission failed (HTTP ${res.status}).`
-        };
-      }
-
-      if (res.status === 401) {
-        return {
-          ...data,
-          success: false,
-          httpStatus: 401,
-          code: data.code || 'SESSION_EXPIRED',
-          error: 'Your session has expired. Please log in again to continue.'
-        };
-      }
-
-      return { ...data, httpStatus: res.status };
-    } catch (err: any) {
+      await setDoc(doc(db, 'candidates', candId), docPayload);
       return {
-        success: false,
-        code: 'NETWORK_ERROR',
-        error:
-          err.message ||
-          'Network error during ballot transmission. Your vote has NOT been confirmed — please check status or retry.'
+        success: true,
+        candidate: { ...docPayload, id: candId } as unknown as Candidate,
+        message: 'Candidate record saved to Cloud Firestore.',
       };
-    }
-  },
-
-  /**
-   * Retrieve student's vote confirmation receipt (no candidate choices exposed)
-   */
-  async getVoteConfirmation(electionId: string): Promise<{
-    success: boolean;
-    receipt?: VoteConfirmationReceipt;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/voting/confirmation/${encodeURIComponent(electionId)}`
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
     } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Retrieve all participation confirmations for authenticated student
-   */
-  async getMyConfirmations(): Promise<{
-    success: boolean;
-    receipts?: VoteConfirmationReceipt[];
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/voting/my-confirmations');
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin Ballot Secrecy Verification Check (Expected 403 BALLOT_SECRECY_VIOLATION_BLOCKED)
-   */
-  async attemptAdminBallotInspect(studentId: string): Promise<{
-    success: boolean;
-    code?: string;
-    error?: string;
-    targetStudentId?: string;
-    audited?: boolean;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/voting/admin/inspect-ballot/${encodeURIComponent(studentId)}`
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Admin aggregate vault balance summary
-   */
-  async getVotingAuditSummary(electionId: string): Promise<{
-    success: boolean;
-    summary?: any;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/voting/audit-summary/${encodeURIComponent(electionId)}`
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Fetch authoritative election results for admin certification console
-   */
-  async getAdminElectionResults(electionId: string): Promise<{
-    success: boolean;
-    results?: ElectionResultsPayload;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/results/${encodeURIComponent(electionId)}/admin`
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Advance election results through the 6-stage verification & publication workflow
-   */
-  async advanceResultsWorkflow(
-    electionId: string,
-    targetStage: ResultsWorkflowStage,
-    notes?: string,
-    actorName?: string
-  ): Promise<{
-    success: boolean;
-    message?: string;
-    results?: ElectionResultsPayload;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/results/${encodeURIComponent(electionId)}/workflow`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targetStage, notes, actorName })
-        }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Download official PDF or CSV election report
-   */
-  async downloadElectionReport(
-    electionId: string,
-    format: 'pdf' | 'csv',
-    reportType: 'full' | 'results' | 'turnout' | 'candidates' | 'positions'
-  ): Promise<{
-    success: boolean;
-    filename?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/results/${encodeURIComponent(electionId)}/export?format=${encodeURIComponent(format)}&type=${encodeURIComponent(reportType)}`
-      );
-
-      if (!res.ok) {
-        let errorMessage = `Export failed with status ${res.status}`;
-        const errJson = await safeJson(res);
-        if (errJson?.error) errorMessage = errJson.error;
-        return { success: false, error: errorMessage };
-      }
-
-      const disposition = res.headers.get('Content-Disposition') || '';
-      const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || `UCC_VOTE_${electionId}_${reportType}.${format}`;
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      return { success: true, filename };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Report export failed.' };
-    }
-  },
-
-  /**
-   * Super Admin: Fetch all administrator accounts with domain scopes
-   */
-  async getAdminAccounts(): Promise<{
-    success: boolean;
-    admins: AdminProfile[];
-    error?: string;
-  }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/admin/admins');
-      return (await safeJson(res)) || { success: false, admins: [], error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, admins: [], error: err.message };
-    }
-  },
-
-  /**
-   * Super Admin: Create a new domain-scoped or global administrator account
-   */
-  async createAdminAccount(payload: {
-    staffId: string;
-    fullName: string;
-    email: string;
-    role: AdminRoleType;
-    department: string;
-    password?: string;
-    managedDomainIds?: DomainId[];
-    managedHalls?: string[];
-    managedFaculties?: string[];
-    managedDepartments?: string[];
-  }): Promise<{ success: boolean; admin?: AdminProfile; message?: string; error?: string }> {
-    try {
-      const res = await authClient.authorizedFetch('/api/admin/admins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Super Admin: Update administrator domain/subdomain scopes
-   */
-  async updateAdminScope(
-    staffId: string,
-    payload: {
-      role?: AdminRoleType;
-      managedDomainIds?: DomainId[];
-      managedHalls?: string[];
-      managedFaculties?: string[];
-      managedDepartments?: string[];
-    }
-  ): Promise<{ success: boolean; admin?: AdminProfile; message?: string; error?: string }> {
-    try {
-      const res = await authClient.authorizedFetch(
-        `/api/admin/admins/${encodeURIComponent(staffId)}/scope`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }
-      );
-      return (await safeJson(res)) || { success: false, error: `Server error (${res.status})` };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+      handleFirestoreError(err, OperationType.CREATE, `candidates/${candId}`);
     }
   }
-};
+
+  async updateCandidate(
+    id: string,
+    updates: Partial<Candidate> & { resubmit?: boolean }
+  ): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const payload: Record<string, any> = {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      };
+      if (updates.resubmit) {
+        payload.applicationStatus = 'Submitted';
+      }
+      await updateDoc(doc(db, 'candidates', id), payload);
+      const updatedSnap = await getDoc(doc(db, 'candidates', id));
+      return {
+        success: true,
+        candidate: updatedSnap.exists()
+          ? mapDoc<Candidate>(updatedSnap.id, updatedSnap.data())
+          : undefined,
+        message: 'Candidate updated.',
+      };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+    }
+  }
+
+  async getPublishedResults(electionId: string) {
+    try {
+      const [eSnap, rSnap] = await Promise.all([
+        getDoc(doc(db, 'elections', electionId)),
+        getDoc(doc(db, 'election_results', electionId)),
+      ]);
+
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election not found.' };
+      }
+
+      const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      if (!rSnap.exists()) {
+        return {
+          success: false,
+          error: 'Election results have not been published.',
+        };
+      }
+
+      const results = mapDoc<ElectionResultsPayload>(rSnap.id, rSnap.data());
+      if (!results.isPublished && !election.resultsCertified && election.status !== 'results_published') {
+        return {
+          success: false,
+          error: 'Election results have not been officially certified and published.',
+        };
+      }
+
+      return { success: true, results };
+    } catch (err: any) {
+      if (err?.code === 'permission-denied') {
+        return {
+          success: false,
+          error: 'Election results have not been published yet.',
+        };
+      }
+      return {
+        success: false,
+        error: err?.message || 'Unable to retrieve election results.',
+      };
+    }
+  }
+}
+
+export const electionClient = new FirebaseElectionClient();

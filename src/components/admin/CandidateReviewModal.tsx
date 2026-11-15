@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Candidate, Position } from '../../types';
+import { CandidateAvatar } from '../common/CandidateAvatar';
 import { 
   X, 
   ShieldCheck, 
@@ -221,7 +222,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
         {/* Candidate Summary Strip */}
         <div className="bg-slate-50 border-b border-slate-200 p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-4">
-            <img
+            <CandidateAvatar
               src={candidate.photoUrl}
               alt={candidate.fullName}
               className="w-14 h-14 rounded-xl object-cover border border-slate-300 shadow-xs shrink-0"

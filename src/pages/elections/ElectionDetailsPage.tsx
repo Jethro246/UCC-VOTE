@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
 import { Logo } from '../../components/common/Logo';
+import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { Position } from '../../types';
 import { 
   ArrowLeft, 
@@ -24,6 +25,10 @@ export const ElectionDetailsPage: React.FC = () => {
   const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
+    if (!election?.id) {
+      setPositions([]);
+      return;
+    }
     let active = true;
     electionClient.getElectionById(election.id).then((res) => {
       if (active && res.success && res.positions) {
@@ -31,7 +36,25 @@ export const ElectionDetailsPage: React.FC = () => {
       }
     });
     return () => { active = false; };
-  }, [election.id]);
+  }, [election?.id]);
+
+  if (!election) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
+        <Vote className="w-8 h-8 text-slate-400 mx-auto" />
+        <h2 className="text-base font-bold text-slate-900">No active elections at the moment.</h2>
+        <p className="text-xs text-slate-500">
+          Elections published in Cloud Firestore will appear here with full details and positions.
+        </p>
+        <button
+          onClick={() => navigateTo('elections_directory')}
+          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer"
+        >
+          Back to Elections Directory
+        </button>
+      </div>
+    );
+  }
 
   const hasVoted = student?.hasVotedElections.includes(election.id);
 
@@ -311,10 +334,10 @@ export const ElectionDetailsPage: React.FC = () => {
                             onClick={() => navigateTo('candidate_profile', { candidateId: cand.id })}
                             className="p-3 bg-white rounded-xl border border-slate-200 hover:border-[#123B70]/40 transition-all cursor-pointer flex items-center gap-3 group"
                           >
-                            <img
+                            <CandidateAvatar
                               src={cand.photoUrl}
                               alt={cand.fullName}
-                              className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform"
+                              className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform text-xs"
                             />
                             <div className="min-w-0">
                               <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-[#123B70]">
@@ -375,11 +398,15 @@ export const ElectionDetailsPage: React.FC = () => {
             <div className="pt-2 text-[11px] text-slate-500 space-y-1">
               <div className="flex justify-between">
                 <span>Voter ID:</span>
-                <span className="font-mono font-semibold text-slate-700">{student?.studentId || 'PS/CSC/22/0089'}</span>
+                <span className="font-mono font-semibold text-slate-700">
+                  {student ? student.studentId : 'Not signed in'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Affiliation:</span>
-                <span className="font-semibold text-slate-700">{student?.hall || 'Casely Hayford Hall'}</span>
+                <span className="font-semibold text-slate-700">
+                  {student ? student.hall : 'Sign in to check hall eligibility'}
+                </span>
               </div>
             </div>
           </div>

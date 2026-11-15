@@ -1,15 +1,32 @@
-/**
- * TEMPORARY FRONTEND-ONLY ADMIN & GOVERNANCE SERVICE
- *
- * Implements IAdminDataService against temporary browser memory (mockStateStore)
- * for frontend UI demonstration only. No backend API or database is connected.
- *
- * Replace method bodies with real backend admin API calls in the future.
- */
-
-import type {
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+  arrayUnion,
+} from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
+import {
+  categoryToDomainId,
+  domainIdToCategory,
+  getPermissionsForRole,
+} from '../data/uccStructure';
+import {
   AdminProfile,
   AdminRoleType,
+  AuditLogItem,
+  BallotAccountingSummary,
+  Candidate,
+  CandidateResultRow,
   DomainId,
   DomainRegistryItem,
   Election,
@@ -17,140 +34,36 @@ import type {
   ElectionResultsPayload,
   ElectionStatus,
   Position,
-  ResultsWorkflowStage
+  PositionResultSummary,
+  ResultsWorkflowStage,
 } from '../types';
-import {
-  categoryToDomainId,
-  domainIdToCategory,
-  getPermissionsForRole
-} from '../data/temporaryMockRegistry';
-import { authClient } from './authClient';
-import { mockStateStore } from './mockStateStore';
-import type { CreateElectionPayload, IAdminDataService } from './interfaces';
+import { CreateElectionPayload } from './interfaces';
+import { convertTimestamp, writeAuditLog } from './firebaseDbService';
 
-function getCurrentAdminActor() {
-  const user = authClient.getStoredUser();
-  const role = authClient.getStoredRole();
-  return {
-    isAdmin: role === 'admin',
-    id: user?.id || 'demo-admin',
-    name: user?.fullName || 'Demo Administrator',
-    roleName: user?.role || 'Electoral Commissioner',
-    staffId: user?.staffId || 'DEMO-STAFF'
-  };
-}
-
-function escapeCsv(value: unknown): string {
-  const str = String(value ?? '');
-  if (/[",\n\r]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
+function mapDoc<T>(id: string, data: Record<string, any>): T {
+  const out: Record<string, any> = { id };
+  for (const [k, v] of Object.entries(data)) {
+    out[k] = v && typeof v?.toDate === 'function' ? convertTimestamp(v) : v;
   }
-  return str;
+  return out as T;
 }
 
-function buildCsvReport(
-  results: ElectionResultsPayload,
-  reportType: 'full' | 'results' | 'turnout' | 'candidates' | 'positions'
-): string {
-  const lines: string[] = [];
-  lines.push('UCC VOTE - TEMPORARY FRONTEND DEMO REPORT (NOT OFFICIAL ELECTION DATA)');
-  lines.push(`Election,${escapeCsv(results.electionTitle)}`);
-  lines.push(`Code,${escapeCsv(results.electionCode)}`);
-  lines.push(`Category,${escapeCsv(results.category)}`);
-  lines.push(`Status,${escapeCsv(results.status)}`);
-  lines.push(`Workflow Stage,${escapeCsv(results.workflowStage)}`);
-  lines.push(`Total Eligible Voters,${results.ballotSummary.totalEligibleVoters}`);
-  lines.push(`Total Ballots Cast,${results.ballotSummary.totalBallotsCast}`);
-  lines.push(`Turnout Percentage,${results.ballotSummary.turnoutPercentage}%`);
-  lines.push('');
-
-  if (reportType === 'full' || reportType === 'results' || reportType === 'candidates' || reportType === 'positions') {
-    lines.push('Position,Rank,Candidate,Student ID,Department,Votes,Valid Vote %,Status');
-    results.positions.forEach((pos) => {
-      pos.candidates.forEach((c) => {
-        const status = c.isWinner ? 'Winner' : c.isTied ? 'Tied' : c.isLeading ? 'Leading' : 'Candidate';
-        lines.push(
-          [
-            escapeCsv(pos.title),
-            c.rank,
-            escapeCsv(c.fullName),
-            escapeCsv(c.studentId),
-            escapeCsv(c.department),
-            c.votesReceived,
-            `${c.percentageOfValidVotes}%`,
-            status
-          ].join(',')
-        );
-      });
-    });
-    lines.push('');
+async function getCurrentAdminContext(): Promise<{ name: string; role: string; uid: string }> {
+  const user = auth.currentUser;
+  if (!user) return { name: 'Administrator', role: 'Admin', uid: '' };
+  try {
+    const snap = await getDoc(doc(db, 'admins', user.uid));
+    if (snap.exists()) {
+      const a = snap.data() as AdminProfile;
+      return { name: a.fullName || user.email || 'Administrator', role: a.role, uid: user.uid };
+    }
+  } catch {
+    // Fallback to Firebase Auth display name / email
   }
-
-  if (reportType === 'full' || reportType === 'turnout') {
-    lines.push('Cohort Dimension,Cohort Label,Eligible Voters,Ballots Cast,Turnout %,Privacy Status');
-    const appendGroup = (label: string, rows: typeof results.turnoutAnalytics.byFaculty) => {
-      rows.forEach((r) => {
-        lines.push(
-          [
-            label,
-            escapeCsv(r.label),
-            r.eligibleVoters,
-            r.suppressed ? 'Suppressed' : r.ballotsCast ?? 0,
-            r.suppressed ? 'Suppressed' : `${r.turnoutPercentage ?? 0}%`,
-            r.suppressed ? 'Suppressed (< threshold)' : 'Visible'
-          ].join(',')
-        );
-      });
-    };
-    appendGroup('Faculty', results.turnoutAnalytics.byFaculty);
-    appendGroup('Department', results.turnoutAnalytics.byDepartment);
-    appendGroup('Level', results.turnoutAnalytics.byLevel);
-    appendGroup('Hall', results.turnoutAnalytics.byHall);
-  }
-
-  return lines.join('\n');
+  return { name: user.displayName || user.email || 'Administrator', role: 'Admin', uid: user.uid };
 }
 
-function buildPrintableHtmlReport(results: ElectionResultsPayload, reportType: string): string {
-  const positionRows = results.positions
-    .map(
-      (pos) => `
-      <h3>${pos.title} (Valid: ${pos.totalValidVotes})</h3>
-      <table border="1" cellspacing="0" cellpadding="6" style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-        <thead>
-          <tr style="background:#f1f5f9;text-align:left;">
-            <th>Rank</th><th>Candidate</th><th>Student ID</th><th>Votes</th><th>% Valid</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${pos.candidates
-            .map(
-              (c) =>
-                `<tr><td>#${c.rank}</td><td>${c.fullName}</td><td>${c.studentId}</td><td>${c.votesReceived}</td><td>${c.percentageOfValidVotes}%</td></tr>`
-            )
-            .join('')}
-        </tbody>
-      </table>`
-    )
-    .join('');
-
-  return `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8" /><title>UCC VOTE Demo Report - ${results.electionTitle}</title></head>
-<body style="font-family:Arial,sans-serif;max-width:900px;margin:24px auto;color:#0f172a;">
-  <div style="padding:12px;background:#fef3c7;border:1px solid #f59e0b;margin-bottom:16px;font-size:12px;">
-    <strong>TEMPORARY FRONTEND DEMO EXPORT:</strong> Generated locally in the browser with mock data (no backend connected).
-  </div>
-  <h1>${results.electionTitle} (${results.electionCode})</h1>
-  <p>Category: ${results.category} | Stage: ${results.workflowStage.toUpperCase()} | Report Type: ${reportType.toUpperCase()}</p>
-  <p>Eligible Voters: ${results.ballotSummary.totalEligibleVoters} | Ballots Cast: ${results.ballotSummary.totalBallotsCast} | Turnout: ${results.ballotSummary.turnoutPercentage}%</p>
-  <hr />
-  ${positionRows || '<p>Candidate tallies are currently withheld prior to publication.</p>'}
-</body>
-</html>`;
-}
-
-class FrontendDemoAdminService implements IAdminDataService {
+class FirebaseAdminService {
   async createDomain(payload: {
     id?: string;
     name: string;
@@ -163,50 +76,46 @@ class FrontendDemoAdminService implements IAdminDataService {
     supportsSubdomains?: boolean;
     subdomainType?: 'hall' | 'department' | 'faculty' | 'none';
   }) {
-    if (!payload.name?.trim()) {
-      return { success: false, error: 'Domain name is required.' };
-    }
     const id =
-      payload.id?.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_') ||
-      payload.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      payload.id?.trim() ||
+      payload.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
 
-    if (mockStateStore.domains.some((d) => d.id === id)) {
-      return { success: false, error: `Domain ID "${id}" already exists in temporary registry.` };
-    }
-
-    const newDomain: DomainRegistryItem = {
+    const domain: DomainRegistryItem = {
       id,
       name: payload.name.trim(),
-      shortName: payload.shortName?.trim() || payload.name.trim().slice(0, 14),
+      shortName: payload.shortName?.trim() || payload.name.trim(),
       category: payload.category || 'Other',
       description: payload.description.trim(),
-      governanceScope: payload.governanceScope?.trim() || 'University-approved domain scope',
-      eligibilityRuleSummary:
-        payload.eligibilityRuleSummary?.trim() || 'Verified registered UCC students in scope.',
-      positionsPolicyNote:
-        payload.positionsPolicyNote?.trim() || 'Configured per domain guidelines.',
+      governanceScope: payload.governanceScope || 'Configured UCC electoral scope',
+      eligibilityRuleSummary: payload.eligibilityRuleSummary || 'Verified active UCC students.',
+      positionsPolicyNote: payload.positionsPolicyNote || 'Standard domain positions policy.',
       adminRole: 'Electoral Commissioner',
       supportsSubdomains: Boolean(payload.supportsSubdomains),
       subdomainType: payload.subdomainType || 'none',
       isBuiltIn: false,
-      displayOrder: mockStateStore.domains.length + 1
+      displayOrder: 50,
     };
 
-    mockStateStore.domains.push(newDomain);
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_DOMAIN_CREATED',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: 'SUCCESS',
-      details: `Created temporary election domain "${newDomain.name}".`
-    });
-
-    return { success: true, domain: newDomain, message: 'Domain added to temporary frontend store.' };
+    try {
+      await setDoc(doc(db, 'domains', id), { ...domain, updatedAt: serverTimestamp() });
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Created Election Domain',
+        target: domain.name,
+      });
+      return { success: true, domain, message: 'Domain created in Cloud Firestore.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.CREATE, `domains/${id}`);
+    }
   }
 
   async createSubdomain(
-    domainId: DomainId,
+    _domainId: DomainId,
     payload: {
       type?: 'hall' | 'faculty' | 'department';
       name: string;
@@ -218,88 +127,54 @@ class FrontendDemoAdminService implements IAdminDataService {
       programmes?: string[];
     }
   ) {
-    if (!payload.name?.trim()) {
-      return { success: false, error: 'Unit name is required.' };
-    }
-
-    const subType =
-      payload.type ||
-      (domainId === 'jcrc_hall'
-        ? 'hall'
-        : domainId === 'faculty_school'
-        ? 'faculty'
-        : 'department');
-
-    let subdomain: any;
-    if (subType === 'hall') {
-      subdomain = {
-        id: `hall-${Date.now()}`,
-        name: payload.name.trim(),
-        shortName: payload.shortName?.trim() || payload.name.trim().slice(0, 10),
-        motto: 'UCC Residential Hall'
-      };
-      mockStateStore.halls.push(subdomain);
-    } else if (subType === 'faculty') {
-      subdomain = {
-        id: `fac-${Date.now()}`,
-        name: payload.name.trim(),
-        code: payload.code?.trim() || payload.shortName?.trim() || 'FAC',
-        college: payload.college?.trim() || 'University of Cape Coast'
-      };
-      mockStateStore.faculties.push(subdomain);
-    } else {
-      const parentFac = mockStateStore.faculties.find((f) => f.id === payload.facultyId);
-      subdomain = {
-        id: `dept-${Date.now()}`,
-        name: payload.name.trim(),
-        code: payload.code?.trim() || payload.shortName?.trim() || 'DEPT',
-        facultyId: payload.facultyId || 'fac-sps',
-        facultyName: payload.facultyName || parentFac?.name || 'School of Physical Sciences',
-        programmes: payload.programmes || [`B.Sc. ${payload.name.trim()}`]
-      };
-      mockStateStore.departments.push(subdomain);
-    }
-
-    return {
-      success: true,
-      subdomain,
-      halls: mockStateStore.halls,
-      faculties: mockStateStore.faculties,
-      departments: mockStateStore.departments
+    const subType = payload.type || 'hall';
+    const colName =
+      subType === 'faculty' ? 'faculties' : subType === 'department' ? 'departments' : 'halls';
+    const id = `${subType}-${Date.now().toString(36)}`;
+    const record = {
+      id,
+      name: payload.name.trim(),
+      shortName: payload.shortName?.trim() || payload.name.trim(),
+      code: payload.code?.trim() || id.toUpperCase(),
+      college: payload.college || '',
+      facultyId: payload.facultyId || '',
+      facultyName: payload.facultyName || '',
+      programmes: payload.programmes || [],
     };
+    try {
+      await setDoc(doc(db, colName, id), record);
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Created ${subType} Sub-Domain`,
+        target: record.name,
+      });
+      return { success: true, subdomain: record };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.CREATE, `${colName}/${id}`);
+    }
   }
 
-  async createElection(payload: CreateElectionPayload) {
-    if (!payload.title?.trim() || !payload.startDate || !payload.endDate) {
-      return { success: false, error: 'Title, start date, and end date are required.' };
-    }
-
-    const domainId = payload.domainId || categoryToDomainId(payload.category, mockStateStore.domains);
-    const category = payload.category || domainIdToCategory(domainId, mockStateStore.domains);
-    const id = `UCC-DEMO-${Date.now().toString().slice(-6)}`;
+  async createElection(payload: CreateElectionPayload): Promise<{
+    success: boolean;
+    election?: Election;
+    positions?: Position[];
+    message?: string;
+    error?: string;
+  }> {
+    const electionId = `elec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const domainId = payload.domainId || categoryToDomainId(payload.category);
+    const category = payload.category || domainIdToCategory(domainId);
     const code =
       payload.code?.trim() ||
-      `UCC-${category.replace(/[^A-Z]/gi, '').slice(0, 3).toUpperCase()}-${new Date().getFullYear()}`;
+      `UCC-${category.replace(/[^A-Z]/gi, '').slice(0, 4).toUpperCase()}-${new Date().getFullYear()}`;
 
-    const initialPositions: Position[] = (payload.positions || []).map((pos, idx) => ({
-      id: `pos-${id.toLowerCase()}-${idx + 1}`,
-      electionId: id,
-      domainId,
-      hallId: payload.hallId,
-      facultyId: payload.facultyId,
-      departmentId: payload.departmentId,
-      title: pos.title,
-      description: pos.description || '',
-      maxSelections: pos.maxSelections || 1,
-      allowsSkip: pos.allowsSkip !== undefined ? pos.allowsSkip : true,
-      order: idx + 1,
-      candidateIds: [],
-      candidateEligibilityRules: pos.candidateEligibilityRules,
-      votingRules: pos.votingRules
-    }));
+    const positionsInput = payload.positions || [];
+    const nowIso = new Date().toISOString();
 
-    const newElection: Election = {
-      id,
+    const electionData: Election = {
+      id: electionId,
       title: payload.title.trim(),
       code,
       description: payload.description.trim(),
@@ -309,87 +184,119 @@ class FrontendDemoAdminService implements IAdminDataService {
       facultyId: payload.facultyId,
       departmentId: payload.departmentId,
       subdomainLabel: payload.subdomainLabel,
-      academicYear: payload.academicYear || '2026/2027',
-      status: 'scheduled',
+      academicYear: payload.academicYear,
+      status: 'draft',
       startDate: payload.startDate,
       endDate: payload.endDate,
-      startTime: payload.startTime,
-      endTime: payload.endTime,
-      totalEligibleVoters: 1200,
+      startTime: payload.startTime || '08:00',
+      endTime: payload.endTime || '17:00',
+      totalEligibleVoters: 0,
       totalVotesCast: 0,
       turnoutPercentage: 0,
-      organizingBody: payload.organizingBody || 'UCC Electoral Commission',
+      organizingBody: payload.organizingBody.trim(),
       eligibilityCriteria: payload.eligibilityCriteria || {},
       rules: payload.rules || [],
-      positionsCount: initialPositions.length,
+      positionsCount: positionsInput.length,
       resultsCertified: false,
       provisionalResultsReady: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isDemoRecord: true
+      createdAt: nowIso,
+      updatedAt: nowIso,
     };
 
-    mockStateStore.elections.unshift(newElection);
-    mockStateStore.positionsByElection[id] = initialPositions;
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_ELECTION_CREATED',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: 'SUCCESS',
-      details: `Created temporary election "${newElection.title}" (${newElection.code}).`
-    });
+    try {
+      await setDoc(doc(db, 'elections', electionId), {
+        ...electionData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
-    return {
-      success: true,
-      election: newElection,
-      positions: initialPositions,
-      message: 'Election created in temporary frontend store.'
-    };
+      const createdPositions: Position[] = [];
+      for (let i = 0; i < positionsInput.length; i++) {
+        const p = positionsInput[i];
+        const posId = `pos_${electionId}_${i + 1}_${Date.now().toString(36)}`;
+        const posDoc: Position = {
+          id: posId,
+          electionId,
+          domainId,
+          title: p.title.trim(),
+          description: p.description?.trim() || '',
+          maxSelections: p.maxSelections || 1,
+          allowsSkip: p.allowsSkip ?? true,
+          order: i + 1,
+          candidateIds: [],
+          candidateEligibilityRules: p.candidateEligibilityRules || '',
+          votingRules: p.votingRules || '',
+        };
+        await setDoc(doc(db, 'positions', posId), posDoc);
+        createdPositions.push(posDoc);
+      }
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Created Election',
+        target: `${electionData.title} (${electionData.code})`,
+      });
+
+      return {
+        success: true,
+        election: electionData,
+        positions: createdPositions,
+        message: 'Election saved to Cloud Firestore.',
+      };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.CREATE, `elections/${electionId}`);
+    }
   }
 
   async updateElection(id: string, updates: Partial<Election>) {
-    const election = mockStateStore.elections.find((e) => e.id === id);
-    if (!election) {
-      return { success: false, error: 'Election not found in temporary mock store.' };
+    try {
+      await updateDoc(doc(db, 'elections', id), {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Updated Election Configuration',
+        target: id,
+      });
+      return { success: true, message: 'Election updated in Cloud Firestore.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `elections/${id}`);
     }
-    Object.assign(election, updates, { updatedAt: new Date().toISOString() });
-    return { success: true, election, message: 'Election updated in temporary store.' };
   }
 
-  async changeStatus(id: string, newStatus: ElectionStatus, justification?: string) {
-    const election = mockStateStore.elections.find((e) => e.id === id);
-    if (!election) {
-      return { success: false, error: 'Election not found in temporary mock store.' };
+  async changeStatus(
+    id: string,
+    newStatus: ElectionStatus,
+    justification?: string
+  ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+    try {
+      const actor = await getCurrentAdminContext();
+      await updateDoc(doc(db, 'elections', id), {
+        status: newStatus,
+        ...(newStatus === 'scheduled' ? { approvedBy: actor.name } : {}),
+        ...(newStatus === 'results_published' ? { resultsCertified: true } : {}),
+        updatedAt: serverTimestamp(),
+      });
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Transitioned Election Status -> ${newStatus}`,
+        target: justification ? `${id} (${justification})` : id,
+      });
+      const updated = await getDoc(doc(db, 'elections', id));
+      return {
+        success: true,
+        election: updated.exists() ? mapDoc<Election>(updated.id, updated.data()) : undefined,
+        message: `Election status updated to ${newStatus.replace(/_/g, ' ')}.`,
+      };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `elections/${id}`);
     }
-    const prevStatus = election.status;
-    election.status = newStatus;
-    election.updatedAt = new Date().toISOString();
-    if (newStatus === 'results_published') {
-      election.resultsCertified = true;
-      const ledger = mockStateStore.getOrCreateLedger(id);
-      if (ledger) {
-        ledger.workflowStage = 'published';
-        ledger.publishedAt = new Date().toISOString();
-      }
-    }
-
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_STATUS_TRANSITION',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: 'SUCCESS',
-      details: `Changed "${election.title}" status from ${prevStatus} to ${newStatus}.${
-        justification ? ` Note: ${justification}` : ''
-      }`
-    });
-
-    return {
-      success: true,
-      election,
-      message: `Election status updated to ${newStatus} in temporary frontend store.`
-    };
   }
 
   async addPosition(
@@ -403,41 +310,36 @@ class FrontendDemoAdminService implements IAdminDataService {
       votingRules?: string;
     }
   ) {
-    const election = mockStateStore.elections.find((e) => e.id === electionId);
-    if (!election) return { success: false, error: 'Election not found.' };
-
-    const list = mockStateStore.positionsByElection[electionId] || [];
-    const newPos: Position = {
-      id: `pos-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      electionId,
-      domainId: election.domainId,
-      hallId: election.hallId,
-      facultyId: election.facultyId,
-      departmentId: election.departmentId,
-      title: position.title.trim(),
-      description: position.description?.trim() || '',
-      maxSelections: position.maxSelections || 1,
-      allowsSkip: position.allowsSkip !== undefined ? position.allowsSkip : true,
-      order: list.length + 1,
-      candidateIds: [],
-      candidateEligibilityRules: position.candidateEligibilityRules,
-      votingRules: position.votingRules
-    };
-
-    const updated = [...list, newPos];
-    mockStateStore.positionsByElection[electionId] = updated;
-    election.positionsCount = updated.length;
-
-    return {
-      success: true,
-      position: newPos,
-      allPositions: updated,
-      message: 'Position added in temporary frontend store.'
-    };
+    const posId = `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    try {
+      const existingSnap = await getDocs(
+        query(collection(db, 'positions'), where('electionId', '==', electionId))
+      );
+      const posDoc: Position = {
+        id: posId,
+        electionId,
+        title: position.title.trim(),
+        description: position.description?.trim() || '',
+        maxSelections: position.maxSelections || 1,
+        allowsSkip: position.allowsSkip ?? true,
+        order: existingSnap.size + 1,
+        candidateIds: [],
+        candidateEligibilityRules: position.candidateEligibilityRules || '',
+        votingRules: position.votingRules || '',
+      };
+      await setDoc(doc(db, 'positions', posId), posDoc);
+      await updateDoc(doc(db, 'elections', electionId), {
+        positionsCount: existingSnap.size + 1,
+        updatedAt: serverTimestamp(),
+      });
+      return { success: true, position: posDoc, message: 'Position added.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.CREATE, `positions/${posId}`);
+    }
   }
 
   async updatePosition(
-    electionId: string,
+    _electionId: string,
     posId: string,
     updates: {
       title?: string;
@@ -448,246 +350,472 @@ class FrontendDemoAdminService implements IAdminDataService {
       votingRules?: string;
     }
   ) {
-    const list = mockStateStore.positionsByElection[electionId] || [];
-    const pos = list.find((p) => p.id === posId);
-    if (!pos) return { success: false, error: 'Position not found.' };
-
-    Object.assign(pos, updates);
-    return {
-      success: true,
-      position: pos,
-      allPositions: list,
-      message: 'Position updated in temporary frontend store.'
-    };
+    try {
+      await updateDoc(doc(db, 'positions', posId), updates);
+      return { success: true, message: 'Position updated.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `positions/${posId}`);
+    }
   }
 
-  async deletePosition(
-    electionId: string,
-    posId: string
-  ): Promise<{
-    success: boolean;
-    remainingPositions?: Position[];
-    error?: string;
-    message?: string;
-  }> {
-    const list = mockStateStore.positionsByElection[electionId] || [];
-    if (!list.some((p) => p.id === posId)) {
-      return { success: false, error: 'Position not found in temporary store.' };
+  async deletePosition(electionId: string, posId: string) {
+    try {
+      await deleteDoc(doc(db, 'positions', posId));
+      const remaining = await getDocs(
+        query(collection(db, 'positions'), where('electionId', '==', electionId))
+      );
+      await updateDoc(doc(db, 'elections', electionId), {
+        positionsCount: remaining.size,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        success: true,
+        remainingPositions: remaining.docs.map((d) => mapDoc<Position>(d.id, d.data())),
+        message: 'Position removed.',
+      };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `positions/${posId}`);
     }
-    const remaining = list
-      .filter((p) => p.id !== posId)
-      .map((p, idx) => ({ ...p, order: idx + 1 }));
-    mockStateStore.positionsByElection[electionId] = remaining;
-
-    const election = mockStateStore.elections.find((e) => e.id === electionId);
-    if (election) election.positionsCount = remaining.length;
-
-    return {
-      success: true,
-      remainingPositions: remaining,
-      message: 'Position removed from temporary frontend store.'
-    };
   }
 
   async verifyCandidateEligibility(id: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
+    try {
+      const cSnap = await getDoc(doc(db, 'candidates', id));
+      if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
+      const cand = mapDoc<Candidate>(cSnap.id, cSnap.data());
 
-    const reg = mockStateStore.officialRegistry[cand.studentId.toUpperCase()];
-    const isEnrolled = reg ? reg.isEnrolled : true;
-    const cgpaQualified = reg ? reg.cgpaQualified : true;
+      // Check whether a matching student record exists in students collection
+      const studQ = query(
+        collection(db, 'students'),
+        where('studentId', '==', cand.studentId.trim().toUpperCase())
+      );
+      const studSnap = await getDocs(studQ);
+      const matchedStudent = studSnap.empty ? null : studSnap.docs[0].data();
+      const isEnrolled = Boolean(matchedStudent);
+      const levelMatch = matchedStudent ? matchedStudent.level === cand.level : true;
+      const facultyMatch = matchedStudent ? matchedStudent.faculty === cand.faculty : true;
+      const hallMatch = matchedStudent ? matchedStudent.hall === cand.hall : true;
 
-    const details = {
-      isEnrolled,
-      cgpaQualified,
-      levelMatch: true,
-      facultyMatch: true,
-      hallMatch: true,
-      summary: reg
-        ? 'Matched against temporary mock student registry (demo only).'
-        : 'Accepted in temporary frontend preview mode (no SIS connected).'
-    };
+      const details = {
+        isEnrolled,
+        cgpaQualified: true,
+        levelMatch,
+        facultyMatch,
+        hallMatch,
+        summary: isEnrolled
+          ? 'Student record verified against registered UCC VOTE profiles.'
+          : 'No matching activated student profile found; verify manually against Academic Affairs roll.',
+      };
 
-    const isEligible = isEnrolled && cgpaQualified;
-    cand.eligibilityVerified = isEligible;
-    cand.eligibilityDetails = details;
+      await updateDoc(doc(db, 'candidates', id), {
+        eligibilityVerified: isEnrolled && levelMatch && facultyMatch && hallMatch,
+        eligibilityDetails: details,
+        updatedAt: serverTimestamp(),
+      });
 
-    return {
-      success: true,
-      isEligible,
-      reason: details.summary,
-      details,
-      candidate: cand
-    };
-  }
-
-  async approveCandidate(id: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
-
-    cand.applicationStatus = 'Approved';
-    cand.reviewedAt = new Date().toISOString();
-    cand.reviewedBy = getCurrentAdminActor().name;
-    cand.rejectionReason = undefined;
-    cand.correctionNotes = undefined;
-
-    const list = mockStateStore.positionsByElection[cand.electionId] || [];
-    const pos = list.find((p) => p.id === cand.positionId);
-    if (pos && !pos.candidateIds.includes(cand.id)) {
-      pos.candidateIds.push(cand.id);
+      return {
+        success: true,
+        isEligible: details.isEnrolled && levelMatch && facultyMatch && hallMatch,
+        reason: details.summary,
+        details,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Eligibility check failed.' };
     }
-
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_CANDIDATE_APPROVED',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: 'SUCCESS',
-      details: `Approved candidate ${cand.fullName} in temporary frontend store.`
-    });
-
-    return { success: true, candidate: cand, message: 'Candidate approved in demo store.' };
   }
 
-  async rejectCandidate(id: string, reason: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
+  async approveCandidate(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const actor = await getCurrentAdminContext();
+      const cSnap = await getDoc(doc(db, 'candidates', id));
+      if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
+      const cand = cSnap.data() as Candidate;
 
-    cand.applicationStatus = 'Rejected';
-    cand.rejectionReason = reason;
-    cand.reviewedAt = new Date().toISOString();
-    cand.reviewedBy = getCurrentAdminActor().name;
+      await updateDoc(doc(db, 'candidates', id), {
+        applicationStatus: 'Approved',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: actor.name,
+        eligibilityVerified: true,
+        updatedAt: serverTimestamp(),
+      });
 
-    return { success: true, candidate: cand, message: 'Candidate rejected in demo store.' };
-  }
+      if (cand.positionId) {
+        await updateDoc(doc(db, 'positions', cand.positionId), {
+          candidateIds: arrayUnion(id),
+        }).catch(() => {});
+      }
 
-  async requestCandidateCorrections(id: string, notes: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
-
-    cand.applicationStatus = 'Under review';
-    cand.correctionNotes = notes;
-    cand.reviewedAt = new Date().toISOString();
-    cand.reviewedBy = getCurrentAdminActor().name;
-
-    return { success: true, candidate: cand, message: 'Correction notes saved in demo store.' };
-  }
-
-  async withdrawCandidate(id: string, reason?: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
-
-    cand.applicationStatus = 'Withdrawn';
-    cand.rejectionReason = reason || 'Voluntary withdrawal';
-    return { success: true, candidate: cand, message: 'Candidate marked withdrawn in demo store.' };
-  }
-
-  async assignCandidatePosition(id: string, electionId: string, positionId: string) {
-    const cand = mockStateStore.candidates.find((c) => c.id === id);
-    if (!cand) return { success: false, error: 'Candidate not found.' };
-
-    cand.electionId = electionId;
-    cand.positionId = positionId;
-    const list = mockStateStore.positionsByElection[electionId] || [];
-    const pos = list.find((p) => p.id === positionId);
-    if (pos && !pos.candidateIds.includes(cand.id)) {
-      pos.candidateIds.push(cand.id);
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Approved Candidate Nomination',
+        target: `${cand.fullName} (${cand.studentId})`,
+      });
+      return { success: true, message: 'Candidate approved for digital ballot.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
+  }
 
-    return { success: true, candidate: cand, message: 'Candidate position updated in demo store.' };
+  async rejectCandidate(
+    id: string,
+    reason: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const actor = await getCurrentAdminContext();
+      await updateDoc(doc(db, 'candidates', id), {
+        applicationStatus: 'Rejected',
+        rejectionReason: reason.trim(),
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: actor.name,
+        updatedAt: serverTimestamp(),
+      });
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Rejected Candidate Nomination',
+        target: `${id}: ${reason.trim()}`,
+      });
+      return { success: true, message: 'Candidate nomination rejected.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+    }
+  }
+
+  async requestCandidateCorrections(
+    id: string,
+    notes: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const actor = await getCurrentAdminContext();
+      await updateDoc(doc(db, 'candidates', id), {
+        applicationStatus: 'Under review',
+        correctionNotes: notes.trim(),
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: actor.name,
+        updatedAt: serverTimestamp(),
+      });
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Requested Candidate Nomination Corrections',
+        target: id,
+      });
+      return { success: true, message: 'Correction request recorded.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+    }
+  }
+
+  async withdrawCandidate(
+    id: string,
+    _reason?: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const actor = await getCurrentAdminContext();
+      await updateDoc(doc(db, 'candidates', id), {
+        applicationStatus: 'Withdrawn',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: actor.name,
+        updatedAt: serverTimestamp(),
+      });
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Marked Candidate Withdrawn',
+        target: id,
+      });
+      return { success: true, message: 'Candidate withdrawn.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+    }
+  }
+
+  async assignCandidatePosition(
+    id: string,
+    electionId: string,
+    positionId: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      await updateDoc(doc(db, 'candidates', id), {
+        electionId,
+        positionId,
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'positions', positionId), {
+        candidateIds: arrayUnion(id),
+      }).catch(() => {});
+      return { success: true, message: 'Candidate assigned to position.' };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+    }
   }
 
   async getAdminElectionResults(electionId: string) {
-    const results = mockStateStore.computeElectionResults(electionId, true);
-    if (!results) {
-      return { success: false, error: 'Election results not found in temporary store.' };
+    try {
+      const [eSnap, rSnap, pSnap, cSnap] = await Promise.all([
+        getDoc(doc(db, 'elections', electionId)),
+        getDoc(doc(db, 'election_results', electionId)),
+        getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
+        getDocs(
+          query(
+            collection(db, 'candidates'),
+            where('electionId', '==', electionId),
+            where('applicationStatus', '==', 'Approved')
+          )
+        ),
+      ]);
+
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election not found.' };
+      }
+
+      if (rSnap.exists()) {
+        return {
+          success: true,
+          results: mapDoc<ElectionResultsPayload>(rSnap.id, rSnap.data()),
+        };
+      }
+
+      // Construct real zero-tallied shell from actual Firestore election/positions/candidates
+      const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      const positionsList = pSnap.docs
+        .map((d) => mapDoc<Position>(d.id, d.data()))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      const candidates = cSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()));
+
+      const totalCast = Number(election.totalVotesCast) || 0;
+      const totalEligible = Number(election.totalEligibleVoters) || 0;
+
+      const positionSummaries: PositionResultSummary[] = positionsList.map((pos) => {
+        const posCandidates = candidates.filter((c) => c.positionId === pos.id);
+        const totalValidVotes = posCandidates.reduce(
+          (sum, c) => sum + (Number(c.votesReceived) || 0),
+          0
+        );
+        const sorted = [...posCandidates].sort(
+          (a, b) => (Number(b.votesReceived) || 0) - (Number(a.votesReceived) || 0)
+        );
+        const topVotes = sorted.length > 0 ? Number(sorted[0].votesReceived) || 0 : 0;
+        const leaders =
+          topVotes > 0 ? sorted.filter((c) => (Number(c.votesReceived) || 0) === topVotes) : [];
+        const isTie = leaders.length > 1;
+
+        const rows: CandidateResultRow[] = sorted.map((c, idx) => {
+          const votes = Number(c.votesReceived) || 0;
+          const pctValid = totalValidVotes > 0 ? Math.round((votes / totalValidVotes) * 1000) / 10 : 0;
+          const pctTotal = totalCast > 0 ? Math.round((votes / totalCast) * 1000) / 10 : 0;
+          const isTop = topVotes > 0 && votes === topVotes;
+          return {
+            candidateId: c.id,
+            fullName: c.fullName,
+            nickname: c.nickname,
+            studentId: c.studentId,
+            photoUrl: c.photoUrl || '',
+            department: c.department,
+            faculty: c.faculty,
+            hall: c.hall,
+            votesReceived: votes,
+            percentageOfValidVotes: pctValid,
+            percentageOfTotalBallots: pctTotal,
+            rank: idx + 1,
+            isLeading: isTop && !isTie,
+            isWinner: isTop && !isTie && election.resultsCertified,
+            isTied: isTop && isTie,
+          };
+        });
+
+        return {
+          positionId: pos.id,
+          title: pos.title,
+          description: pos.description,
+          order: pos.order,
+          totalValidVotes,
+          blankVotes: Math.max(0, totalCast - totalValidVotes),
+          invalidVotes: 0,
+          totalBallotsProcessed: totalCast,
+          isTie,
+          tiedCandidateIds: isTie ? leaders.map((l) => l.id) : [],
+          winnerCandidateIds: !isTie ? leaders.map((l) => l.id) : [],
+          candidates: rows,
+        };
+      });
+
+      const ballotSummary: BallotAccountingSummary = {
+        totalEligibleVoters: totalEligible,
+        totalBallotsCast: totalCast,
+        validBallots: totalCast,
+        invalidBallots: 0,
+        blankBallots: 0,
+        uncastBallots: Math.max(0, totalEligible - totalCast),
+        turnoutPercentage:
+          totalEligible > 0 ? Math.round((totalCast / totalEligible) * 1000) / 10 : 0,
+        validBallotRate: totalCast > 0 ? 100 : 0,
+        invalidBallotRate: 0,
+        blankBallotRate: 0,
+      };
+
+      const payload: ElectionResultsPayload = {
+        electionId: election.id,
+        electionTitle: election.title,
+        electionCode: election.code,
+        category: election.category,
+        domainId: election.domainId,
+        subdomainLabel: election.subdomainLabel,
+        status: election.status,
+        academicYear: election.academicYear,
+        organizingBody: election.organizingBody,
+        startDate: election.startDate,
+        endDate: election.endDate,
+        workflowStage: election.resultsCertified
+          ? 'published'
+          : 'preliminary',
+        workflowHistory: [],
+        isPublished: election.status === 'results_published',
+        resultsCertified: Boolean(election.resultsCertified),
+        ballotSummary,
+        positions: positionSummaries,
+        turnoutAnalytics: {
+          privacyThreshold: 5,
+          byFaculty: [],
+          byDepartment: [],
+          byLevel: [],
+          byHall: [],
+        },
+      };
+
+      return { success: true, results: payload };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to load election results.' };
     }
-    return { success: true, results };
   }
 
   async advanceResultsWorkflow(
     electionId: string,
     targetStage: ResultsWorkflowStage,
     notes?: string,
-    actorName?: string
+    actorNameOverride?: string
   ) {
-    const election = mockStateStore.elections.find((e) => e.id === electionId);
-    const ledger = mockStateStore.getOrCreateLedger(electionId);
-    if (!election || !ledger) {
-      return { success: false, error: 'Election not found.' };
+    try {
+      // Try Cloud Function tallying & certification first
+      try {
+        const fn = httpsCallable(functions, 'certifyAndPublishResults');
+        const res = await fn({ electionId, targetStage, notes });
+        const data = res.data as any;
+        if (data?.success && data?.results) {
+          return {
+            success: true,
+            results: data.results as ElectionResultsPayload,
+            message: data.message || `Results advanced to ${targetStage}.`,
+          };
+        }
+      } catch {
+        // Fallback to direct Firestore workflow state update by verified admin
+      }
+
+      const actor = await getCurrentAdminContext();
+      const actorName = actorNameOverride || actor.name;
+      const currentRes = await this.getAdminElectionResults(electionId);
+      if (!currentRes.success || !currentRes.results) {
+        return { success: false, error: currentRes.error || 'Election results unavailable.' };
+      }
+
+      const prev = currentRes.results;
+      const isPublished = targetStage === 'published';
+      const isCertified = targetStage === 'certified' || isPublished;
+      const nextAction = {
+        stage: targetStage,
+        actorId: actor.uid,
+        actorName,
+        actorRole: actor.role,
+        timestamp: new Date().toISOString(),
+        notes: notes || `Advanced to ${targetStage}`,
+      };
+
+      const nextPayload: ElectionResultsPayload = {
+        ...prev,
+        workflowStage: targetStage,
+        workflowHistory: [...(prev.workflowHistory || []), nextAction],
+        isPublished,
+        resultsCertified: isCertified,
+        certifiedBy: isCertified ? actorName : prev.certifiedBy,
+        publishedAt: isPublished ? new Date().toISOString() : prev.publishedAt,
+      };
+
+      await setDoc(
+        doc(db, 'election_results', electionId),
+        {
+          ...nextPayload,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await updateDoc(doc(db, 'elections', electionId), {
+        status: isPublished ? 'results_published' : 'results_pending_certification',
+        resultsCertified: isCertified,
+        provisionalResultsReady: true,
+        updatedAt: serverTimestamp(),
+      });
+
+      await writeAuditLog({
+        adminName: actorName,
+        adminRole: actor.role,
+        action: `Results Workflow -> ${targetStage}`,
+        target: electionId,
+      });
+
+      return {
+        success: true,
+        results: nextPayload,
+        message: `Results workflow updated to ${targetStage}.`,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to advance workflow stage.' };
     }
-
-    const actor = getCurrentAdminActor();
-    ledger.workflowStage = targetStage;
-    ledger.workflowHistory.push({
-      stage: targetStage,
-      actorId: actor.id,
-      actorName: actorName || actor.name,
-      actorRole: `${actor.roleName} (Demo)`,
-      timestamp: new Date().toISOString(),
-      notes: notes || `Advanced results preview stage to ${targetStage.toUpperCase()}.`,
-      signatureHash: `DEMO-STAGE-${targetStage.toUpperCase()}`
-    });
-
-    if (targetStage === 'certified' || targetStage === 'published') {
-      election.resultsCertified = true;
-      ledger.certifiedBy = `${actorName || actor.name} (Frontend Demo)`;
-      ledger.certificationHash = `DEMO-REF-${Date.now().toString(16).toUpperCase()}`;
-    }
-
-    if (targetStage === 'published') {
-      election.status = 'results_published';
-      election.provisionalResultsReady = true;
-      ledger.publishedAt = new Date().toISOString();
-    } else if (election.status === 'closed') {
-      election.status = 'results_pending_certification';
-    }
-
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_RESULTS_WORKFLOW',
-      identifier: actor.staffId,
-      role: actor.roleName,
-      ipAddress: 'Browser Local',
-      status: 'SUCCESS',
-      details: `Advanced "${election.title}" demo results stage to ${targetStage.toUpperCase()}.`
-    });
-
-    const results = mockStateStore.computeElectionResults(electionId, true);
-    return {
-      success: true,
-      message: `Demo results stage updated to ${targetStage.toUpperCase()}.`,
-      results: results || undefined
-    };
   }
 
   async downloadElectionReport(
     electionId: string,
     format: 'pdf' | 'csv',
-    reportType: 'full' | 'results' | 'turnout' | 'candidates' | 'positions'
+    _reportType: 'full' | 'results' | 'turnout' | 'candidates' | 'positions'
   ) {
-    const actor = getCurrentAdminActor();
-    const results = mockStateStore.computeElectionResults(electionId, actor.isAdmin);
-    if (!results) {
-      return { success: false, error: 'Election not found for export.' };
+    const res = await this.getAdminElectionResults(electionId);
+    if (!res.success || !res.results) {
+      return { success: false, error: res.error || 'Results unavailable for export.' };
     }
-    if (!actor.isAdmin && !results.isPublished) {
-      return {
-        success: false,
-        error: 'Report export is available after results publication or from an admin preview session.'
-      };
+    const r = res.results;
+
+    if (format === 'pdf') {
+      if (typeof window !== 'undefined' && typeof window.print === 'function') {
+        window.print();
+      }
+      return { success: true, filename: `${r.electionCode}_Report.pdf` };
     }
 
-    const isCsv = format === 'csv';
-    const content = isCsv
-      ? buildCsvReport(results, reportType)
-      : buildPrintableHtmlReport(results, reportType);
-    const mime = isCsv ? 'text/csv;charset=utf-8;' : 'text/html;charset=utf-8;';
-    const ext = isCsv ? 'csv' : 'html';
-    const filename = `UCC_VOTE_DEMO_${electionId}_${reportType}.${ext}`;
+    const lines: string[] = [
+      'Position,Candidate,Student ID,Department,Hall,Votes Received,Valid Vote Share (%)',
+    ];
+    r.positions.forEach((p) => {
+      p.candidates.forEach((c) => {
+        lines.push(
+          [
+            `"${p.title.replace(/"/g, '""')}"`,
+            `"${c.fullName.replace(/"/g, '""')}"`,
+            `"${c.studentId}"`,
+            `"${c.department.replace(/"/g, '""')}"`,
+            `"${c.hall.replace(/"/g, '""')}"`,
+            c.votesReceived,
+            c.percentageOfValidVotes.toFixed(1),
+          ].join(',')
+        );
+      });
+    });
 
-    const blob = new Blob([content], { type: mime });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    const filename = `${r.electionCode || electionId}_official_results.csv`;
     link.href = url;
     link.download = filename;
     document.body.appendChild(link);
@@ -699,11 +827,15 @@ class FrontendDemoAdminService implements IAdminDataService {
   }
 
   async getAdminAccounts() {
-    const admins: AdminProfile[] = mockStateStore.adminAccounts.map(({ demoPassword: _p, ...rest }) => ({
-      ...rest,
-      isDemoAccount: true
-    }));
-    return { success: true, admins };
+    try {
+      const snap = await getDocs(collection(db, 'admins'));
+      return {
+        success: true,
+        admins: snap.docs.map((d) => mapDoc<AdminProfile>(d.id, d.data())),
+      };
+    } catch (err: any) {
+      return { success: false, admins: [], error: err?.message || 'Unable to load administrators.' };
+    }
   }
 
   async createAdminAccount(payload: {
@@ -712,49 +844,36 @@ class FrontendDemoAdminService implements IAdminDataService {
     email: string;
     role: AdminRoleType;
     department: string;
-    password?: string;
+    uid?: string;
     managedDomainIds?: DomainId[];
     managedHalls?: string[];
     managedFaculties?: string[];
     managedDepartments?: string[];
   }) {
-    const cleanId = payload.staffId.trim().toUpperCase();
-    if (!cleanId || !payload.fullName.trim()) {
-      return { success: false, error: 'Staff ID and full name are required.' };
+    try {
+      const fn = httpsCallable(functions, 'setAdminRole');
+      const res = await fn(payload);
+      const data = res.data as any;
+      if (data?.success) {
+        return {
+          success: true,
+          admin: data.admin as AdminProfile,
+          message: 'Administrator privileges assigned via Cloud Functions.',
+        };
+      }
+      return { success: false, error: data?.error || 'Unable to assign administrator role.' };
+    } catch (err: any) {
+      return {
+        success: false,
+        error:
+          err?.message ||
+          'Assigning custom Firebase Auth claims requires the setAdminRole Cloud Function to be deployed on ucc-vote.',
+      };
     }
-    if (mockStateStore.findAdminByStaffId(cleanId)) {
-      return { success: false, error: 'Staff ID already exists in temporary admin list.' };
-    }
-
-    const newAdmin = {
-      id: `adm-demo-${Date.now()}`,
-      staffId: cleanId,
-      fullName: payload.fullName.trim(),
-      email: payload.email.trim() || `${cleanId.toLowerCase()}@ucc.edu.gh`,
-      role: payload.role,
-      department: payload.department.trim() || 'Electoral Board',
-      permissions: getPermissionsForRole(payload.role),
-      managedDomainIds: payload.managedDomainIds,
-      managedHalls: payload.managedHalls,
-      managedFaculties: payload.managedFaculties,
-      managedDepartments: payload.managedDepartments,
-      isDemoAccount: true,
-      demoPassword: payload.password || 'Admin@UCC2026',
-      status: 'active' as const
-    };
-
-    mockStateStore.adminAccounts.push(newAdmin);
-    const { demoPassword: _p, ...sanitized } = newAdmin;
-
-    return {
-      success: true,
-      admin: sanitized,
-      message: 'Temporary admin demo profile created in browser memory.'
-    };
   }
 
   async updateAdminScope(
-    staffId: string,
+    idOrStaffId: string,
     payload: {
       role?: AdminRoleType;
       managedDomainIds?: DomainId[];
@@ -763,75 +882,123 @@ class FrontendDemoAdminService implements IAdminDataService {
       managedDepartments?: string[];
     }
   ) {
-    const acc = mockStateStore.findAdminByStaffId(staffId);
-    if (!acc) return { success: false, error: 'Admin account not found in temporary store.' };
+    try {
+      const directSnap = await getDoc(doc(db, 'admins', idOrStaffId));
+      let targetDocId = directSnap.exists() ? directSnap.id : '';
+      if (!targetDocId) {
+        const q = query(collection(db, 'admins'), where('staffId', '==', idOrStaffId));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) targetDocId = qSnap.docs[0].id;
+      }
+      if (!targetDocId) {
+        return { success: false, error: 'Administrator record not found in Firestore.' };
+      }
 
-    if (payload.role) {
-      acc.role = payload.role;
-      acc.permissions = getPermissionsForRole(payload.role);
+      const updateFields: Record<string, any> = {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      };
+      if (payload.role) {
+        updateFields.permissions = getPermissionsForRole(payload.role);
+      }
+
+      await updateDoc(doc(db, 'admins', targetDocId), updateFields);
+      const updated = await getDoc(doc(db, 'admins', targetDocId));
+      return {
+        success: true,
+        admin: updated.exists() ? mapDoc<AdminProfile>(updated.id, updated.data()) : undefined,
+        message: 'Administrator governance scope updated.',
+      };
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `admins/${idOrStaffId}`);
     }
-    if (payload.managedDomainIds !== undefined) acc.managedDomainIds = payload.managedDomainIds;
-    if (payload.managedHalls !== undefined) acc.managedHalls = payload.managedHalls;
-    if (payload.managedFaculties !== undefined) acc.managedFaculties = payload.managedFaculties;
-    if (payload.managedDepartments !== undefined) acc.managedDepartments = payload.managedDepartments;
-
-    const { demoPassword: _p, ...sanitized } = acc;
-    return { success: true, admin: sanitized, message: 'Admin scope updated in temporary store.' };
   }
 
   async getAuditLogs() {
-    return { success: true, logs: [...mockStateStore.auditLogs] };
-  }
-
-  async updateStudentStatus(studentId: string, status: 'active' | 'suspended') {
-    const acc = mockStateStore.findStudentById(studentId);
-    if (acc) {
-      acc.status = status;
-      acc.isEligible = status === 'active';
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100))
+      );
+      return {
+        success: true,
+        logs: snap.docs.map((d) => mapDoc<AuditLogItem>(d.id, d.data())),
+      };
+    } catch {
+      return { success: true, logs: [] };
     }
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_STUDENT_STATUS_CHANGED',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: status === 'suspended' ? 'WARNING' : 'SUCCESS',
-      details: `Updated demo student ${studentId} status to ${status.toUpperCase()}.`
-    });
-    return { success: true };
   }
 
-  async attemptAdminBallotInspect(studentId: string) {
-    const cleanId = studentId.trim().toUpperCase() || 'UNKNOWN';
-    mockStateStore.logAuditEvent({
-      eventType: 'DEMO_BALLOT_SECRECY_CHECK',
-      identifier: getCurrentAdminActor().staffId,
-      role: getCurrentAdminActor().roleName,
-      ipAddress: 'Browser Local',
-      status: 'FLAGGED',
-      details: `Frontend demo check: simulated lookup of candidate choices for ${cleanId} was blocked by UI policy.`
+  async updateStudentStatus(uid: string, status: 'active' | 'suspended') {
+    try {
+      const actor = await getCurrentAdminContext();
+      await updateDoc(doc(db, 'students', uid), {
+        status,
+        isEligible: status === 'active',
+        eligibilityStatus: status === 'active' ? 'eligible' : 'suspended',
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(
+        doc(db, 'voter_eligibility', uid),
+        {
+          uid,
+          isEligible: status === 'active',
+          status: status === 'active' ? 'eligible' : 'suspended',
+          verifiedBy: actor.name,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Updated Student Account Status -> ${status}`,
+        target: uid,
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to update student status.' };
+    }
+  }
+
+  async attemptAdminBallotInspect(targetStudentId: string) {
+    const actor = await getCurrentAdminContext();
+    await writeAuditLog({
+      adminName: actor.name,
+      adminRole: actor.role,
+      action: 'SECURITY VIOLATION: Blocked Ballot De-anonymisation Attempt',
+      target: targetStudentId,
+      status: 'flagged',
     });
     return {
       success: false,
-      code: 'DEMO_BALLOT_SECRECY_GUARD',
-      targetStudentId: cleanId,
+      code: 'BALLOT_SECRECY_VIOLATION',
+      error:
+        'ZERO-TRUST BLOCK: Ballot choices are strictly separated from voter identity. No administrator can inspect an individual student’s selections.',
+      targetStudentId,
       audited: true,
-      error: `Frontend Demo Notice: Ballot secrecy design forbids linking ${cleanId} to candidate choices. No backend ballot repository is currently connected.`
     };
   }
 
   async getVotingAuditSummary(electionId: string) {
-    const election = mockStateStore.elections.find((e) => e.id === electionId);
-    const totalCast = election?.totalVotesCast || 0;
-    return {
-      success: true,
-      summary: {
-        electionId,
-        vaultCountBalanced: true,
-        sessionParticipationRecords: totalCast,
-        sessionAnonymousBallots: totalCast
-      }
-    };
+    try {
+      const eSnap = await getDoc(doc(db, 'elections', electionId));
+      if (!eSnap.exists()) return { success: false, error: 'Election not found.' };
+      const e = mapDoc<Election>(eSnap.id, eSnap.data());
+      return {
+        success: true,
+        summary: {
+          electionId: e.id,
+          title: e.title,
+          totalEligibleVoters: e.totalEligibleVoters || 0,
+          totalVotesCast: e.totalVotesCast || 0,
+          turnoutPercentage: e.turnoutPercentage || 0,
+          secrecyGuarantee: 'Voter authorisations do not store candidate selections.',
+        },
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message };
+    }
   }
 }
 
-export const adminService = new FrontendDemoAdminService();
+export const adminService = new FirebaseAdminService();

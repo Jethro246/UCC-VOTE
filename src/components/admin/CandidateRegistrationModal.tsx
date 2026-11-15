@@ -14,12 +14,9 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Candidate, Position } from '../../types';
-import { 
-  CANDIDATE_MALE_IMAGE, 
-  CANDIDATE_FEMALE_IMAGE, 
-  CANDIDATE_MALE_GLASSES_IMAGE, 
-  CANDIDATE_FEMALE_SUIT_IMAGE 
-} from '../../data/mockData';
+import { CandidateAvatar } from '../common/CandidateAvatar';
+import { electionClient } from '../../services/electionClient';
+import { uploadCandidatePhoto } from '../../services/firebaseStorageService';
 
 interface CandidateRegistrationModalProps {
   isOpen: boolean;
@@ -53,26 +50,20 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [hall, setHall] = useState('Casely Hayford Hall');
   const [selectedElectionId, setSelectedElectionId] = useState('');
   const [selectedPositionId, setSelectedPositionId] = useState('');
-  const [photoUrl, setPhotoUrl] = useState(CANDIDATE_MALE_GLASSES_IMAGE);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [biography, setBiography] = useState('');
   const [manifestoSummary, setManifestoSummary] = useState('');
   const [fullManifestoText, setFullManifestoText] = useState('');
   const [keyPromisesText, setKeyPromisesText] = useState('');
   const [leadershipExpText, setLeadershipExpText] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  
+
   const [availablePositions, setAvailablePositions] = useState<Position[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  // Sample portrait choices
-  const portraitPresets = [
-    { label: 'Male Formal (Navy)', url: CANDIDATE_MALE_GLASSES_IMAGE },
-    { label: 'Female Formal (Burgundy)', url: CANDIDATE_FEMALE_SUIT_IMAGE },
-    { label: 'Male Classic', url: CANDIDATE_MALE_IMAGE },
-    { label: 'Female Classic', url: CANDIDATE_FEMALE_IMAGE },
-  ];
 
   const hallOptions = [
     'Casely Hayford Hall',
@@ -111,7 +102,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setHall(candidateToEdit.hall);
       setSelectedElectionId(candidateToEdit.electionId);
       setSelectedPositionId(candidateToEdit.positionId);
-      setPhotoUrl(candidateToEdit.photoUrl || CANDIDATE_MALE_GLASSES_IMAGE);
+      setPhotoUrl(candidateToEdit.photoUrl || '');
       setBiography(candidateToEdit.biography || '');
       setManifestoSummary(candidateToEdit.manifestoSummary);
       setFullManifestoText(candidateToEdit.fullManifesto.join('\n'));
@@ -123,7 +114,6 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setSelectedElectionId(initialElection);
       setSelectedPositionId(defaultPositionId || '');
 
-      // If student is logged in, autofill student info
       if (student) {
         setFullName(student.fullName);
         setStudentId(student.studentId);
@@ -137,11 +127,11 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
         setFullName('');
         setStudentId('');
         setEmail('');
-        setDepartment('Computer Science & Information Technology');
-        setFaculty('School of Physical Sciences');
-        setProgramme('B.Sc. Computer Science');
+        setDepartment('');
+        setFaculty(facultyOptions[0]);
+        setProgramme('');
         setLevel('300');
-        setHall('Casely Hayford Hall');
+        setHall(hallOptions[0]);
       }
       setNickname('');
       setBiography('');
@@ -150,13 +140,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setKeyPromisesText('');
       setLeadershipExpText('');
       setVideoUrl('');
-      setPhotoUrl(CANDIDATE_MALE_GLASSES_IMAGE);
+      setPhotoUrl('');
     }
+    setUploadProgress(null);
     setErrorMsg('');
     setSuccessMsg('');
   }, [candidateToEdit, defaultElectionId, defaultPositionId, isOpen, student]);
 
-  // Load positions for selected election from live positionsByElection + API fallback
+  // Load positions for selected election from live positionsByElection or Firestore
   useEffect(() => {
     if (!selectedElectionId) {
       setAvailablePositions([]);
@@ -173,17 +164,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       return;
     }
     async function loadPositions() {
-      try {
-        const res = await fetch(`/api/elections/${encodeURIComponent(selectedElectionId)}/positions`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.positions)) {
-          setAvailablePositions(data.positions);
-          if (!candidateToEdit && !defaultPositionId && data.positions.length > 0) {
-            setSelectedPositionId(data.positions[0].id);
-          }
+      const res = await electionClient.getElectionById(selectedElectionId);
+      if (res.success && Array.isArray(res.positions)) {
+        setAvailablePositions(res.positions);
+        if (!candidateToEdit && !defaultPositionId && res.positions.length > 0) {
+          setSelectedPositionId(res.positions[0].id);
         }
-      } catch {
-        // fallback
+      } else {
+        setAvailablePositions([]);
       }
     }
     loadPositions();
@@ -226,7 +214,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       fullName: fullName.trim(),
       studentId: studentId.trim().toUpperCase(),
       nickname: nickname.trim() || undefined,
-      email: email.trim() || `${studentId.toLowerCase().replace(/\//g, '.')}@st.ucc.edu.gh`,
+      email: email.trim(),
       department: department.trim(),
       faculty: faculty.trim(),
       programme: programme.trim(),
@@ -513,14 +501,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <ImageIcon className="w-3.5 h-3.5" />
-              <span>3. Candidate Profile Photograph</span>
+              <span>3. Candidate Profile Photograph (Firebase Storage)</span>
             </h3>
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="shrink-0 relative">
-                <img
+                <CandidateAvatar
                   src={photoUrl}
-                  alt="Candidate preview"
+                  alt={fullName || 'Candidate preview'}
                   className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm"
                 />
                 <span className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-[#123B70] text-white text-[9px] font-bold rounded-full">
@@ -528,39 +516,59 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                 </span>
               </div>
 
-              <div className="space-y-3 flex-1 min-w-0">
+              <div className="space-y-3 flex-1 min-w-0 w-full">
                 <div>
-                  <span className="text-xs font-semibold text-slate-700 block mb-1.5">
-                    Select Official Studio Headshot Preset:
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {portraitPresets.map((preset, idx) => (
-                      <button
-                        type="button"
-                        key={idx}
-                        onClick={() => setPhotoUrl(preset.url)}
-                        className={`p-1.5 rounded-xl border text-[11px] font-medium flex items-center gap-2 cursor-pointer transition-colors ${
-                          photoUrl === preset.url
-                            ? 'border-[#123B70] bg-[#EAF2FA] text-[#123B70] font-bold shadow-xs'
-                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <img src={preset.url} alt={preset.label} className="w-6 h-6 rounded-lg object-cover" />
-                        <span className="truncate">{preset.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Upload Official Candidate Portrait (JPEG, PNG or WebP, max 5 MB):
+                  </label>
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#123B70] bg-[#EAF2FA]/60 hover:bg-[#EAF2FA] text-[#123B70] text-xs font-bold cursor-pointer transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{uploadingPhoto ? `Uploading ${uploadProgress ?? 0}%...` : 'Choose Photograph File'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingPhoto}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setErrorMsg('');
+                        setUploadingPhoto(true);
+                        setUploadProgress(0);
+                        try {
+                          const uploaded = await uploadCandidatePhoto(
+                            file,
+                            studentId || fullName || 'candidate',
+                            (pct) => setUploadProgress(pct)
+                          );
+                          setPhotoUrl(uploaded.url);
+                        } catch (err: any) {
+                          setErrorMsg(err?.message || 'Failed to upload candidate photograph.');
+                        } finally {
+                          setUploadingPhoto(false);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {uploadProgress !== null && uploadingPhoto && (
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                      <div
+                        className="bg-[#123B70] h-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Or Enter Direct Photo URL:
+                    Or Paste Verified Image URL:
                   </label>
                   <input
                     type="url"
                     value={photoUrl}
                     onChange={(e) => setPhotoUrl(e.target.value)}
-                    placeholder="https://..."
+                    placeholder="https://firebasestorage.googleapis.com/..."
                     className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   />
                 </div>

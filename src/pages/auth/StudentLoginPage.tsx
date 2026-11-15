@@ -1,279 +1,336 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Logo } from '../../components/common/Logo';
 import { authClient } from '../../services/authClient';
-import { 
-  Lock, 
-  User, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
-  ShieldCheck, 
+import { Logo } from '../../components/common/Logo';
+import { isValidEmail } from '../../services/firebaseAuthService';
+import {
+  Mail,
+  Lock,
+  ArrowRight,
   AlertCircle,
-  HelpCircle,
   CheckCircle2,
-  Clock,
-  Sparkles
+  ShieldCheck,
+  Loader2,
+  Eye,
+  EyeOff,
+  KeyRound,
 } from 'lucide-react';
 
 export const StudentLoginPage: React.FC = () => {
-  const { navigateTo, loginWithUserPayload, sessionExpiredReason } = useApp();
-  
-  const [studentId, setStudentId] = useState('PS/CSC/22/0089');
-  const [password, setPassword] = useState('Vote@UCC2026');
+  const { navigateTo, sessionExpiredReason, clearSessionExpiredReason } = useApp();
+
+  const [authMethod, setAuthMethod] = useState<'email_link' | 'password'>('email_link');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
-  const [lockedUntilSeconds, setLockedUntilSeconds] = useState<number | null>(null);
-  const [showActivateLink, setShowActivateLink] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [linkSentMessage, setLinkSentMessage] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleSendEmailLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('');
-    setShowActivateLink(false);
+    setError(null);
+    setLinkSentMessage(null);
+    clearSessionExpiredReason();
 
-    if (!studentId.trim()) {
-      setErrorMsg('Please enter your valid UCC Student ID.');
+    const clean = email.trim();
+    if (!isValidEmail(clean)) {
+      setError(
+        'Please enter a valid email address (e.g. your UCC student email, Gmail, or personal email).'
+      );
       return;
     }
 
     setIsLoading(true);
-    try {
-      const res = await authClient.login(studentId.trim(), password, rememberMe);
-      setIsLoading(false);
+    const res = await authClient.sendEmailLink(clean, 'login');
+    setIsLoading(false);
 
-      if (res.success && res.user) {
-        loginWithUserPayload(res.user, 'student');
-      } else {
-        setErrorMsg(res.error || 'Authentication failed. Please verify your credentials.');
-        if (res.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(res.attemptsRemaining);
-        }
-        if (res.lockedUntilSeconds) {
-          setLockedUntilSeconds(res.lockedUntilSeconds);
-        }
-        if (res.canActivate) {
-          setShowActivateLink(true);
-        }
-      }
-    } catch (err: any) {
-      setIsLoading(false);
-      setErrorMsg(err.message || 'Network communication error. Please try again.');
+    if (!res.success) {
+      setError(res.error || 'Unable to send sign-in link.');
+      return;
     }
+
+    setLinkSentMessage(
+      res.message ||
+        `A secure sign-in link has been dispatched to ${clean}. Open the link from your inbox to sign in.`
+    );
+    setResendCooldown(60);
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLinkSentMessage(null);
+    clearSessionExpiredReason();
+
+    if (!isValidEmail(email.trim()) || !password) {
+      setError('Please enter your registered email address and password.');
+      return;
+    }
+
+    setIsLoading(true);
+    const res = await authClient.login(email.trim(), password);
+    setIsLoading(false);
+
+    if (!res.success) {
+      setError(res.error || 'Sign-in failed.');
+      return;
+    }
+
+    if (!res.user) {
+      navigateTo('student_register');
+      return;
+    }
+
+    navigateTo('student_dashboard');
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 pb-20 md:pb-4 bg-[#F4F6F9]">
-      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-        
-        {/* Card Header */}
-        <div className="bg-[#0B1F3A] p-6 text-white text-center relative">
-          <div className="flex justify-center mb-3">
-            <Logo variant="large" theme="dark" layout="stacked" showTagline />
+    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4 sm:p-6 bg-[#F4F6F9]">
+      <div className="max-w-4xl w-full bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+        {/* Left Institutional Trust Panel */}
+        <div className="lg:col-span-5 bg-[#0B1F3A] text-white p-8 flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-[#123B70]/40 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="space-y-6 relative">
+            <Logo theme="dark" variant="compact" />
+            <div className="space-y-2 pt-2">
+              <span className="inline-block px-2.5 py-0.5 rounded bg-blue-950 border border-blue-700/50 text-[10px] font-bold uppercase tracking-wider text-sky-300">
+                UCC Student Authentication
+              </span>
+              <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
+                Verified Student Sign-In
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Authenticate securely using your email address via Firebase passwordless sign-in links or account password.
+              </p>
+            </div>
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-white">
-            Student Voter Login
-          </h2>
-          <p className="text-xs text-slate-300 mt-1">
-            Access your university voting dashboard with your institutional ID
-          </p>
+
+          <div className="space-y-3 pt-8 text-xs text-slate-300 relative">
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <p>Any valid email address is supported for account verification and login.</p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Lock className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <p>
+                Email confirmation proves inbox ownership. Voter eligibility is verified separately by the UCC Electoral Commission.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Verification Architecture Banner */}
-        <div className="bg-[#EAF2FA] border-b border-blue-100 px-5 py-2.5 flex items-center justify-between text-xs text-[#123B70]">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 shrink-0 text-[#123B70]" />
-            <span>Authenticated via UCC SIS & Directorate of Academic Affairs</span>
+        {/* Right Form Panel */}
+        <div className="lg:col-span-7 p-6 sm:p-10 space-y-6">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-extrabold text-slate-900">Student Portal Sign In</h1>
+            <p className="text-xs text-slate-500">
+              Sign in with a one-time email link or your configured password.
+            </p>
           </div>
-          <span className="text-[10px] font-mono font-bold uppercase text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-            PBKDF2-SHA512
-          </span>
-        </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {sessionExpiredReason && !errorMsg && (
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          {/* Method Switcher */}
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('email_link');
+                setError(null);
+              }}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                authMethod === 'email_link'
+                  ? 'bg-[#123B70] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email Link (Passwordless)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('password');
+                setError(null);
+                setLinkSentMessage(null);
+              }}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                authMethod === 'password'
+                  ? 'bg-[#123B70] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Email & Password</span>
+            </button>
+          </div>
+
+          {sessionExpiredReason && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>{sessionExpiredReason}</span>
             </div>
           )}
-          {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-[#C62828] space-y-1">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span className="font-semibold">{errorMsg}</span>
-              </div>
-              {attemptsRemaining !== null && attemptsRemaining > 0 && (
-                <p className="text-[11px] text-red-600 pl-6">
-                  Security notice: {attemptsRemaining} attempt{attemptsRemaining > 1 ? 's' : ''} remaining before account locks for 5 minutes.
-                </p>
-              )}
-              {showActivateLink && (
-                <div className="pt-1.5 pl-6">
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('student_register')}
-                    className="text-xs font-bold text-[#123B70] underline hover:text-[#0B1F3A] cursor-pointer"
-                  >
-                    Activate your voter account now →
-                  </button>
-                </div>
-              )}
+
+          {error && (
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="font-medium">{error}</span>
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              UCC Student ID / Index Number
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <User className="w-4 h-4" />
+          {linkSentMessage && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2 text-xs text-emerald-950">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">Sign-In Link Dispatched</p>
+                  <p className="leading-relaxed text-emerald-800">{linkSentMessage}</p>
+                </div>
               </div>
-              <input
-                type="text"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                placeholder="e.g. PS/CSC/22/0089 or 10982341"
-                required
-                className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] focus:ring-1 focus:ring-[#123B70] font-mono transition-colors"
-              />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Standard format: PS/CSC/22/0089 (Level 300) or 8-digit Index Number
-            </p>
-          </div>
+          )}
 
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Portal Password
-              </label>
+          {authMethod === 'email_link' ? (
+            <form onSubmit={handleSendEmailLink} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email address (e.g. name@stu.ucc.edu.gh or Gmail)"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  We accept @stu.ucc.edu.gh, Gmail, and any valid email address. Check your spam/junk folder if you do not see the email within a minute.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || resendCooldown > 0}
+                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending Sign-In Link...</span>
+                  </>
+                ) : resendCooldown > 0 ? (
+                  <span>Resend Link Available in {resendCooldown}s</span>
+                ) : (
+                  <>
+                    <span>Send Sign-In Link</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Registered Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your registered email"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('forgot_password')}
+                    className="text-xs font-semibold text-[#123B70] hover:underline cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing In...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-slate-500">
+              First time on UCC VOTE?{' '}
               <button
                 type="button"
-                onClick={() => navigateTo('forgot_password')}
-                className="text-xs text-[#123B70] hover:underline font-medium cursor-pointer"
+                onClick={() => navigateTo('student_register')}
+                className="font-bold text-[#123B70] hover:underline cursor-pointer"
               >
-                Forgot Password?
+                Activate Student Account
               </button>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-4 h-4" />
-              </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your secret password"
-                required
-                className="w-full pl-9 pr-10 py-2.5 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] focus:ring-1 focus:ring-[#123B70] transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded border-slate-300 text-[#123B70] focus:ring-[#123B70]"
-              />
-              <span>Remember session on this device (30 days)</span>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-[#123B70] hover:bg-[#0B1F3A] focus:outline-none focus:ring-2 focus:ring-[#123B70] focus:ring-offset-2 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
-          >
-            {isLoading ? (
-              <span>Verifying Credentials with PBKDF2...</span>
-            ) : (
-              <>
-                <span>Sign In to Voter Dashboard</span>
-                <ArrowRight className="w-4 h-4 text-amber-400" />
-              </>
-            )}
-          </button>
-
-          {/* Quick Demo Test Credential Fillers */}
-          <div className="pt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-              Quick Test Credentials:
             </span>
-            <div className="flex flex-wrap gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setStudentId('PS/CSC/22/0089');
-                  setPassword('Vote@UCC2026');
-                  setErrorMsg('');
-                }}
-                className="px-2 py-1 rounded bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer font-medium"
-              >
-                ✓ Active: Kofi Mensah (L300)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStudentId('ED/EPS/21/0034');
-                  setPassword('Vote@UCC2026');
-                  setErrorMsg('');
-                }}
-                className="px-2 py-1 rounded bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer font-medium"
-              >
-                ✓ Active: Nana Akua (L400)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStudentId('AS/HIS/22/0055');
-                  setPassword('Vote@UCC2026');
-                  setErrorMsg('');
-                }}
-                className="px-2 py-1 rounded bg-purple-50 border border-purple-200 text-purple-800 hover:bg-purple-100 cursor-pointer font-medium"
-                title="Tests suspended account lockout"
-              >
-                ⚠ Test Suspended Account
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-200 text-center space-y-2">
-            <p className="text-xs text-slate-600">
-              First time voting or account not activated?
-            </p>
             <button
               type="button"
-              onClick={() => navigateTo('student_register')}
-              className="w-full py-2 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              onClick={() => navigateTo('admin_login')}
+              className="text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
             >
-              Activate Voter Account with Student ID
+              Electoral Officer Portal →
             </button>
           </div>
-        </form>
-
-        {/* Security Footer Note */}
-        <div className="bg-slate-50 p-4 border-t border-slate-200 text-[11px] text-slate-500 text-center leading-relaxed">
-          <p>
-            Protected by multi-tier rate limiting and brute force mitigation. 
-            All authentication attempts are cryptographically audited by the Electoral Commission.
-          </p>
         </div>
-
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../common/Logo';
+import { CandidateAvatar } from '../common/CandidateAvatar';
 import { 
   Bell, 
   Menu, 
@@ -23,7 +24,6 @@ export const Navbar: React.FC = () => {
     admin, 
     notifications, 
     navigateTo, 
-    loginAsStudent, 
     logout 
   } = useApp();
 
@@ -127,10 +127,10 @@ export const Navbar: React.FC = () => {
                   onClick={() => handleNav('student_dashboard')}
                   className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer text-left"
                 >
-                  <img
-                    src={student.avatarUrl || '/src/assets/images/candidate_male_1794352938747.jpg'}
+                  <CandidateAvatar
+                    src={student.avatarUrl}
                     alt={student.fullName}
-                    className="w-7 h-7 rounded-full object-cover border border-slate-300"
+                    className="w-7 h-7 rounded-full object-cover border border-slate-300 text-[10px]"
                   />
                   <div className="hidden sm:block">
                     <p className="text-xs font-semibold text-slate-900 leading-none truncate max-w-[120px]">
