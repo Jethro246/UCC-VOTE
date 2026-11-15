@@ -10,6 +10,7 @@ export interface LogoProps {
   variant?: LogoVariant;
   theme?: LogoTheme;
   layout?: LogoLayout;
+  showCrest?: boolean;
   showWordmark?: boolean;
   showTagline?: boolean;
   subtitle?: string;
@@ -38,6 +39,7 @@ export const Logo: React.FC<LogoProps> = ({
   variant = 'default',
   theme = 'light',
   layout = 'horizontal',
+  showCrest = true,
   showWordmark = true,
   showTagline = false,
   subtitle = 'University of Cape Coast',
@@ -53,18 +55,20 @@ export const Logo: React.FC<LogoProps> = ({
       } ${className}`}
     >
       {/* Official UCC Crest Container — neutral white backing preserves original colours without cropping */}
-      <div
-        className={`shrink-0 bg-white flex items-center justify-center border ${
-          isDark ? 'border-white/25 shadow-md' : 'border-slate-200/90 shadow-xs'
-        } ${CREST_SIZES[variant]}`}
-      >
-        <img
-          src={UCC_CREST_PATH}
-          alt="University of Cape Coast Official Crest"
-          className="w-full h-full object-contain select-none"
-          draggable={false}
-        />
-      </div>
+      {showCrest && (
+        <div
+          className={`shrink-0 bg-white flex items-center justify-center border ${
+            isDark ? 'border-white/25 shadow-md' : 'border-slate-200/90 shadow-xs'
+          } ${CREST_SIZES[variant]}`}
+        >
+          <img
+            src={UCC_CREST_PATH}
+            alt="University of Cape Coast Official Crest"
+            className="w-full h-full object-contain select-none"
+            draggable={false}
+          />
+        </div>
+      )}
 
       {showWordmark && (
         <div className={`flex flex-col leading-tight ${isStacked ? 'items-center' : 'items-start'}`}>
