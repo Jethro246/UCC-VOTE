@@ -17,7 +17,7 @@ import {
   Timestamp,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, stripUndefinedDeep, OperationType } from '../lib/firebase';
 import {
   AdminProfile,
   AnnouncementItem,
@@ -470,7 +470,7 @@ export async function createComplaintTicket(payload: {
   };
 
   try {
-    const ref = await addDoc(collection(db, 'complaints'), docData);
+    const ref = await addDoc(collection(db, 'complaints'), stripUndefinedDeep(docData));
     return {
       id: ref.id,
       uid: payload.uid,
@@ -570,7 +570,7 @@ export async function createNotification(payload: {
 
 export async function createCalendarEvent(payload: Omit<CalendarEvent, 'id'>): Promise<string> {
   try {
-    const ref = await addDoc(collection(db, 'calendar_events'), payload);
+    const ref = await addDoc(collection(db, 'calendar_events'), stripUndefinedDeep(payload));
     return ref.id;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, 'calendar_events');

@@ -62,8 +62,11 @@ export interface CreateElectionPayload {
     description?: string;
     maxSelections?: number;
     allowsSkip?: boolean;
+    order?: number;
     candidateEligibilityRules?: string;
     votingRules?: string;
   }[];
+  initialStatus?: 'draft' | 'pending_approval' | 'scheduled' | 'live';
+  idempotencyKey?: string;
   guidelinesUrl?: string;
 }

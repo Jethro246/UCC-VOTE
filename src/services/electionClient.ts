@@ -10,7 +10,14 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, formatFirestorePermissionError, OperationType } from '../lib/firebase';
+import {
+  auth,
+  db,
+  functions,
+  formatFirestorePermissionError,
+  stripUndefinedDeep,
+  OperationType,
+} from '../lib/firebase';
 import {
   DOMAIN_REGISTRY,
   UCC_DEPARTMENTS,
@@ -479,18 +486,22 @@ class FirebaseElectionClient {
     }
 
     const candId = payload.id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const status = payload.isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
+    const { isDraft, ...restPayload } = payload;
+    const status = isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
+    const rawPhotoUrl = typeof payload.photoUrl === 'string' ? payload.photoUrl.trim() : '';
+    const safePhotoUrl = rawPhotoUrl.startsWith('blob:') ? '' : rawPhotoUrl;
 
-    const docPayload = {
-      ...payload,
+    const docPayload = stripUndefinedDeep({
+      ...restPayload,
       id: candId,
       submittedByUid: user.uid,
       applicationStatus: status,
-      photoUrl: payload.photoUrl || '',
+      photoUrl: safePhotoUrl,
+      photoStoragePath: safePhotoUrl ? payload.photoStoragePath : undefined,
       submittedAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
-    };
+    });
 
     try {
       await setDoc(doc(db, 'candidates', candId), docPayload);
@@ -509,7 +520,7 @@ class FirebaseElectionClient {
 
   async updateCandidate(
     id: string,
-    updates: Partial<Candidate> & { resubmit?: boolean }
+    updates: Partial<Candidate> & { resubmit?: boolean; isDraft?: boolean }
   ): Promise<{
     success: boolean;
     candidate?: Candidate;
@@ -517,11 +528,21 @@ class FirebaseElectionClient {
     error?: string;
   }> {
     try {
-      const payload: Record<string, any> = {
-        ...updates,
+      const { resubmit, isDraft: _ignoredDraft, ...restUpdates } = updates;
+      const sanitizedUpdates: Record<string, any> = { ...restUpdates };
+      if (typeof sanitizedUpdates.photoUrl === 'string') {
+        const trimmedUrl = sanitizedUpdates.photoUrl.trim();
+        sanitizedUpdates.photoUrl = trimmedUrl.startsWith('blob:') ? '' : trimmedUrl;
+        if (!sanitizedUpdates.photoUrl) {
+          sanitizedUpdates.photoStoragePath = '';
+        }
+      }
+
+      const payload: Record<string, any> = stripUndefinedDeep({
+        ...sanitizedUpdates,
         updatedAt: serverTimestamp(),
-      };
-      if (updates.resubmit) {
+      });
+      if (resubmit) {
         payload.applicationStatus = 'Submitted';
       }
       await updateDoc(doc(db, 'candidates', id), payload);

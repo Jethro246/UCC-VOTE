@@ -1,12 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   X, 
   ShieldCheck, 
-  ArrowRight, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Info,
-  Clock
+  AlertTriangle
 } from 'lucide-react';
 import { Election, ElectionStatus } from '../../types';
 import { adminService } from '../../services/adminService';
@@ -15,7 +11,7 @@ interface StatusTransitionModalProps {
   isOpen: boolean;
   election: Election | null;
   onClose: () => void;
-  onSuccess: (updatedElection: Election) => void;
+  onSuccess: (updatedElection: Election) => void | Promise<void>;
 }
 
 export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
@@ -27,7 +23,18 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
   const [targetStatus, setTargetStatus] = useState<ElectionStatus | ''>('');
   const [justification, setJustification] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen && election) {
+      setTargetStatus('');
+      setJustification('');
+      setErrorMsg('');
+      setSubmitting(false);
+      isSubmittingRef.current = false;
+    }
+  }, [isOpen, election?.id, election?.status]);
 
   if (!isOpen || !election) return null;
 
@@ -35,15 +42,18 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
   const transitionOptions: Record<ElectionStatus, { status: ElectionStatus; label: string; desc: string }[]> = {
     draft: [
       { status: 'pending_approval', label: 'Submit for Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' },
-      { status: 'scheduled', label: 'Approve & Schedule', desc: 'Confirm ballot ready and schedule official poll opening time.' }
+      { status: 'scheduled', label: 'Approve & Publish Schedule', desc: 'Confirm ballot ready, publish to students, and schedule official poll opening.' },
+      { status: 'live', label: 'Publish & Open Voting Now', desc: 'Immediately publish election to Student Portal and open voting ballots.' }
     ],
     pending_approval: [
       { status: 'scheduled', label: 'Gazette & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
+      { status: 'live', label: 'Approve & Open Polling Now', desc: 'Publish to students and open ballot submission immediately.' },
       { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections.' },
       { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' }
     ],
     scheduled: [
       { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
+      { status: 'draft', label: 'Unpublish to Draft', desc: 'Hide election from Student Portal for administrative edits.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     upcoming: [
@@ -77,6 +87,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
 
   const handleTransition = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current || submitting) return;
     setErrorMsg('');
 
     if (!targetStatus) {
@@ -89,15 +100,25 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
       return;
     }
 
+    isSubmittingRef.current = true;
     setSubmitting(true);
-    const res = await adminService.changeStatus(election.id, targetStatus as ElectionStatus, justification);
-    setSubmitting(false);
-
-    if (res?.success && res.election) {
-      onSuccess(res.election);
-      onClose();
-    } else {
-      setErrorMsg('Failed to update status.');
+    try {
+      const res = await adminService.changeStatus(
+        election.id,
+        targetStatus as ElectionStatus,
+        justification.trim()
+      );
+      if (res?.success && res.election) {
+        await onSuccess(res.election);
+        onClose();
+      } else {
+        setErrorMsg(res?.error || 'Failed to update election status.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to update election status.');
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
     }
   };
 

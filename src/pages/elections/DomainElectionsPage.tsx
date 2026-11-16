@@ -126,6 +126,7 @@ export const DomainElectionsPage: React.FC = () => {
     positionsByElection,
     candidates,
     student,
+    userRole,
     navigateTo
   } = useApp();
 
@@ -169,7 +170,11 @@ export const DomainElectionsPage: React.FC = () => {
     };
 
   const domainElections = useMemo(() => {
+    const isAdmin = userRole === 'admin';
     return elections.filter((e) => {
+      if (!isAdmin && (e.status === 'draft' || e.status === 'pending_approval')) {
+        return false;
+      }
       const domId =
         e.domainId ||
         (e.category === 'SRC'
@@ -187,7 +192,7 @@ export const DomainElectionsPage: React.FC = () => {
           : 'src');
       return domId === activeDomain.id;
     });
-  }, [elections, activeDomain.id]);
+  }, [elections, activeDomain.id, userRole]);
 
   const filteredDepartments = useMemo(() => {
     if (selectedFacultyId === 'All') return departments;

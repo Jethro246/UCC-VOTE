@@ -6,29 +6,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Administrator privileges come from either:
-    // 1. Cryptographically signed Firebase Auth custom claim (admin: true), subject to /admins/{uid} active check.
-    // 2. Temporary fallback for the two explicitly authorized, email-verified Electoral Commission accounts
-    //    until permanent Firebase Admin SDK custom claims are assigned and verified.
+    // Administrator privileges MUST come from cryptographically signed Firebase Auth custom claims
+    // set exclusively by Firebase Admin SDK / Cloud Functions, and must not be deactivated in /admins/{uid}.
     function isAdmin() {
-      return request.auth != null
+      return isSignedIn()
+        && request.auth.token.admin == true
         && (
-          (
-            request.auth.token.get('admin', false) == true
-            && (
-              !exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-              get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('isActive', true) != false
-            )
-          )
-          ||
-          (
-            request.auth.token.get('email_verified', false) == true
-            && request.auth.token.get('email', '') is string
-            && request.auth.token.get('email', '').lower() in [
-              "fynnjethro7@gmail.com",
-              "fynnjethro63@gmail.com"
-            ]
-          )
+          !exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive != false
         );
     }
 

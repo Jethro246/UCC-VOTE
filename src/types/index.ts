@@ -267,6 +267,7 @@ export interface Election {
   updatedAt?: string;
   approvedBy?: string;
   guidelinesUrl?: string;
+  idempotencyKey?: string;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;

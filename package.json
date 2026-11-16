@@ -9,9 +9,7 @@
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
-    "grant-admins": "node scripts/grant-admins.mjs",
-    "verify-admins": "node scripts/grant-admins.mjs --verify"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

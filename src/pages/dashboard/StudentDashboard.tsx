@@ -164,7 +164,11 @@ export const StudentDashboard: React.FC = () => {
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  const allElectionsWithEligibility = elections.map((el: any) => {
+  const publishedElections = elections.filter(
+    (el) => el.status !== 'draft' && el.status !== 'pending_approval'
+  );
+
+  const allElectionsWithEligibility = publishedElections.map((el: any) => {
     const { isEligible, reason } = computeEligibility(el);
     const hasVoted = currentStudent.hasVotedElections?.includes(el.id);
     const canVoteNow = isEligible && el.status === 'live' && !hasVoted && !isSuspended;
@@ -839,7 +843,7 @@ export const StudentDashboard: React.FC = () => {
                             </span>
                             <span className="text-slate-400">·</span>
                             <span className="text-slate-600 text-[11px]">
-                              {election.positionsCount} Contested Positions
+                              {positionsByElection[election.id]?.length ?? election.positionsCount ?? 0} Contested Positions
                             </span>
                           </div>
 
@@ -860,10 +864,15 @@ export const StudentDashboard: React.FC = () => {
                               Polls Open
                             </span>
                           )}
-                          {election.status === 'upcoming' && (
+                          {(election.status === 'upcoming' || election.status === 'scheduled') && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] text-xs font-semibold">
                               <Clock className="w-3.5 h-3.5" />
-                              Upcoming
+                              {election.status === 'scheduled' ? 'Scheduled' : 'Upcoming'}
+                            </span>
+                          )}
+                          {election.status === 'closed' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold">
+                              Closed
                             </span>
                           )}
                           {election.status === 'results_published' && (
@@ -897,11 +906,11 @@ export const StudentDashboard: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            Opens: {new Date(election.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 08:00
+                            Opens: {new Date(election.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, {election.startTime || '08:00'}
                           </span>
                           <span>·</span>
                           <span>
-                            Closes: {new Date(election.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 17:00 GMT
+                            Closes: {new Date(election.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, {election.endTime || '17:00'} GMT
                           </span>
                         </div>
 

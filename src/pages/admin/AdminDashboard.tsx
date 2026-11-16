@@ -35,9 +35,12 @@ import {
   Trash2,
   Send,
   ExternalLink,
+  Edit3,
+  X,
 } from 'lucide-react';
 import { AdminProfile, AdminRoleType, DomainId, Election, Candidate } from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
+import { EditElectionModal } from '../../components/admin/EditElectionModal';
 import { StatusTransitionModal } from '../../components/admin/StatusTransitionModal';
 import { PositionManagerModal } from '../../components/admin/PositionManagerModal';
 import { EligibilityTesterModal } from '../../components/admin/EligibilityTesterModal';
@@ -229,6 +232,11 @@ const AdminDashboardContent: React.FC = () => {
 
   // Election & Candidate Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [recentCreatedElection, setRecentCreatedElection] = useState<{
+    election: Election;
+    positionsCount: number;
+  } | null>(null);
+  const [selectedElectionForEdit, setSelectedElectionForEdit] = useState<Election | null>(null);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
@@ -369,14 +377,14 @@ const AdminDashboardContent: React.FC = () => {
       eligibilityRuleSummary:
         newDomainEligSummary.trim() || 'Accredited UCC student membership verified against registry.',
     });
-    if (res.success) {
+    if (res?.success) {
       await refreshDomains();
       setNewDomainName('');
       setNewDomainShortName('');
       setNewDomainEligSummary('');
       showSuccessToast(`New election domain "${res.domain?.name}" registered.`);
     } else {
-      setRbacError('Failed to create domain.');
+      setRbacError(res?.error || 'Failed to create domain.');
     }
   };
 
@@ -397,13 +405,13 @@ const AdminDashboardContent: React.FC = () => {
       facultyId: type === 'department' ? newSubFacultyId : undefined,
       facultyName: type === 'department' ? facObj?.name : undefined,
     });
-    if (res.success) {
+    if (res?.success) {
       await refreshDomains();
       setNewSubName('');
       setNewSubShort('');
       showSuccessToast(`Subdomain "${res.subdomain?.name}" added.`);
     } else {
-      setRbacError('Failed to add subdomain.');
+      setRbacError(res?.error || 'Failed to add subdomain.');
     }
   };
 
@@ -744,11 +752,58 @@ const AdminDashboardContent: React.FC = () => {
       {/* TAB 2: ELECTIONS MANAGER */}
       {activeTab === 'elections' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+          {recentCreatedElection && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <div className="font-extrabold text-emerald-950 text-sm">
+                    Election Provisioned: {recentCreatedElection.election.title}
+                  </div>
+                  <p className="text-emerald-800">
+                    Saved with <span className="font-mono font-bold">{recentCreatedElection.positionsCount}</span> contested portfolio(s) · Code{' '}
+                    <span className="font-mono font-bold">{recentCreatedElection.election.code}</span> · ID{' '}
+                    <span className="font-mono">{recentCreatedElection.election.id}</span> · Status:{' '}
+                    <span className="font-bold uppercase">
+                      {recentCreatedElection.election.status.replace(/_/g, ' ')}
+                    </span>
+                    {recentCreatedElection.election.status === 'draft' &&
+                      ' (Hidden from Student Portal until published via Status)'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedElectionForStatus(recentCreatedElection.election)}
+                  className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] cursor-pointer"
+                >
+                  Publish / Status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedElectionForPositions(recentCreatedElection.election)}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-xs font-bold hover:bg-emerald-100 cursor-pointer"
+                >
+                  Manage Positions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRecentCreatedElection(null)}
+                  className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">Elections Management Table</h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Configure schedules, state transitions, and dynamic portfolios within your authorized domains.
+                Configure schedules, edit properties, manage state transitions, and inspect contested portfolios within your authorized domains.
               </p>
             </div>
             <button
@@ -764,10 +819,10 @@ const AdminDashboardContent: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Election Code &amp; Title</th>
+                  <th className="py-3 px-4">Election ID, Code &amp; Title</th>
                   <th className="py-3 px-4">Domain &amp; Subdomain</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Portfolios</th>
+                  <th className="py-3 px-4">Portfolios &amp; Candidates</th>
                   <th className="py-3 px-4">Turnout</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -776,63 +831,108 @@ const AdminDashboardContent: React.FC = () => {
                 {scopedElections.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                      No active elections at the moment.
+                      No elections configured in this domain workspace yet.
                     </td>
                   </tr>
                 ) : (
-                  scopedElections.map((el) => (
-                    <tr key={el.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
-                        <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
-                        <div className="truncate font-bold">{el.title}</div>
-                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                          {new Date(el.startDate).toLocaleDateString()} – {new Date(el.endDate).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-slate-700">
-                        <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
-                        {el.subdomainLabel && (
-                          <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="font-bold text-[11px] text-slate-800 uppercase">
-                          {el.status.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                        <button
-                          onClick={() => setSelectedElectionForPositions(el)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                        >
-                          {el.positionsCount} Portfolios
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
-                        {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedElectionForStatus(el)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
-                        >
-                          Status
-                        </button>
-                        <button
-                          onClick={() => setSelectedElectionForEligibility(el)}
-                          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
-                        >
-                          Eligibility
-                        </button>
-                        <button
-                          onClick={() => navigateTo('election_details', { electionId: el.id })}
-                          className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
-                        >
-                          Inspect
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  scopedElections.map((el) => {
+                    const livePositionsCount =
+                      positionsByElection[el.id]?.length ?? el.positionsCount ?? 0;
+                    const electionCands = candidates.filter((c) => c.electionId === el.id);
+                    const approvedCands = electionCands.filter(
+                      (c) => c.applicationStatus === 'Approved'
+                    ).length;
+                    const isDraftOrPending =
+                      el.status === 'draft' || el.status === 'pending_approval';
+                    const isNewlyCreated = recentCreatedElection?.election.id === el.id;
+
+                    return (
+                      <tr
+                        key={el.id}
+                        className={`hover:bg-slate-50/70 transition-colors ${
+                          isNewlyCreated ? 'bg-emerald-50/40' : ''
+                        }`}
+                      >
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
+                          <div className="font-mono text-[10px] text-slate-400">
+                            {el.code} · <span className="text-slate-400">{el.id}</span>
+                          </div>
+                          <div className="truncate font-bold">{el.title}</div>
+                          <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                            {new Date(el.startDate).toLocaleDateString()} {el.startTime || '08:00'} –{' '}
+                            {new Date(el.endDate).toLocaleDateString()} {el.endTime || '17:00'} GMT
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-slate-700">
+                          <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
+                          {el.subdomainLabel && (
+                            <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                              el.status === 'live'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : el.status === 'scheduled' || el.status === 'upcoming'
+                                ? 'bg-blue-100 text-[#123B70]'
+                                : el.status === 'results_published'
+                                ? 'bg-amber-100 text-amber-900'
+                                : isDraftOrPending
+                                ? 'bg-slate-100 text-slate-700'
+                                : 'bg-slate-200 text-slate-800'
+                            }`}
+                          >
+                            {el.status.replace(/_/g, ' ')}
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {isDraftOrPending ? 'Hidden from students' : 'Student Portal active'}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            onClick={() => setSelectedElectionForPositions(el)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-mono font-bold cursor-pointer transition-colors whitespace-nowrap"
+                          >
+                            {livePositionsCount} Portfolio{livePositionsCount === 1 ? '' : 's'}
+                          </button>
+                          <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                            {approvedCands}/{electionCands.length} Candidates
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                          {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedElectionForEdit(el)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            onClick={() => setSelectedElectionForStatus(el)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Status
+                          </button>
+                          <button
+                            onClick={() => setSelectedElectionForEligibility(el)}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Eligibility
+                          </button>
+                          <button
+                            onClick={() => navigateTo('election_details', { electionId: el.id })}
+                            className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Inspect
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1935,8 +2035,36 @@ const AdminDashboardContent: React.FC = () => {
         isOpen={showCreateModal}
         defaultDomainId={selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={async (newElection) => {
-          showSuccessToast(`Election "${newElection.title}" created successfully.`);
+        onSuccess={async (newElection, createdPositions) => {
+          const savedPositionsCount = createdPositions?.length ?? newElection.positionsCount ?? 0;
+          setRecentCreatedElection({ election: newElection, positionsCount: savedPositionsCount });
+          if (
+            selectedDomainWorkspace !== 'all' &&
+            newElection.domainId &&
+            selectedDomainWorkspace !== newElection.domainId
+          ) {
+            setSelectedDomainWorkspace('all');
+          }
+          setActiveTab('elections');
+          showSuccessToast(
+            `Election "${newElection.title}" (${savedPositionsCount} portfolios) saved successfully.`
+          );
+          await refreshElections();
+        }}
+      />
+
+      <EditElectionModal
+        isOpen={!!selectedElectionForEdit}
+        election={selectedElectionForEdit}
+        onClose={() => setSelectedElectionForEdit(null)}
+        onSuccess={async (updated) => {
+          if (recentCreatedElection?.election.id === updated.id) {
+            setRecentCreatedElection({
+              election: updated,
+              positionsCount: recentCreatedElection.positionsCount,
+            });
+          }
+          showSuccessToast(`Election "${updated.title}" configuration updated.`);
           await refreshElections();
         }}
       />
@@ -1946,6 +2074,12 @@ const AdminDashboardContent: React.FC = () => {
         election={selectedElectionForStatus}
         onClose={() => setSelectedElectionForStatus(null)}
         onSuccess={async (updated) => {
+          if (recentCreatedElection?.election.id === updated.id) {
+            setRecentCreatedElection({
+              election: updated,
+              positionsCount: recentCreatedElection.positionsCount,
+            });
+          }
           showSuccessToast(`Election "${updated.title}" status changed to ${updated.status.toUpperCase()}.`);
           await refreshElections();
         }}
@@ -1955,7 +2089,16 @@ const AdminDashboardContent: React.FC = () => {
         isOpen={!!selectedElectionForPositions}
         election={selectedElectionForPositions}
         onClose={() => setSelectedElectionForPositions(null)}
-        onPositionsUpdated={async () => {
+        onPositionsUpdated={async (count) => {
+          if (
+            recentCreatedElection &&
+            selectedElectionForPositions?.id === recentCreatedElection.election.id
+          ) {
+            setRecentCreatedElection({
+              election: recentCreatedElection.election,
+              positionsCount: count,
+            });
+          }
           await refreshElections();
         }}
       />
