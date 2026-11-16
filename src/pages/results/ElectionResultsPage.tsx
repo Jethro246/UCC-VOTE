@@ -29,9 +29,14 @@ export const ElectionResultsPage: React.FC = () => {
   const [exportMsg, setExportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  const visiblePool = useMemo(() => {
+    if (userRole === 'admin') return elections;
+    return elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
+  }, [elections, userRole]);
+
   const filteredElections = useMemo(() => {
-    if (selectedDomainTab === 'All') return elections;
-    return elections.filter(
+    if (selectedDomainTab === 'All') return visiblePool;
+    return visiblePool.filter(
       (e) =>
         e.domainId === selectedDomainTab ||
         (selectedDomainTab === 'src' && e.category === 'SRC') ||
@@ -41,7 +46,7 @@ export const ElectionResultsPage: React.FC = () => {
         (selectedDomainTab === 'departmental' && e.category === 'Departmental') ||
         (selectedDomainTab === 'faculty_school' && e.category === 'Faculty / School')
     );
-  }, [elections, selectedDomainTab]);
+  }, [visiblePool, selectedDomainTab]);
 
   useEffect(() => {
     if (filteredElections.length > 0 && !filteredElections.some((e) => e.id === activeElectionId)) {
@@ -53,8 +58,8 @@ export const ElectionResultsPage: React.FC = () => {
 
   const election =
     filteredElections.find((e) => e.id === activeElectionId) ||
-    elections.find((e) => e.id === activeElectionId) ||
-    elections[0];
+    visiblePool.find((e) => e.id === activeElectionId) ||
+    visiblePool[0];
 
   useEffect(() => {
     if (!election?.id) {

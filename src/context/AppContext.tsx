@@ -367,10 +367,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Compute live DomainWithStats dynamically from Firestore elections & candidates
   const domains: DomainWithStats[] = useMemo(() => {
+    const isAdmin = userRole === 'admin';
+    const countableElections = isAdmin
+      ? elections
+      : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
+
     return [...rawDomains]
       .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
       .map((dom) => {
-        const domElections = elections.filter(
+        const domElections = countableElections.filter(
           (e) => (e.domainId || categoryToDomainId(e.category)) === dom.id
         );
         const approvedCandCount = candidates.filter(
@@ -403,7 +408,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           },
         };
       });
-  }, [rawDomains, elections, candidates]);
+  }, [rawDomains, elections, candidates, userRole]);
 
   // Merge user-specific read states onto notifications
   const notifications: NotificationItem[] = useMemo(() => {
@@ -433,13 +438,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Auto-select first real election / candidates if current selection is empty
   useEffect(() => {
-    if (elections.length > 0 && !elections.some((e) => e.id === selectedElectionId)) {
-      const preferred = elections.find((e) => e.status === 'live') || elections[0];
+    const visiblePool =
+      userRole === 'admin'
+        ? elections
+        : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
+
+    if (visiblePool.length > 0 && !visiblePool.some((e) => e.id === selectedElectionId)) {
+      const preferred = visiblePool.find((e) => e.status === 'live') || visiblePool[0];
       setSelectedElectionIdState(preferred.id);
-    } else if (elections.length === 0 && selectedElectionId) {
+    } else if (visiblePool.length === 0 && selectedElectionId) {
       setSelectedElectionIdState('');
     }
-  }, [elections, selectedElectionId]);
+  }, [elections, selectedElectionId, userRole]);
 
   useEffect(() => {
     if (candidates.length > 0 && !candidates.some((c) => c.id === selectedCandidateId)) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -11,7 +11,7 @@ import {
   X,
   Edit3
 } from 'lucide-react';
-import { DomainId, ElectionCategory } from '../../types';
+import { DomainId, Election, ElectionCategory, Position } from '../../types';
 import { CreateElectionPayload } from '../../services/interfaces';
 import { adminService } from '../../services/adminService';
 import { uploadElectionDocument } from '../../services/firebaseStorageService';
@@ -20,7 +20,7 @@ import { useApp } from '../../context/AppContext';
 interface CreateElectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newElection: any) => void;
+  onSuccess: (newElection: Election, createdPositions?: Position[]) => void | Promise<void>;
   defaultDomainId?: DomainId;
 }
 
@@ -130,7 +130,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   onSuccess,
   defaultDomainId
 }) => {
-  const { domains, halls, faculties, departments, admin, refreshDomains } = useApp();
+  const { domains, halls, faculties, departments, admin, refreshDomains, refreshElections } = useApp();
 
   const allowedDomains = admin?.managedDomainIds?.length
     ? domains.filter((d) => admin.managedDomainIds!.includes(d.id))
@@ -143,7 +143,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [draftIdempotencyKey, setDraftIdempotencyKey] = useState<string>(
+    () => `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  );
+  const [initialStatus, setInitialStatus] = useState<'draft' | 'scheduled' | 'live'>('draft');
 
   // Step 1: Domain, Subdomain & Basic Info
   const [domainId, setDomainId] = useState<DomainId>(initialDomain);
@@ -287,7 +293,20 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setActiveStep(1);
+      setSubmitting(false);
+      isSubmittingRef.current = false;
       setErrorMsg('');
+      setFieldErrors({});
+      setTitle('');
+      setCode('');
+      setDescription('');
+      setGuidelinesUrl('');
+      setNewPosTitle('');
+      setNewPosDesc('');
+      setNewPosMax(1);
+      setNewPosSkip(false);
+      setInitialStatus('draft');
+      setDraftIdempotencyKey(`draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
       applyDomainDefaults(initialDomain);
     }
   }, [isOpen, defaultDomainId]);
@@ -349,18 +368,36 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setRules((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const handleAddPosition = () => {
-    if (!newPosTitle.trim()) return;
+    clearFieldError('newPosTitle');
+    setErrorMsg('');
+    if (!newPosTitle.trim()) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        newPosTitle: 'Enter a portfolio title before adding a custom position.',
+      }));
+      return;
+    }
+    const clampedMax = Math.min(5, Math.max(1, Number(newPosMax) || 1));
     setPositions((prev) => [
       ...prev,
       {
         title: newPosTitle.trim(),
         description: newPosDesc.trim() || `Contested portfolio for ${newPosTitle.trim()}`,
-        maxSelections: newPosMax,
+        maxSelections: clampedMax,
         allowsSkip: newPosSkip,
         candidateEligibilityRules: 'Accredited student in good standing, GPA >= 3.0.',
         votingRules:
-          newPosMax > 1 ? `Multi-choice up to ${newPosMax} candidates` : 'Single candidate preference'
+          clampedMax > 1 ? `Multi-choice up to ${clampedMax} candidates` : 'Single candidate preference'
       }
     ]);
     setNewPosTitle('');
@@ -380,49 +417,122 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     if (editingIdx === idx) setEditingIdx(null);
   };
 
+  const validateStep = (step: 1 | 2 | 3 | 4): boolean => {
+    const errors: Record<string, string> = {};
+    if (step === 1) {
+      if (!title.trim()) {
+        errors.title = 'Election title is mandatory.';
+      }
+      if (!academicYear.trim()) {
+        errors.academicYear = 'Academic year is required (e.g. 2026/2027).';
+      }
+      if (!organizingBody.trim()) {
+        errors.organizingBody = 'Organizing electoral body is required.';
+      }
+      if (domainId === 'jcrc_hall' && !selectedHallId) {
+        errors.hallId = 'Please select the participating Hall of Residence.';
+      }
+      if ((domainId === 'faculty_school' || domainId === 'departmental') && !selectedFacultyId) {
+        errors.facultyId = 'Please select the participating Faculty or School.';
+      }
+      if (domainId === 'departmental' && !selectedDepartmentId) {
+        errors.departmentId = 'Please select the participating Academic Department.';
+      }
+    } else if (step === 2) {
+      if (!startDate || !startTime) {
+        errors.schedule = 'Opening date and time are required.';
+      }
+      if (!endDate || !endTime) {
+        errors.schedule = 'Closing date and time are required.';
+      }
+      const startMs = new Date(`${startDate}T${startTime}:00Z`).getTime();
+      const endMs = new Date(`${endDate}T${endTime}:00Z`).getTime();
+      if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
+        errors.schedule = 'Closing date/time must be strictly after the opening date/time.';
+      }
+    } else if (step === 3) {
+      if (domainId !== 'grasag' && selectedLevels.length === 0) {
+        errors.levels = 'Select at least one eligible academic level.';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg(Object.values(errors)[0]);
+      return false;
+    }
+    setFieldErrors({});
+    setErrorMsg('');
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current || submitting) return;
     setErrorMsg('');
+    setFieldErrors({});
 
-    if (!title.trim()) {
-      setErrorMsg('Election title is mandatory.');
+    if (!validateStep(1)) {
       setActiveStep(1);
       return;
     }
-
-    if (domainId === 'jcrc_hall' && !selectedHallId) {
-      setErrorMsg('Please select the participating Hall of Residence for this JCRC election.');
-      setActiveStep(1);
-      return;
-    }
-
-    if (domainId === 'faculty_school' && !selectedFacultyId) {
-      setErrorMsg('Please select a Faculty or School.');
-      setActiveStep(1);
-      return;
-    }
-
-    if (domainId === 'departmental' && !selectedDepartmentId) {
-      setErrorMsg('Please select a Department.');
-      setActiveStep(1);
-      return;
-    }
-
-    const startDateTime = new Date(`${startDate}T${startTime}:00Z`).getTime();
-    const endDateTime = new Date(`${endDate}T${endTime}:00Z`).getTime();
-
-    if (isNaN(startDateTime) || isNaN(endDateTime) || endDateTime <= startDateTime) {
-      setErrorMsg('Election closing date/time must be strictly after the opening date/time.');
+    if (!validateStep(2)) {
       setActiveStep(2);
       return;
     }
+    if (!validateStep(3)) {
+      setActiveStep(3);
+      return;
+    }
 
-    if (positions.length === 0) {
+    // Auto-capture any typed-but-unclicked custom position so admin work is never lost
+    if (!newPosTitle.trim() && newPosDesc.trim()) {
+      setFieldErrors({ newPosTitle: 'Enter a title for your custom position or clear the summary.' });
+      setErrorMsg('You entered a custom position summary without a portfolio title.');
+      setActiveStep(4);
+      return;
+    }
+
+    let finalPositions = [...positions];
+    if (newPosTitle.trim()) {
+      const clampedMax = Math.min(5, Math.max(1, Number(newPosMax) || 1));
+      finalPositions.push({
+        title: newPosTitle.trim(),
+        description: newPosDesc.trim() || `Contested portfolio for ${newPosTitle.trim()}`,
+        maxSelections: clampedMax,
+        allowsSkip: newPosSkip,
+        candidateEligibilityRules: 'Accredited student in good standing, GPA >= 3.0.',
+        votingRules:
+          clampedMax > 1 ? `Multi-choice up to ${clampedMax} candidates` : 'Single candidate preference',
+      });
+      setPositions(finalPositions);
+      setNewPosTitle('');
+      setNewPosDesc('');
+      setNewPosMax(1);
+      setNewPosSkip(false);
+    }
+
+    if (finalPositions.length === 0) {
       setErrorMsg('At least one contested position/portfolio is required.');
       setActiveStep(4);
       return;
     }
 
+    for (let i = 0; i < finalPositions.length; i++) {
+      const p = finalPositions[i];
+      if (!p.title || !p.title.trim()) {
+        setErrorMsg(`Contested position #${i + 1} must have a valid title.`);
+        setActiveStep(4);
+        return;
+      }
+      if (!p.maxSelections || p.maxSelections < 1 || p.maxSelections > 5) {
+        setErrorMsg(`Position "${p.title}" must have Max Selections between 1 and 5.`);
+        setActiveStep(4);
+        return;
+      }
+    }
+
+    isSubmittingRef.current = true;
     setSubmitting(true);
 
     const payload: CreateElectionPayload = {
@@ -439,7 +549,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
           : undefined,
       departmentId: domainId === 'departmental' ? selectedDepartmentId : undefined,
       subdomainLabel: subdomainLabel.trim() || undefined,
-      academicYear,
+      academicYear: academicYear.trim(),
       startDate: `${startDate}T${startTime}:00Z`,
       endDate: `${endDate}T${endTime}:00Z`,
       startTime,
@@ -453,19 +563,29 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         levels: domainId === 'grasag' ? ['Postgraduate'] : selectedLevels,
         halls: selectedHalls
       },
-      positions,
+      positions: finalPositions.map((p, idx) => ({
+        ...p,
+        order: idx + 1,
+      })),
+      initialStatus,
+      idempotencyKey: draftIdempotencyKey,
       ...(guidelinesUrl ? { guidelinesUrl } : {})
-    } as CreateElectionPayload;
+    };
 
-    const res = await adminService.createElection(payload);
-    setSubmitting(false);
-
-    if (res.success && res.election) {
-      await refreshDomains();
-      onSuccess(res.election);
-      onClose();
-    } else {
-      setErrorMsg(res.error || 'Failed to create election.');
+    try {
+      const res = await adminService.createElection(payload);
+      if (res.success && res.election) {
+        await Promise.all([refreshElections(), refreshDomains()]);
+        await onSuccess(res.election, res.positions);
+        onClose();
+      } else {
+        setErrorMsg(res.error || 'Failed to save election to Cloud Firestore. Please review and try again.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Unexpected error while saving election. Please try again.');
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -571,6 +691,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   <select
                     value={selectedHallId}
                     onChange={(e) => {
+                      clearFieldError('hallId');
                       const hallObj = halls.find((h) => h.id === e.target.value);
                       setSelectedHallId(e.target.value);
                       if (hallObj) {
@@ -579,7 +700,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                         setOrganizingBody(`${hallObj.name} Electoral Committee`);
                       }
                     }}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-medium text-slate-900"
+                    className={`w-full px-3.5 py-2 rounded-xl border bg-white font-medium text-slate-900 ${
+                      fieldErrors.hallId ? 'border-red-500' : 'border-slate-300'
+                    }`}
                   >
                     <option value="">Select Residential Hall...</option>
                     {availableHalls.map((h) => (
@@ -588,6 +711,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.hallId && (
+                    <p className="text-[11px] font-semibold text-red-600">{fieldErrors.hallId}</p>
+                  )}
                 </div>
               )}
 
@@ -666,9 +792,17 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   required
                   placeholder="e.g. Oguaa Hall JCRC Executive Elections 2026/2027"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    clearFieldError('title');
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:border-[#123B70] text-slate-900 bg-white ${
+                    fieldErrors.title ? 'border-red-500' : 'border-slate-300'
+                  }`}
                 />
+                {fieldErrors.title && (
+                  <p className="text-[11px] font-semibold text-red-600 mt-1">{fieldErrors.title}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1092,9 +1226,19 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       type="text"
                       placeholder="e.g. Women's Commissioner or Hall Organizer"
                       value={newPosTitle}
-                      onChange={(e) => setNewPosTitle(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                      onChange={(e) => {
+                        setNewPosTitle(e.target.value);
+                        clearFieldError('newPosTitle');
+                      }}
+                      className={`w-full px-3 py-1.5 rounded-xl border ${
+                        fieldErrors.newPosTitle ? 'border-red-500' : 'border-slate-300'
+                      }`}
                     />
+                    {fieldErrors.newPosTitle && (
+                      <p className="text-[11px] font-semibold text-red-600 mt-1">
+                        {fieldErrors.newPosTitle}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-600 mb-1">Max Selections</label>
@@ -1139,6 +1283,54 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Publication Readiness */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <label className="block font-bold text-slate-800">
+                  Initial Publication Status
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    {
+                      value: 'draft' as const,
+                      label: 'Save as Draft',
+                      desc: 'Hidden from students until published.',
+                    },
+                    {
+                      value: 'scheduled' as const,
+                      label: 'Publish as Scheduled',
+                      desc: 'Visible to students ahead of poll opening.',
+                    },
+                    {
+                      value: 'live' as const,
+                      label: 'Publish & Open Now',
+                      desc: 'Immediately live for candidate & voter access.',
+                    },
+                  ].map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                        initialStatus === opt.value
+                          ? 'bg-blue-50 border-[#123B70] text-slate-900'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <input
+                          type="radio"
+                          name="initialStatus"
+                          value={opt.value}
+                          checked={initialStatus === opt.value}
+                          onChange={() => setInitialStatus(opt.value)}
+                          className="text-[#123B70]"
+                        />
+                        <span>{opt.label}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</p>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1146,11 +1338,12 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
           <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
             <button
               type="button"
+              disabled={submitting}
               onClick={() => {
                 if (activeStep > 1) setActiveStep((prev) => (prev - 1) as any);
                 else onClose();
               }}
-              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer disabled:opacity-50"
             >
               {activeStep === 1 ? 'Cancel' : 'Previous Step'}
             </button>
@@ -1159,7 +1352,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               {activeStep < 4 ? (
                 <button
                   type="button"
-                  onClick={() => setActiveStep((prev) => (prev + 1) as any)}
+                  onClick={() => {
+                    if (validateStep(activeStep)) {
+                      setActiveStep((prev) => (prev + 1) as any);
+                    }
+                  }}
                   className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer"
                 >
                   Continue
