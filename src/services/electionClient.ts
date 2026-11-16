@@ -10,14 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import {
-  auth,
-  db,
-  functions,
-  formatFirestorePermissionError,
-  stripUndefinedDeep,
-  OperationType,
-} from '../lib/firebase';
+import { auth, db, functions, formatFirestorePermissionError, OperationType } from '../lib/firebase';
 import {
   DOMAIN_REGISTRY,
   UCC_DEPARTMENTS,
@@ -488,7 +481,7 @@ class FirebaseElectionClient {
     const candId = payload.id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const status = payload.isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
 
-    const docPayload = stripUndefinedDeep({
+    const docPayload = {
       ...payload,
       id: candId,
       submittedByUid: user.uid,
@@ -497,7 +490,7 @@ class FirebaseElectionClient {
       submittedAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
-    });
+    };
 
     try {
       await setDoc(doc(db, 'candidates', candId), docPayload);
@@ -524,10 +517,10 @@ class FirebaseElectionClient {
     error?: string;
   }> {
     try {
-      const payload: Record<string, any> = stripUndefinedDeep({
+      const payload: Record<string, any> = {
         ...updates,
         updatedAt: serverTimestamp(),
-      });
+      };
       if (updates.resubmit) {
         payload.applicationStatus = 'Submitted';
       }

@@ -5,23 +5,16 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
   limit,
   serverTimestamp,
   arrayUnion,
-  writeBatch,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import {
-  auth,
-  db,
-  functions,
-  formatFirestorePermissionError,
-  stripUndefinedDeep,
-  OperationType,
-} from '../lib/firebase';
+import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   categoryToDomainId,
   domainIdToCategory,
@@ -70,50 +63,6 @@ async function getCurrentAdminContext(): Promise<{ name: string; role: string; u
   return { name: user.displayName || user.email || 'Administrator', role: 'Admin', uid: user.uid };
 }
 
-async function ensureAuthenticatedAdmin(): Promise<{ ok: true; uid: string } | { ok: false; error: string }> {
-  const user = auth.currentUser;
-  if (!user) {
-    return {
-      ok: false,
-      error:
-        'Administrator session not active. Please sign in as an Electoral Commission administrator and try again.',
-    };
-  }
-
-  try {
-    let tokenRes = await user.getIdTokenResult();
-    if (tokenRes.claims?.admin !== true) {
-      tokenRes = await user.getIdTokenResult(true);
-    }
-    if (tokenRes.claims?.admin !== true) {
-      return {
-        ok: false,
-        error:
-          'Permission denied: Your signed-in Firebase account lacks administrator custom claims (admin: true). Sign in with an authorized Electoral Commission account or provision admin claims first.',
-      };
-    }
-
-    try {
-      const adminSnap = await getDoc(doc(db, 'admins', user.uid));
-      if (adminSnap.exists() && adminSnap.data()?.isActive === false) {
-        return {
-          ok: false,
-          error: 'This administrator account has been deactivated and cannot modify election records.',
-        };
-      }
-    } catch {
-      // Allow token claim verification to proceed if /admins/{uid} doc isn't readable or offline check hits rules
-    }
-
-    return { ok: true, uid: user.uid };
-  } catch (err: any) {
-    return {
-      ok: false,
-      error: formatFirestorePermissionError(err, OperationType.GET, `admins/${user.uid}`),
-    };
-  }
-}
-
 class FirebaseAdminService {
   async createDomain(payload: {
     id?: string;
@@ -151,9 +100,6 @@ class FirebaseAdminService {
     };
 
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
       await setDoc(doc(db, 'domains', id), { ...domain, updatedAt: serverTimestamp() });
       const actor = await getCurrentAdminContext();
       await writeAuditLog({
@@ -161,13 +107,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: 'Created Election Domain',
         target: domain.name,
-      }).catch(() => {});
+      });
       return { success: true, domain, message: 'Domain created in Cloud Firestore.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.CREATE, `domains/${id}`),
-      };
+      handleFirestoreError(err, OperationType.CREATE, `domains/${id}`);
     }
   }
 
@@ -199,9 +142,6 @@ class FirebaseAdminService {
       programmes: payload.programmes || [],
     };
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
       await setDoc(doc(db, colName, id), record);
       const actor = await getCurrentAdminContext();
       await writeAuditLog({
@@ -209,13 +149,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: `Created ${subType} Sub-Domain`,
         target: record.name,
-      }).catch(() => {});
+      });
       return { success: true, subdomain: record };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.CREATE, `${colName}/${id}`),
-      };
+      handleFirestoreError(err, OperationType.CREATE, `${colName}/${id}`);
     }
   }
 
@@ -226,281 +163,109 @@ class FirebaseAdminService {
     message?: string;
     error?: string;
   }> {
+    const electionId = `elec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const domainId = payload.domainId || categoryToDomainId(payload.category);
     const category = payload.category || domainIdToCategory(domainId);
-
-    // 1. Validate required election fields
-    if (!payload.title || !payload.title.trim()) {
-      return { success: false, error: 'Election title is mandatory.' };
-    }
-    if (!domainId || !category) {
-      return { success: false, error: 'A valid election domain and category must be selected.' };
-    }
-    if (domainId === 'jcrc_hall' && !payload.hallId?.trim()) {
-      return {
-        success: false,
-        error: 'A participating Residential Hall must be selected for JCRC elections.',
-      };
-    }
-    if (domainId === 'faculty_school' && !payload.facultyId?.trim()) {
-      return { success: false, error: 'A participating Faculty / School must be selected.' };
-    }
-    if (domainId === 'departmental' && !payload.departmentId?.trim()) {
-      return { success: false, error: 'A participating Academic Department must be selected.' };
-    }
-
-    const startMs = new Date(payload.startDate).getTime();
-    const endMs = new Date(payload.endDate).getTime();
-    if (!payload.startDate || !payload.endDate || Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
-      return {
-        success: false,
-        error: 'Invalid poll schedule: closing date/time must be strictly after opening date/time.',
-      };
-    }
-
-    const positionsInput = Array.isArray(payload.positions) ? payload.positions : [];
-    if (positionsInput.length === 0) {
-      return {
-        success: false,
-        error: 'At least one contested position/portfolio is required to provision an election.',
-      };
-    }
-
-    for (let i = 0; i < positionsInput.length; i++) {
-      const pos = positionsInput[i];
-      if (!pos.title || !pos.title.trim()) {
-        return {
-          success: false,
-          error: `Contested position #${i + 1} is missing a portfolio title.`,
-        };
-      }
-      const maxSel = Number(pos.maxSelections ?? 1);
-      if (Number.isNaN(maxSel) || maxSel < 1 || maxSel > 5) {
-        return {
-          success: false,
-          error: `Position "${pos.title}" must allow between 1 and 5 candidate selections.`,
-        };
-      }
-    }
-
-    const allowedInitialStatuses: ElectionStatus[] = ['draft', 'pending_approval', 'scheduled', 'live'];
-    const initialStatus: ElectionStatus =
-      payload.initialStatus && allowedInitialStatuses.includes(payload.initialStatus)
-        ? payload.initialStatus
-        : 'draft';
-
-    const cleanIdempotencyKey = payload.idempotencyKey
-      ? payload.idempotencyKey.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
-      : '';
-    const electionId = cleanIdempotencyKey
-      ? `elec_${cleanIdempotencyKey}`
-      : `elec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-
     const code =
-      payload.code?.trim().toUpperCase() ||
+      payload.code?.trim() ||
       `UCC-${category.replace(/[^A-Z]/gi, '').slice(0, 4).toUpperCase()}-${new Date().getFullYear()}`;
+
+    const positionsInput = payload.positions || [];
     const nowIso = new Date().toISOString();
 
+    const electionData: Election = {
+      id: electionId,
+      title: payload.title.trim(),
+      code,
+      description: payload.description.trim(),
+      category,
+      domainId,
+      hallId: payload.hallId,
+      facultyId: payload.facultyId,
+      departmentId: payload.departmentId,
+      subdomainLabel: payload.subdomainLabel,
+      academicYear: payload.academicYear,
+      status: 'draft',
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      startTime: payload.startTime || '08:00',
+      endTime: payload.endTime || '17:00',
+      totalEligibleVoters: 0,
+      totalVotesCast: 0,
+      turnoutPercentage: 0,
+      organizingBody: payload.organizingBody.trim(),
+      eligibilityCriteria: payload.eligibilityCriteria || {},
+      rules: payload.rules || [],
+      positionsCount: positionsInput.length,
+      resultsCertified: false,
+      provisionalResultsReady: false,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
     try {
-      // 2. Verify active authenticated admin session + custom claims
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) {
-        return { success: false, error: authCheck.error };
-      }
-
-      const actor = await getCurrentAdminContext();
-
-      // 3. Idempotency guard: prevent duplicate creation if retried with same key
-      if (cleanIdempotencyKey) {
-        const existingSnap = await getDoc(doc(db, 'elections', electionId));
-        if (existingSnap.exists()) {
-          const existingElection = mapDoc<Election>(existingSnap.id, existingSnap.data());
-          const posSnap = await getDocs(
-            query(collection(db, 'positions'), where('electionId', '==', electionId))
-          );
-          const existingPositions = posSnap.docs
-            .map((d) => mapDoc<Position>(d.id, d.data()))
-            .sort((a, b) => (a.order || 0) - (b.order || 0));
-          return {
-            success: true,
-            election: existingElection,
-            positions: existingPositions,
-            message: 'Election already provisioned in Cloud Firestore.',
-          };
-        }
-      }
-
-      const electionData: Election = stripUndefinedDeep({
-        id: electionId,
-        title: payload.title.trim(),
-        code,
-        description:
-          payload.description?.trim() ||
-          `Official ${category} election for academic year ${payload.academicYear}.`,
-        category,
-        domainId,
-        ...(payload.hallId ? { hallId: payload.hallId } : {}),
-        ...(payload.facultyId ? { facultyId: payload.facultyId } : {}),
-        ...(payload.departmentId ? { departmentId: payload.departmentId } : {}),
-        ...(payload.subdomainLabel ? { subdomainLabel: payload.subdomainLabel.trim() } : {}),
-        ...(payload.guidelinesUrl ? { guidelinesUrl: payload.guidelinesUrl } : {}),
-        ...(payload.idempotencyKey ? { idempotencyKey: payload.idempotencyKey } : {}),
-        academicYear:
-          payload.academicYear?.trim() ||
-          `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-        status: initialStatus,
-        ...(initialStatus === 'scheduled' || initialStatus === 'live'
-          ? { approvedBy: actor.name, publishedAt: nowIso }
-          : {}),
-        startDate: payload.startDate,
-        endDate: payload.endDate,
-        startTime: payload.startTime || '08:00',
-        endTime: payload.endTime || '17:00',
-        totalEligibleVoters: 0,
-        totalVotesCast: 0,
-        turnoutPercentage: 0,
-        organizingBody:
-          payload.organizingBody?.trim() || 'UCC Electoral Commission (EC-UCC)',
-        eligibilityCriteria: payload.eligibilityCriteria || {},
-        rules: Array.isArray(payload.rules) ? payload.rules : [],
-        positionsCount: positionsInput.length,
-        resultsCertified: false,
-        provisionalResultsReady: false,
-        createdAt: nowIso,
-        updatedAt: nowIso,
+      await setDoc(doc(db, 'elections', electionId), {
+        ...electionData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
-
-      // 4. Atomic batch write: election record + every contested position together
-      const batch = writeBatch(db);
-      batch.set(
-        doc(db, 'elections', electionId),
-        stripUndefinedDeep({
-          ...electionData,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-      );
 
       const createdPositions: Position[] = [];
       for (let i = 0; i < positionsInput.length; i++) {
         const p = positionsInput[i];
-        const orderNum = p.order && p.order > 0 ? p.order : i + 1;
-        const posId = `pos_${electionId}_${i + 1}`;
-        const maxSel = Math.min(5, Math.max(1, Number(p.maxSelections ?? 1)));
-        const posDoc: Position = stripUndefinedDeep({
+        const posId = `pos_${electionId}_${i + 1}_${Date.now().toString(36)}`;
+        const posDoc: Position = {
           id: posId,
           electionId,
           domainId,
-          ...(payload.hallId ? { hallId: payload.hallId } : {}),
-          ...(payload.facultyId ? { facultyId: payload.facultyId } : {}),
-          ...(payload.departmentId ? { departmentId: payload.departmentId } : {}),
           title: p.title.trim(),
-          description: p.description?.trim() || `Contested portfolio for ${p.title.trim()}`,
-          maxSelections: maxSel,
-          allowsSkip: p.allowsSkip ?? false,
-          order: orderNum,
+          description: p.description?.trim() || '',
+          maxSelections: p.maxSelections || 1,
+          allowsSkip: p.allowsSkip ?? true,
+          order: i + 1,
           candidateIds: [],
-          candidateEligibilityRules:
-            p.candidateEligibilityRules?.trim() ||
-            'Accredited student in good standing, GPA >= 3.0.',
-          votingRules:
-            p.votingRules?.trim() ||
-            (maxSel > 1
-              ? `Multi-choice up to ${maxSel} candidates`
-              : 'Single candidate preference'),
-        });
-        batch.set(
-          doc(db, 'positions', posId),
-          stripUndefinedDeep({
-            ...posDoc,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          })
-        );
+          candidateEligibilityRules: p.candidateEligibilityRules || '',
+          votingRules: p.votingRules || '',
+        };
+        await setDoc(doc(db, 'positions', posId), posDoc);
         createdPositions.push(posDoc);
       }
 
-      await batch.commit();
-
-      // 5. Record tamper-evident audit entry without blocking committed persistence
+      const actor = await getCurrentAdminContext();
       await writeAuditLog({
         adminName: actor.name,
         adminRole: actor.role,
-        action:
-          initialStatus === 'live'
-            ? 'Created & Opened Live Election'
-            : initialStatus === 'scheduled'
-            ? 'Created & Published Scheduled Election'
-            : 'Created Draft Election',
-        target: `${electionData.title} (${electionData.code}) [${createdPositions.length} positions]`,
-      }).catch(() => {});
+        action: 'Created Election',
+        target: `${electionData.title} (${electionData.code})`,
+      });
 
       return {
         success: true,
         election: electionData,
         positions: createdPositions,
-        message: `Election "${electionData.title}" and ${createdPositions.length} position(s) saved atomically to Cloud Firestore.`,
+        message: 'Election saved to Cloud Firestore.',
       };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.CREATE, `elections/${electionId}`),
-      };
+      handleFirestoreError(err, OperationType.CREATE, `elections/${electionId}`);
     }
   }
 
-  async updateElection(
-    id: string,
-    updates: Partial<Election>
-  ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+  async updateElection(id: string, updates: Partial<Election>) {
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
-      if (updates.title !== undefined && !updates.title.trim()) {
-        return { success: false, error: 'Election title cannot be empty.' };
-      }
-
-      if (updates.startDate && updates.endDate) {
-        const sMs = new Date(updates.startDate).getTime();
-        const eMs = new Date(updates.endDate).getTime();
-        if (Number.isNaN(sMs) || Number.isNaN(eMs) || eMs <= sMs) {
-          return {
-            success: false,
-            error: 'Closing date/time must be strictly after opening date/time.',
-          };
-        }
-      }
-
-      const cleanUpdates = stripUndefinedDeep({
+      await updateDoc(doc(db, 'elections', id), {
         ...updates,
-        ...(updates.title ? { title: updates.title.trim() } : {}),
-        ...(updates.code ? { code: updates.code.trim().toUpperCase() } : {}),
-        ...(updates.description !== undefined ? { description: updates.description.trim() } : {}),
-        ...(updates.organizingBody ? { organizingBody: updates.organizingBody.trim() } : {}),
         updatedAt: serverTimestamp(),
       });
-
-      await updateDoc(doc(db, 'elections', id), cleanUpdates);
       const actor = await getCurrentAdminContext();
       await writeAuditLog({
         adminName: actor.name,
         adminRole: actor.role,
         action: 'Updated Election Configuration',
         target: id,
-      }).catch(() => {});
-
-      const snap = await getDoc(doc(db, 'elections', id));
-      return {
-        success: true,
-        election: snap.exists() ? mapDoc<Election>(snap.id, snap.data()) : undefined,
-        message: 'Election updated in Cloud Firestore.',
-      };
+      });
+      return { success: true, message: 'Election updated in Cloud Firestore.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `elections/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `elections/${id}`);
     }
   }
 
@@ -510,45 +275,19 @@ class FirebaseAdminService {
     justification?: string
   ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
-      const existingSnap = await getDoc(doc(db, 'elections', id));
-      if (!existingSnap.exists()) {
-        return { success: false, error: 'Election record not found in Cloud Firestore.' };
-      }
-
-      if (newStatus === 'scheduled' || newStatus === 'live') {
-        const posSnap = await getDocs(
-          query(collection(db, 'positions'), where('electionId', '==', id))
-        );
-        if (posSnap.empty) {
-          return {
-            success: false,
-            error:
-              'Cannot publish or open voting for an election without at least one contested position.',
-          };
-        }
-      }
-
       const actor = await getCurrentAdminContext();
-      await updateDoc(
-        doc(db, 'elections', id),
-        stripUndefinedDeep({
-          status: newStatus,
-          ...(newStatus === 'scheduled' || newStatus === 'live'
-            ? { approvedBy: actor.name, publishedAt: new Date().toISOString() }
-            : {}),
-          ...(newStatus === 'results_published' ? { resultsCertified: true } : {}),
-          updatedAt: serverTimestamp(),
-        })
-      );
+      await updateDoc(doc(db, 'elections', id), {
+        status: newStatus,
+        ...(newStatus === 'scheduled' ? { approvedBy: actor.name } : {}),
+        ...(newStatus === 'results_published' ? { resultsCertified: true } : {}),
+        updatedAt: serverTimestamp(),
+      });
       await writeAuditLog({
         adminName: actor.name,
         adminRole: actor.role,
         action: `Transitioned Election Status -> ${newStatus}`,
         target: justification ? `${id} (${justification})` : id,
-      }).catch(() => {});
+      });
       const updated = await getDoc(doc(db, 'elections', id));
       return {
         success: true,
@@ -556,10 +295,7 @@ class FirebaseAdminService {
         message: `Election status updated to ${newStatus.replace(/_/g, ' ')}.`,
       };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `elections/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `elections/${id}`);
     }
   }
 
@@ -573,71 +309,32 @@ class FirebaseAdminService {
       candidateEligibilityRules?: string;
       votingRules?: string;
     }
-  ): Promise<{ success: boolean; position?: Position; message?: string; error?: string }> {
-    if (!position.title || !position.title.trim()) {
-      return { success: false, error: 'Position title is required.' };
-    }
-    const maxSel = Math.min(5, Math.max(1, Number(position.maxSelections || 1)));
-    const posId = `pos_${electionId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
-
+  ) {
+    const posId = `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
-      const [electionSnap, existingSnap] = await Promise.all([
-        getDoc(doc(db, 'elections', electionId)),
-        getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
-      ]);
-
-      if (!electionSnap.exists()) {
-        return { success: false, error: 'Target election no longer exists.' };
-      }
-
-      const parent = electionSnap.data() as Election;
-      const nextCount = existingSnap.size + 1;
-
-      const posDoc: Position = stripUndefinedDeep({
+      const existingSnap = await getDocs(
+        query(collection(db, 'positions'), where('electionId', '==', electionId))
+      );
+      const posDoc: Position = {
         id: posId,
         electionId,
-        domainId: parent.domainId,
-        ...(parent.hallId ? { hallId: parent.hallId } : {}),
-        ...(parent.facultyId ? { facultyId: parent.facultyId } : {}),
-        ...(parent.departmentId ? { departmentId: parent.departmentId } : {}),
         title: position.title.trim(),
-        description: position.description?.trim() || `Contested portfolio for ${position.title.trim()}`,
-        maxSelections: maxSel,
-        allowsSkip: position.allowsSkip ?? false,
-        order: nextCount,
+        description: position.description?.trim() || '',
+        maxSelections: position.maxSelections || 1,
+        allowsSkip: position.allowsSkip ?? true,
+        order: existingSnap.size + 1,
         candidateIds: [],
-        candidateEligibilityRules:
-          position.candidateEligibilityRules?.trim() ||
-          'Accredited student in good standing, GPA >= 3.0.',
-        votingRules:
-          position.votingRules?.trim() ||
-          (maxSel > 1 ? `Multi-choice up to ${maxSel} candidates` : 'Single candidate preference'),
-      });
-
-      const batch = writeBatch(db);
-      batch.set(
-        doc(db, 'positions', posId),
-        stripUndefinedDeep({
-          ...posDoc,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-      );
-      batch.update(doc(db, 'elections', electionId), {
-        positionsCount: nextCount,
+        candidateEligibilityRules: position.candidateEligibilityRules || '',
+        votingRules: position.votingRules || '',
+      };
+      await setDoc(doc(db, 'positions', posId), posDoc);
+      await updateDoc(doc(db, 'elections', electionId), {
+        positionsCount: existingSnap.size + 1,
         updatedAt: serverTimestamp(),
       });
-      await batch.commit();
-
       return { success: true, position: posDoc, message: 'Position added.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.CREATE, `positions/${posId}`),
-      };
+      handleFirestoreError(err, OperationType.CREATE, `positions/${posId}`);
     }
   }
 
@@ -652,80 +349,32 @@ class FirebaseAdminService {
       candidateEligibilityRules?: string;
       votingRules?: string;
     }
-  ): Promise<{ success: boolean; message?: string; error?: string }> {
-    if (updates.title !== undefined && !updates.title.trim()) {
-      return { success: false, error: 'Position title cannot be empty.' };
-    }
+  ) {
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
-      await updateDoc(
-        doc(db, 'positions', posId),
-        stripUndefinedDeep({
-          ...updates,
-          ...(updates.title ? { title: updates.title.trim() } : {}),
-          ...(updates.description !== undefined ? { description: updates.description.trim() } : {}),
-          updatedAt: serverTimestamp(),
-        })
-      );
+      await updateDoc(doc(db, 'positions', posId), updates);
       return { success: true, message: 'Position updated.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `positions/${posId}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `positions/${posId}`);
     }
   }
 
-  async deletePosition(
-    electionId: string,
-    posId: string
-  ): Promise<{
-    success: boolean;
-    remainingPositions?: Position[];
-    message?: string;
-    error?: string;
-  }> {
+  async deletePosition(electionId: string, posId: string) {
     try {
-      const authCheck = await ensureAuthenticatedAdmin();
-      if (!authCheck.ok) return { success: false, error: authCheck.error };
-
-      const existingSnap = await getDocs(
+      await deleteDoc(doc(db, 'positions', posId));
+      const remaining = await getDocs(
         query(collection(db, 'positions'), where('electionId', '==', electionId))
       );
-      const remainingDocs = existingSnap.docs
-        .filter((d) => d.id !== posId)
-        .map((d) => mapDoc<Position>(d.id, d.data()))
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-
-      const batch = writeBatch(db);
-      batch.delete(doc(db, 'positions', posId));
-      remainingDocs.forEach((p, idx) => {
-        if (p.order !== idx + 1) {
-          batch.update(doc(db, 'positions', p.id), {
-            order: idx + 1,
-            updatedAt: serverTimestamp(),
-          });
-          p.order = idx + 1;
-        }
-      });
-      batch.update(doc(db, 'elections', electionId), {
-        positionsCount: remainingDocs.length,
+      await updateDoc(doc(db, 'elections', electionId), {
+        positionsCount: remaining.size,
         updatedAt: serverTimestamp(),
       });
-      await batch.commit();
-
       return {
         success: true,
-        remainingPositions: remainingDocs,
+        remainingPositions: remaining.docs.map((d) => mapDoc<Position>(d.id, d.data())),
         message: 'Position removed.',
       };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.DELETE, `positions/${posId}`),
-      };
+      handleFirestoreError(err, OperationType.DELETE, `positions/${posId}`);
     }
   }
 
@@ -801,13 +450,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: 'Approved Candidate Nomination',
         target: `${cand.fullName} (${cand.studentId})`,
-      }).catch(() => {});
+      });
       return { success: true, message: 'Candidate approved for digital ballot.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
   }
 
@@ -829,13 +475,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: 'Rejected Candidate Nomination',
         target: `${id}: ${reason.trim()}`,
-      }).catch(() => {});
+      });
       return { success: true, message: 'Candidate nomination rejected.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
   }
 
@@ -857,13 +500,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: 'Requested Candidate Nomination Corrections',
         target: id,
-      }).catch(() => {});
+      });
       return { success: true, message: 'Correction request recorded.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
   }
 
@@ -884,13 +524,10 @@ class FirebaseAdminService {
         adminRole: actor.role,
         action: 'Marked Candidate Withdrawn',
         target: id,
-      }).catch(() => {});
+      });
       return { success: true, message: 'Candidate withdrawn.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
   }
 
@@ -910,10 +547,7 @@ class FirebaseAdminService {
       }).catch(() => {});
       return { success: true, message: 'Candidate assigned to position.' };
     } catch (err: any) {
-      return {
-        success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
-      };
+      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
     }
   }
 
@@ -1098,22 +732,22 @@ class FirebaseAdminService {
         notes: notes || `Advanced to ${targetStage}`,
       };
 
-      const nextPayload: ElectionResultsPayload = stripUndefinedDeep({
+      const nextPayload: ElectionResultsPayload = {
         ...prev,
         workflowStage: targetStage,
         workflowHistory: [...(prev.workflowHistory || []), nextAction],
         isPublished,
         resultsCertified: isCertified,
-        ...(isCertified ? { certifiedBy: actorName } : prev.certifiedBy ? { certifiedBy: prev.certifiedBy } : {}),
-        ...(isPublished ? { publishedAt: new Date().toISOString() } : prev.publishedAt ? { publishedAt: prev.publishedAt } : {}),
-      });
+        certifiedBy: isCertified ? actorName : prev.certifiedBy,
+        publishedAt: isPublished ? new Date().toISOString() : prev.publishedAt,
+      };
 
       await setDoc(
         doc(db, 'election_results', electionId),
-        stripUndefinedDeep({
+        {
           ...nextPayload,
           updatedAt: serverTimestamp(),
-        }),
+        },
         { merge: true }
       );
 

@@ -362,6 +362,7 @@ export async function resolveVerifiedAdminUser(user: User): Promise<{
   deactivated?: boolean;
   admin?: AdminProfile;
 }> {
+  await user.reload().catch(() => undefined);
   const tokenResult = await user.getIdTokenResult(true);
   if (tokenResult.claims?.admin !== true) {
     return { isAdmin: false };

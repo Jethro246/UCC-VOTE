@@ -19,37 +19,24 @@ import {
 } from 'lucide-react';
 
 export const ElectionDetailsPage: React.FC = () => {
-  const { selectedElectionId, elections, positionsByElection, candidates, navigateTo, student, userRole } = useApp();
+  const { selectedElectionId, elections, candidates, navigateTo, student } = useApp();
 
-  const visiblePool =
-    userRole === 'admin'
-      ? elections
-      : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-  const election =
-    visiblePool.find((e) => e.id === selectedElectionId) || visiblePool[0];
-  const [fetchedPositions, setFetchedPositions] = useState<Position[]>([]);
+  const election = elections.find(e => e.id === selectedElectionId) || elections[0];
+  const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
     if (!election?.id) {
-      setFetchedPositions([]);
+      setPositions([]);
       return;
     }
     let active = true;
     electionClient.getElectionById(election.id).then((res) => {
       if (active && res.success && res.positions) {
-        setFetchedPositions(res.positions);
+        setPositions(res.positions);
       }
     });
     return () => { active = false; };
   }, [election?.id]);
-
-  const positions =
-    fetchedPositions.length > 0
-      ? fetchedPositions
-      : election?.id
-      ? positionsByElection[election.id] || []
-      : [];
 
   if (!election) {
     return (
@@ -431,7 +418,7 @@ export const ElectionDetailsPage: React.FC = () => {
               <span>Official Polling Regulations</span>
             </h3>
             <ul className="space-y-2 text-xs text-slate-600">
-              {(election.rules && election.rules.length > 0 ? election.rules : ['Official Electoral Commission guidelines apply to this poll.']).map((rule, idx) => (
+              {election.rules.map((rule, idx) => (
                 <li key={idx} className="flex items-start gap-2">
                   <span className="text-[#123B70] font-bold">·</span>
                   <span className="leading-relaxed">{rule}</span>

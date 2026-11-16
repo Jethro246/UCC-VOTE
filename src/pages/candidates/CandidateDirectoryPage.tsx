@@ -58,13 +58,8 @@ export const CandidateDirectoryPage: React.FC = () => {
   const approvedCandidates = candidates.filter((c) => c.applicationStatus === 'Approved');
 
   const electionsForDomain = useMemo(() => {
-    const visibleElections =
-      userRole === 'admin'
-        ? elections
-        : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-    if (selectedDomain === 'All') return visibleElections;
-    return visibleElections.filter(
+    if (selectedDomain === 'All') return elections;
+    return elections.filter(
       (e) =>
         e.domainId === selectedDomain ||
         (selectedDomain === 'src' && e.category === 'SRC') ||
@@ -74,7 +69,7 @@ export const CandidateDirectoryPage: React.FC = () => {
         (selectedDomain === 'departmental' && e.category === 'Departmental') ||
         (selectedDomain === 'faculty_school' && e.category === 'Faculty / School')
     );
-  }, [elections, selectedDomain, userRole]);
+  }, [elections, selectedDomain]);
 
   const allFaculties = Array.from(new Set(approvedCandidates.map((c) => c.faculty))).filter(Boolean);
 

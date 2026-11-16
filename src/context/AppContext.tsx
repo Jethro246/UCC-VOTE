@@ -367,15 +367,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Compute live DomainWithStats dynamically from Firestore elections & candidates
   const domains: DomainWithStats[] = useMemo(() => {
-    const isAdmin = userRole === 'admin';
-    const countableElections = isAdmin
-      ? elections
-      : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
     return [...rawDomains]
       .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
       .map((dom) => {
-        const domElections = countableElections.filter(
+        const domElections = elections.filter(
           (e) => (e.domainId || categoryToDomainId(e.category)) === dom.id
         );
         const approvedCandCount = candidates.filter(
@@ -408,7 +403,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           },
         };
       });
-  }, [rawDomains, elections, candidates, userRole]);
+  }, [rawDomains, elections, candidates]);
 
   // Merge user-specific read states onto notifications
   const notifications: NotificationItem[] = useMemo(() => {
@@ -438,18 +433,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Auto-select first real election / candidates if current selection is empty
   useEffect(() => {
-    const visiblePool =
-      userRole === 'admin'
-        ? elections
-        : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-    if (visiblePool.length > 0 && !visiblePool.some((e) => e.id === selectedElectionId)) {
-      const preferred = visiblePool.find((e) => e.status === 'live') || visiblePool[0];
+    if (elections.length > 0 && !elections.some((e) => e.id === selectedElectionId)) {
+      const preferred = elections.find((e) => e.status === 'live') || elections[0];
       setSelectedElectionIdState(preferred.id);
-    } else if (visiblePool.length === 0 && selectedElectionId) {
+    } else if (elections.length === 0 && selectedElectionId) {
       setSelectedElectionIdState('');
     }
-  }, [elections, selectedElectionId, userRole]);
+  }, [elections, selectedElectionId]);
 
   useEffect(() => {
     if (candidates.length > 0 && !candidates.some((c) => c.id === selectedCandidateId)) {
@@ -893,6 +883,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshAuthSession = async (): Promise<boolean> => {
     if (!auth.currentUser) return false;
     await auth.currentUser.reload();
+    const tokenRes = await auth.currentUser.getIdTokenResult(true);
+    if (tokenRes.claims?.admin === true) {
+      const adminSnap = await getDoc(doc(db, 'admins', auth.currentUser.uid)).catch(() => null);
+      const adminData = adminSnap?.exists() ? (adminSnap.data() as Omit<AdminProfile, 'id'>) : null;
+      if (!adminData || adminData.isActive !== false) {
+        const resolvedRole = ((adminData?.role ||
+          tokenRes.claims?.role ||
+          'Electoral Commissioner') as AdminRoleType);
+        setUserRole('admin');
+        setStudentRaw(null);
+        setNeedsProfileCompletion(false);
+        setAdmin(
+          adminData && adminSnap
+            ? {
+                ...adminData,
+                id: adminSnap.id,
+                uid: auth.currentUser.uid,
+                role: resolvedRole,
+                permissions:
+                  Array.isArray(adminData.permissions) && adminData.permissions.length > 0
+                    ? adminData.permissions
+                    : getPermissionsForRole(resolvedRole),
+              }
+            : {
+                id: auth.currentUser.uid,
+                uid: auth.currentUser.uid,
+                staffId:
+                  (tokenRes.claims?.staffId as string) ||
+                  `UCC/EC/${auth.currentUser.uid.slice(0, 6).toUpperCase()}`,
+                fullName:
+                  auth.currentUser.displayName ||
+                  auth.currentUser.email ||
+                  'Electoral Administrator',
+                email: (auth.currentUser.email || '').toLowerCase(),
+                role: resolvedRole,
+                department: 'UCC Electoral Commission',
+                permissions: getPermissionsForRole(resolvedRole),
+                isActive: true,
+              }
+        );
+      }
+    }
     return true;
   };
 

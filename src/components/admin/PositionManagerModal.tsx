@@ -30,9 +30,6 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
   const { refreshDomains } = useApp();
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
-  const [addingPos, setAddingPos] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [deletingPosId, setDeletingPosId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -62,22 +59,15 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       setSuccessMsg('');
       loadPositions();
     }
-  }, [election?.id, isOpen]);
+  }, [election, isOpen]);
 
   const loadPositions = async () => {
     if (!election) return;
     setLoading(true);
-    try {
-      const res = await electionClient.getElectionById(election.id);
-      if (res.success && res.positions) {
-        setPositions(res.positions);
-      } else if (res.error) {
-        setErrorMsg(res.error);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Unable to load positions.');
-    } finally {
-      setLoading(false);
+    const res = await electionClient.getElectionById(election.id);
+    setLoading(false);
+    if (res.success && res.positions) {
+      setPositions(res.positions);
     }
   };
 
@@ -88,7 +78,6 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
 
   const handleAddPosition = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (addingPos) return;
     setErrorMsg('');
     setSuccessMsg('');
 
@@ -97,35 +86,27 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
       return;
     }
 
-    setAddingPos(true);
-    try {
-      const res = await adminService.addPosition(election.id, {
-        title: title.trim(),
-        description: description.trim() || `Contested portfolio for ${title.trim()}`,
-        maxSelections,
-        allowsSkip,
-        candidateEligibilityRules,
-        votingRules
-      });
+    const res = await adminService.addPosition(election.id, {
+      title: title.trim(),
+      description: description.trim() || `Contested portfolio for ${title.trim()}`,
+      maxSelections,
+      allowsSkip,
+      candidateEligibilityRules,
+      votingRules
+    });
 
-      if (res?.success) {
-        const addedTitle = title.trim();
-        await loadPositions();
-        onPositionsUpdated(positions.length + 1);
-        await refreshDomains();
-        setSuccessMsg(`Position '${addedTitle}' created successfully.`);
-        setTitle('');
-        setDescription('');
-        setMaxSelections(1);
-        setAllowsSkip(false);
-        setTimeout(() => setSuccessMsg(''), 3000);
-      } else {
-        setErrorMsg(res?.error || 'Failed to add position.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to add position.');
-    } finally {
-      setAddingPos(false);
+    if (res?.success) {
+      await loadPositions();
+      onPositionsUpdated(positions.length + 1);
+      await refreshDomains();
+      setSuccessMsg(`Position '${title}' created successfully.`);
+      setTitle('');
+      setDescription('');
+      setMaxSelections(1);
+      setAllowsSkip(false);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } else {
+      setErrorMsg('Failed to add position.');
     }
   };
 
@@ -141,65 +122,48 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
   };
 
   const handleSaveEdit = async (posId: string) => {
-    if (savingEdit) return;
     if (!editTitle.trim()) {
       setErrorMsg('Position title cannot be empty.');
       return;
     }
     setErrorMsg('');
     setSuccessMsg('');
-    setSavingEdit(true);
 
-    try {
-      const res = await adminService.updatePosition(election.id, posId, {
-        title: editTitle.trim(),
-        description: editDescription.trim(),
-        maxSelections: editMaxSelections,
-        allowsSkip: editAllowsSkip,
-        candidateEligibilityRules: editEligibilityRules.trim(),
-        votingRules: editVotingRules.trim()
-      });
+    const res = await adminService.updatePosition(election.id, posId, {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      maxSelections: editMaxSelections,
+      allowsSkip: editAllowsSkip,
+      candidateEligibilityRules: editEligibilityRules.trim(),
+      votingRules: editVotingRules.trim()
+    });
 
-      if (res?.success) {
-        const updatedTitle = editTitle.trim();
-        await loadPositions();
-        onPositionsUpdated(positions.length);
-        await refreshDomains();
-        setEditingPosId(null);
-        setSuccessMsg(`Portfolio '${updatedTitle}' updated.`);
-        setTimeout(() => setSuccessMsg(''), 3000);
-      } else {
-        setErrorMsg(res?.error || 'Failed to update position.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to update position.');
-    } finally {
-      setSavingEdit(false);
+    if (res?.success) {
+      await loadPositions();
+      onPositionsUpdated(positions.length);
+      await refreshDomains();
+      setEditingPosId(null);
+      setSuccessMsg(`Portfolio '${editTitle.trim()}' updated.`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } else {
+      setErrorMsg('Failed to update position.');
     }
   };
 
   const handleDeletePosition = async (posId: string) => {
-    if (deletingPosId) return;
     setErrorMsg('');
     setSuccessMsg('');
-    setDeletingPosId(posId);
 
-    try {
-      const res = await adminService.deletePosition(election.id, posId);
-      if (res?.success) {
-        const updated = res.remainingPositions || positions.filter((p) => p.id !== posId);
-        setPositions(updated);
-        onPositionsUpdated(updated.length);
-        await refreshDomains();
-        setSuccessMsg('Position removed.');
-        setTimeout(() => setSuccessMsg(''), 3000);
-      } else {
-        setErrorMsg(res?.error || 'Failed to delete position.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to delete position.');
-    } finally {
-      setDeletingPosId(null);
+    const res = await adminService.deletePosition(election.id, posId);
+    if (res?.success) {
+      const updated = res.remainingPositions || positions.filter((p) => p.id !== posId);
+      setPositions(updated);
+      onPositionsUpdated(updated.length);
+      await refreshDomains();
+      setSuccessMsg('Position removed.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } else {
+      setErrorMsg('Failed to delete position.');
     }
   };
 
@@ -359,12 +323,11 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            disabled={savingEdit}
                             onClick={() => handleSaveEdit(pos.id)}
-                            className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white font-bold flex items-center gap-1 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>{savingEdit ? 'Saving...' : 'Save Update'}</span>
+                            <span>Save Update</span>
                           </button>
                         </div>
                       </div>
@@ -400,9 +363,8 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            disabled={deletingPosId === pos.id}
                             onClick={() => handleDeletePosition(pos.id)}
-                            className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
                             title="Remove Position"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -507,10 +469,9 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
 
               <button
                 type="submit"
-                disabled={addingPos}
-                className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                {addingPos ? 'Adding Portfolio...' : 'Add Portfolio'}
+                Add Portfolio
               </button>
             </div>
           </form>
