@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   X, 
@@ -11,12 +11,17 @@ import {
   Video,
   Award,
   Sparkles,
-  HelpCircle
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { Candidate, Position } from '../../types';
 import { CandidateAvatar } from '../common/CandidateAvatar';
 import { electionClient } from '../../services/electionClient';
-import { uploadCandidatePhoto } from '../../services/firebaseStorageService';
+import {
+  startCandidatePhotoUpload,
+  validateCandidateImageFile,
+  UploadTaskHandle,
+} from '../../services/firebaseStorageService';
 
 interface CandidateRegistrationModalProps {
   isOpen: boolean;
@@ -51,8 +56,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [selectedElectionId, setSelectedElectionId] = useState('');
   const [selectedPositionId, setSelectedPositionId] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photoStoragePath, setPhotoStoragePath] = useState('');
+  const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState('');
+  const [lastSelectedFile, setLastSelectedFile] = useState<File | null>(null);
+  const [uploadSessionKey, setUploadSessionKey] = useState('');
   const [biography, setBiography] = useState('');
   const [manifestoSummary, setManifestoSummary] = useState('');
   const [fullManifestoText, setFullManifestoText] = useState('');
@@ -64,6 +75,33 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const activeUploadRef = useRef<UploadTaskHandle | null>(null);
+  const uploadAttemptRef = useRef(0);
+  const localPreviewRef = useRef('');
+
+  const revokeLocalPreview = () => {
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = '';
+    }
+    setLocalPreviewUrl('');
+  };
+
+  const cancelOngoingPhotoUpload = () => {
+    uploadAttemptRef.current += 1;
+    if (activeUploadRef.current) {
+      activeUploadRef.current.cancel();
+      activeUploadRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      cancelOngoingPhotoUpload();
+      revokeLocalPreview();
+    };
+  }, []);
 
   const hallOptions = [
     'Casely Hayford Hall',
@@ -90,6 +128,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
   // Prefill when editing or opening
   useEffect(() => {
+    cancelOngoingPhotoUpload();
+    revokeLocalPreview();
+    setUploadSessionKey(`cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+
     if (candidateToEdit) {
       setFullName(candidateToEdit.fullName);
       setStudentId(candidateToEdit.studentId);
@@ -103,6 +145,9 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setSelectedElectionId(candidateToEdit.electionId);
       setSelectedPositionId(candidateToEdit.positionId);
       setPhotoUrl(candidateToEdit.photoUrl || '');
+      setPhotoStoragePath(candidateToEdit.photoStoragePath || '');
+      setUploadStatus(candidateToEdit.photoUrl ? 'success' : 'idle');
+      setUploadProgress(candidateToEdit.photoUrl ? 100 : null);
       setBiography(candidateToEdit.biography || '');
       setManifestoSummary(candidateToEdit.manifestoSummary);
       setFullManifestoText(candidateToEdit.fullManifesto.join('\n'));
@@ -141,8 +186,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setLeadershipExpText('');
       setVideoUrl('');
       setPhotoUrl('');
+      setPhotoStoragePath('');
+      setUploadStatus('idle');
+      setUploadProgress(null);
     }
-    setUploadProgress(null);
+    setUploadingPhoto(false);
+    setUploadError('');
+    setLastSelectedFile(null);
     setErrorMsg('');
     setSuccessMsg('');
   }, [candidateToEdit, defaultElectionId, defaultPositionId, isOpen, student]);
@@ -179,9 +229,89 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    cancelOngoingPhotoUpload();
+    revokeLocalPreview();
+    onClose();
+  };
+
+  const handlePhotoFileUpload = async (file: File) => {
+    setErrorMsg('');
+    setUploadError('');
+
+    const validation = await validateCandidateImageFile(file);
+    if (!validation.valid) {
+      setUploadingPhoto(false);
+      setUploadProgress(null);
+      setUploadStatus('error');
+      setUploadError(validation.error);
+      setLastSelectedFile(null);
+      return;
+    }
+
+    cancelOngoingPhotoUpload();
+    revokeLocalPreview();
+
+    const attemptId = ++uploadAttemptRef.current;
+    const previewObjectUrl = URL.createObjectURL(file);
+    localPreviewRef.current = previewObjectUrl;
+    setLocalPreviewUrl(previewObjectUrl);
+    setLastSelectedFile(file);
+    setUploadingPhoto(true);
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+
+    const candidateKey =
+      candidateToEdit?.id ||
+      (studentId.trim()
+        ? `${studentId.trim()}_${uploadSessionKey}`
+        : uploadSessionKey || `cand_${Date.now()}`);
+
+    const handle = startCandidatePhotoUpload(file, candidateKey, (pct) => {
+      if (uploadAttemptRef.current !== attemptId) return;
+      setUploadProgress(pct);
+    });
+    activeUploadRef.current = handle;
+
+    try {
+      const uploaded = await handle.promise;
+      if (uploadAttemptRef.current !== attemptId) return;
+
+      if (!uploaded?.url || !uploaded.url.startsWith('http')) {
+        throw new Error('Firebase Storage returned an invalid download URL.');
+      }
+
+      setPhotoUrl(uploaded.url);
+      setPhotoStoragePath(uploaded.path);
+      revokeLocalPreview();
+      setUploadProgress(100);
+      setUploadStatus('success');
+      setUploadError('');
+    } catch (err: any) {
+      if (uploadAttemptRef.current !== attemptId) return;
+      setUploadStatus('error');
+      setUploadProgress(null);
+      setUploadError(err?.message || 'Failed to upload candidate photograph.');
+    } finally {
+      if (uploadAttemptRef.current === attemptId) {
+        activeUploadRef.current = null;
+        setUploadingPhoto(false);
+      }
+    }
+  };
+
+  const handleCancelPhotoUpload = () => {
+    activeUploadRef.current?.cancel();
+  };
+
   const handleSubmit = async (isDraft: boolean) => {
     setErrorMsg('');
     setSuccessMsg('');
+
+    if (uploadingPhoto) {
+      setErrorMsg('Photograph upload is still in progress. Please wait until it finishes or cancel the upload before saving.');
+      return;
+    }
 
     if (!fullName.trim() || !studentId.trim() || !selectedElectionId || !selectedPositionId) {
       setErrorMsg('Please complete all required fields: Full Name, Student ID, Election, and Position.');
@@ -190,6 +320,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
     if (!isDraft && (!manifestoSummary.trim() || !fullManifestoText.trim())) {
       setErrorMsg('For official submission, a manifesto summary and full manifesto points are required.');
+      return;
+    }
+
+    const cleanPhotoUrl = photoUrl.trim();
+    if (cleanPhotoUrl.startsWith('blob:')) {
+      setErrorMsg('Candidate photograph has not finished uploading to Firebase Storage. Please wait or retry uploading.');
       return;
     }
 
@@ -222,7 +358,8 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       hall,
       electionId: selectedElectionId,
       positionId: selectedPositionId,
-      photoUrl,
+      photoUrl: cleanPhotoUrl,
+      photoStoragePath: cleanPhotoUrl && photoStoragePath ? photoStoragePath : undefined,
       biography: biography.trim(),
       manifestoSummary: manifestoSummary.trim() || 'Committed to student welfare and academic advancement.',
       fullManifesto: fullManifesto.length > 0 ? fullManifesto : ['Advancing university student welfare and transparent representation.'],
@@ -241,7 +378,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
         if (res.success) {
           setSuccessMsg('Candidate details updated successfully.');
           setTimeout(() => {
-            onClose();
+            handleClose();
           }, 1000);
         } else {
           setErrorMsg(res.error || 'Failed to update candidate record.');
@@ -251,7 +388,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
         if (res.success) {
           setSuccessMsg(isDraft ? 'Nomination saved as Draft.' : 'Nomination submitted successfully for vetting clearance!');
           setTimeout(() => {
-            onClose();
+            handleClose();
           }, 1200);
         } else {
           setErrorMsg(res.error || 'Failed to register candidate.');
@@ -287,7 +424,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
             aria-label="Close modal"
           >
@@ -507,12 +644,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="shrink-0 relative">
                 <CandidateAvatar
-                  src={photoUrl}
+                  src={localPreviewUrl || photoUrl}
                   alt={fullName || 'Candidate preview'}
                   className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm"
                 />
                 <span className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-[#123B70] text-white text-[9px] font-bold rounded-full">
-                  PREVIEW
+                  {uploadingPhoto ? 'UPLOADING' : 'PREVIEW'}
                 </span>
               </div>
 
@@ -521,41 +658,94 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Upload Official Candidate Portrait (JPEG, PNG or WebP, max 5 MB):
                   </label>
-                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#123B70] bg-[#EAF2FA]/60 hover:bg-[#EAF2FA] text-[#123B70] text-xs font-bold cursor-pointer transition-colors">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{uploadingPhoto ? `Uploading ${uploadProgress ?? 0}%...` : 'Choose Photograph File'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={uploadingPhoto}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setErrorMsg('');
-                        setUploadingPhoto(true);
-                        setUploadProgress(0);
-                        try {
-                          const uploaded = await uploadCandidatePhoto(
-                            file,
-                            studentId || fullName || 'candidate',
-                            (pct) => setUploadProgress(pct)
-                          );
-                          setPhotoUrl(uploaded.url);
-                        } catch (err: any) {
-                          setErrorMsg(err?.message || 'Failed to upload candidate photograph.');
-                        } finally {
-                          setUploadingPhoto(false);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                  {uploadProgress !== null && uploadingPhoto && (
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                      <div
-                        className="bg-[#123B70] h-full transition-all"
-                        style={{ width: `${uploadProgress}%` }}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                        uploadingPhoto
+                          ? 'border-[#123B70]/50 bg-[#EAF2FA] text-[#123B70] cursor-wait'
+                          : 'border-[#123B70] bg-[#EAF2FA]/60 hover:bg-[#EAF2FA] text-[#123B70] cursor-pointer'
+                      }`}
+                    >
+                      {uploadingPhoto ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {uploadingPhoto
+                          ? `Uploading ${uploadProgress ?? 0}%...`
+                          : uploadStatus === 'success' && photoUrl
+                          ? 'Change Photograph File'
+                          : 'Choose Photograph File'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                        disabled={uploadingPhoto}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!file) return;
+                          handlePhotoFileUpload(file);
+                        }}
+                        className="hidden"
                       />
+                    </label>
+
+                    {uploadingPhoto && (
+                      <button
+                        type="button"
+                        onClick={handleCancelPhotoUpload}
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Cancel Upload</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {uploadingPhoto && uploadProgress !== null && (
+                    <div className="mt-2.5 space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-[#123B70]">
+                        <span>Uploading to Firebase Storage...</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-[#123B70] h-full transition-all duration-150"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {!uploadingPhoto && uploadStatus === 'success' && photoUrl && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {uploadProgress === 100
+                          ? 'Upload complete (100%) — Candidate portrait ready.'
+                          : 'Verified portrait attached.'}
+                      </span>
+                    </div>
+                  )}
+
+                  {!uploadingPhoto && uploadStatus === 'error' && uploadError && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <span>{uploadError}</span>
+                      </div>
+                      {lastSelectedFile && (
+                        <button
+                          type="button"
+                          onClick={() => handlePhotoFileUpload(lastSelectedFile)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold shrink-0 cursor-pointer transition-colors"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Retry Upload</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -567,7 +757,15 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   <input
                     type="url"
                     value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      revokeLocalPreview();
+                      setPhotoUrl(val);
+                      setPhotoStoragePath('');
+                      setUploadError('');
+                      setUploadProgress(null);
+                      setUploadStatus(val.trim().startsWith('http') ? 'success' : 'idle');
+                    }}
                     placeholder="https://firebasestorage.googleapis.com/..."
                     className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   />
@@ -689,7 +887,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >

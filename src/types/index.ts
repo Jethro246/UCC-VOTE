@@ -181,6 +181,7 @@ export interface Candidate {
   level: string;
   hall: string;
   photoUrl: string;
+  photoStoragePath?: string;
   biography?: string;
   manifestoSummary: string;
   fullManifesto: string[];
