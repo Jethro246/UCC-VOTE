@@ -14,8 +14,8 @@ interface EditElectionModalProps {
 
 const UCC_LEVELS = ['100', '200', '300', '400', 'Postgraduate'];
 
-function extractDatePart(isoOrDate: string | undefined): string {
-  if (!isoOrDate) return new Date().toISOString().slice(0, 10);
+function extractDatePart(isoOrDate: string | undefined, allowBlank = false): string {
+  if (!isoOrDate) return allowBlank ? '' : new Date().toISOString().slice(0, 10);
   if (isoOrDate.includes('T')) return isoOrDate.slice(0, 10);
   return isoOrDate.slice(0, 10);
 }
@@ -58,17 +58,20 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
 
   useEffect(() => {
     if (isOpen && election) {
+      const allowBlankDates = Boolean(election.isHistorical || election.status === 'archived');
       setTitle(election.title || '');
       setCode(election.code || '');
       setAcademicYear(election.academicYear || '');
       setOrganizingBody(election.organizingBody || '');
       setDescription(election.description || '');
-      setStartDate(extractDatePart(election.startDate));
-      setStartTime(election.startTime || extractTimePart(election.startDate, '08:00'));
-      setEndDate(extractDatePart(election.endDate));
-      setEndTime(election.endTime || extractTimePart(election.endDate, '17:00'));
+      setStartDate(extractDatePart(election.startDate, allowBlankDates));
+      setStartTime(election.startTime || extractTimePart(election.startDate, allowBlankDates && !election.startDate ? '' : '08:00'));
+      setEndDate(extractDatePart(election.endDate, allowBlankDates));
+      setEndTime(election.endTime || extractTimePart(election.endDate, allowBlankDates && !election.endDate ? '' : '17:00'));
       setSelectedLevels(election.eligibilityCriteria?.levels || ['100', '200', '300', '400']);
-      const resolvedHall = resolveElectionHallUnit(election, halls);
+      const isMultiHallFramework =
+        (election.eligibilityCriteria?.halls?.length ?? 0) > 1 && !election.hallId;
+      const resolvedHall = isMultiHallFramework ? undefined : resolveElectionHallUnit(election, halls);
       setSelectedHallId(election.hallId || resolvedHall?.id || '');
       setSelectedHalls(
         election.eligibilityCriteria?.halls?.length
@@ -88,6 +91,10 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
 
   const isGrasag = election.domainId === 'grasag' || election.category === 'GRASAG';
   const isHallElection = election.domainId === 'jcrc_hall' || election.category === 'JCR / Hall';
+
+  const isHistoricalOrArchived = Boolean(election.isHistorical || election.status === 'archived');
+  const isMultiHallFramework =
+    isHallElection && (election.eligibilityCriteria?.halls?.length ?? 0) > 1 && !election.hallId;
 
   const toggleItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
     setList((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
@@ -111,13 +118,30 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
       return;
     }
 
-    const startIso = `${startDate}T${startTime}:00Z`;
-    const endIso = `${endDate}T${endTime}:00Z`;
-    const sMs = new Date(startIso).getTime();
-    const eMs = new Date(endIso).getTime();
-    if (Number.isNaN(sMs) || Number.isNaN(eMs) || eMs <= sMs) {
-      setErrorMsg('Closing date/time must be strictly after opening date/time.');
+    const hasBothDates = Boolean(startDate.trim() && endDate.trim());
+    const hasPartialDate = Boolean(startDate.trim()) !== Boolean(endDate.trim());
+    if (hasPartialDate) {
+      setErrorMsg('Provide both opening and closing dates, or leave both blank for historical records.');
       return;
+    }
+    if (!isHistoricalOrArchived && !hasBothDates) {
+      setErrorMsg('Opening and closing dates are required.');
+      return;
+    }
+
+    let startIso = '';
+    let endIso = '';
+    const effectiveStartTime = startTime || '08:00';
+    const effectiveEndTime = endTime || '17:00';
+    if (hasBothDates) {
+      startIso = `${startDate}T${effectiveStartTime}:00Z`;
+      endIso = `${endDate}T${effectiveEndTime}:00Z`;
+      const sMs = new Date(startIso).getTime();
+      const eMs = new Date(endIso).getTime();
+      if (Number.isNaN(sMs) || Number.isNaN(eMs) || eMs <= sMs) {
+        setErrorMsg('Closing date/time must be strictly after opening date/time.');
+        return;
+      }
     }
 
     if (!isGrasag && selectedLevels.length === 0) {
@@ -126,7 +150,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
     }
 
     const selectedHallObj = halls.find((h) => h.id === selectedHallId);
-    if (isHallElection && !selectedHallObj) {
+    if (isHallElection && !selectedHallObj && !isMultiHallFramework) {
       setErrorMsg('Please select the participating UCC Hall of Residence.');
       return;
     }
@@ -142,8 +166,8 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
         description: description.trim(),
         startDate: startIso,
         endDate: endIso,
-        startTime,
-        endTime,
+        startTime: hasBothDates ? effectiveStartTime : '',
+        endTime: hasBothDates ? effectiveEndTime : '',
         ...(isHallElection && selectedHallObj
           ? {
               hallId: selectedHallObj.id,
@@ -293,19 +317,19 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
             <div className="space-y-2">
               <div className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#123B70]" />
-                <span>Poll Opening</span>
+                <span>Poll Opening {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
-                  required
+                  required={!isHistoricalOrArchived}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
                 <input
                   type="time"
-                  required
+                  required={!isHistoricalOrArchived && Boolean(startDate)}
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
@@ -316,19 +340,19 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
             <div className="space-y-2">
               <div className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-red-600" />
-                <span>Poll Closing</span>
+                <span>Poll Closing {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
-                  required
+                  required={!isHistoricalOrArchived}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
                 <input
                   type="time"
-                  required
+                  required={!isHistoricalOrArchived && Boolean(endDate)}
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"

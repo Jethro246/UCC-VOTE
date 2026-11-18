@@ -259,7 +259,8 @@ export const BallotDoughnutChart: React.FC<{
  */
 export const PositionShareDoughnut: React.FC<{
   position: PositionResultSummary;
-}> = ({ position }) => {
+  tallyAvailable?: boolean;
+}> = ({ position, tallyAvailable = true }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const segments: DoughnutSegment[] = position.candidates.map((cand, idx) => ({
@@ -274,6 +275,18 @@ export const PositionShareDoughnut: React.FC<{
   const circumference = 2 * Math.PI * radius;
   const arcs = buildDoughnutArcs(segments, radius, circumference);
   const hovered = hoveredIdx !== null ? segments[hoveredIdx] : null;
+
+  if (tallyAvailable === false) {
+    return (
+      <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px]">
+        <PieChart className="w-6 h-6 text-slate-400 mb-2" />
+        <p className="text-xs font-semibold text-slate-700">Vote share chart unavailable</p>
+        <p className="text-[11px] text-slate-500 mt-0.5 max-w-xs">
+          Detailed ballot vote counts were not recorded in this 2026 historical archive.
+        </p>
+      </div>
+    );
+  }
 
   if (position.totalValidVotes === 0) {
     return (
@@ -367,9 +380,18 @@ export const PositionShareDoughnut: React.FC<{
 export const CandidateBarChart: React.FC<{
   position: PositionResultSummary;
   showOfficialOutcome: boolean;
-}> = ({ position, showOfficialOutcome }) => {
+  tallyAvailable?: boolean;
+}> = ({ position, showOfficialOutcome, tallyAvailable = true }) => {
+  const isHistoricalNoTally = tallyAvailable === false;
   return (
     <div className="space-y-3.5">
+      {position.contestNote && (
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
+          <strong className="font-bold">Archive Note: </strong>
+          {position.contestNote}
+        </div>
+      )}
+
       {position.isTie && (
         <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -385,11 +407,11 @@ export const CandidateBarChart: React.FC<{
       {position.candidates.map((cand: CandidateResultRow, idx: number) => {
         const barColor = cand.isTied
           ? '#D97706'
-          : cand.isWinner && showOfficialOutcome
+          : cand.isWinner && (showOfficialOutcome || isHistoricalNoTally)
           ? '#16A34A'
           : CHART_PALETTE[idx % CHART_PALETTE.length];
 
-        const highlightRow = (cand.isWinner && showOfficialOutcome) || cand.isTied;
+        const highlightRow = (cand.isWinner && (showOfficialOutcome || isHistoricalNoTally)) || cand.isTied;
 
         return (
           <div
@@ -402,7 +424,7 @@ export const CandidateBarChart: React.FC<{
                 : 'border-slate-200 bg-white'
             }`}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-xs font-mono font-bold text-slate-400 w-5 shrink-0 tabular-nums">
                   #{cand.rank}
@@ -422,13 +444,17 @@ export const CandidateBarChart: React.FC<{
                         Tied
                       </span>
                     )}
-                    {cand.isWinner && showOfficialOutcome && !cand.isTied && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider">
-                        <Award className="w-3 h-3" />
-                        Winner Elect
+                    {((cand.isWinner && (showOfficialOutcome || isHistoricalNoTally)) || cand.historicalRole) && !cand.isTied && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          cand.isWinner ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {cand.isWinner && <Award className="w-3 h-3" />}
+                        {cand.historicalRole || 'Winner Elect'}
                       </span>
                     )}
-                    {cand.isLeading && !showOfficialOutcome && !cand.isTied && (
+                    {cand.isLeading && !showOfficialOutcome && !isHistoricalNoTally && !cand.isTied && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
                         Provisional Lead
                       </span>
@@ -437,38 +463,57 @@ export const CandidateBarChart: React.FC<{
                   <p className="text-xs text-slate-500 truncate mt-0.5">
                     {cand.department} · {cand.hall}
                   </p>
+                  {cand.outcomeNote && (
+                    <p className="text-[11px] text-slate-600 mt-0.5">{cand.outcomeNote}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
-                <div className="text-lg font-black font-mono tabular-nums text-slate-900">
-                  {cand.percentageOfValidVotes.toFixed(1)}%
+              {isHistoricalNoTally ? (
+                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
+                  <div className="text-xs font-mono font-semibold text-slate-500">
+                    Vote tally unavailable
+                  </div>
                 </div>
-                <div className="text-xs font-mono tabular-nums text-slate-500">
-                  {cand.votesReceived.toLocaleString()} valid votes
+              ) : (
+                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
+                  <div className="text-lg font-black font-mono tabular-nums text-slate-900">
+                    {cand.percentageOfValidVotes.toFixed(1)}%
+                  </div>
+                  <div className="text-xs font-mono tabular-nums text-slate-500">
+                    {cand.votesReceived.toLocaleString()} valid votes
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(Math.max(cand.percentageOfValidVotes, 0), 100)}%`,
-                  backgroundColor: barColor,
-                }}
-              />
-            </div>
+            {!isHistoricalNoTally && (
+              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(Math.max(cand.percentageOfValidVotes, 0), 100)}%`,
+                    backgroundColor: barColor,
+                  }}
+                />
+              </div>
+            )}
           </div>
         );
       })}
 
       {/* Position-level ballot accounting footer */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] font-mono tabular-nums text-slate-500 border-t border-slate-100">
-        <span>Valid Votes: {position.totalValidVotes.toLocaleString()}</span>
-        <span>Blank / Abstain: {position.blankVotes.toLocaleString()}</span>
-        <span>Invalid / Rejected: {position.invalidVotes.toLocaleString()}</span>
-        <span>Processed Total: {position.totalBallotsProcessed.toLocaleString()}</span>
+        {isHistoricalNoTally ? (
+          <span>Historical Archive Record · Detailed vote tallies not recorded</span>
+        ) : (
+          <>
+            <span>Valid Votes: {position.totalValidVotes.toLocaleString()}</span>
+            <span>Blank / Abstain: {position.blankVotes.toLocaleString()}</span>
+            <span>Invalid / Rejected: {position.invalidVotes.toLocaleString()}</span>
+            <span>Processed Total: {position.totalBallotsProcessed.toLocaleString()}</span>
+          </>
+        )}
       </div>
     </div>
   );

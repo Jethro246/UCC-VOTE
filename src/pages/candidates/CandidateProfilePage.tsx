@@ -162,16 +162,35 @@ export const CandidateProfilePage: React.FC = () => {
               </span>
             </div>
 
-            <div className="pt-1">
+            <div className="pt-1 flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 {candidate.fullName}
               </h1>
-              {candidate.nickname && (
-                <p className="text-base font-bold text-[#C62828] mt-0.5">
-                  "{candidate.nickname}"
-                </p>
+              {candidate.historicalRole && (
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                    candidate.historicalRole === 'Winner' ||
+                    candidate.historicalRole === 'Elected' ||
+                    candidate.historicalRole === 'Elected Unopposed'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {candidate.historicalRole}
+                </span>
               )}
             </div>
+            {candidate.nickname && (
+              <p className="text-base font-bold text-[#C62828] mt-0.5">
+                "{candidate.nickname}"
+              </p>
+            )}
+            {candidate.historicalOutcomeNote && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
+                <strong className="font-bold">2026 Historical Record: </strong>
+                {candidate.historicalOutcomeNote}
+              </div>
+            )}
 
             {/* Academic & University Profile Specs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-xs text-slate-700 pt-2 border-t border-slate-100">
@@ -181,7 +200,10 @@ export const CandidateProfilePage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#123B70] shrink-0" />
-                <span><strong>Standing:</strong> Level {candidate.level} · {candidate.hall || 'UCC Campus'}</span>
+                <span>
+                  <strong>Standing:</strong>{' '}
+                  {candidate.level === 'Not verified' ? 'Level not verified' : `Level ${candidate.level}`} · {candidate.hall || 'Not verified'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#123B70] shrink-0" />
@@ -197,7 +219,7 @@ export const CandidateProfilePage: React.FC = () => {
 
             {/* Quick Actions */}
             <div className="pt-4 flex flex-wrap items-center gap-3">
-              {isApproved && (
+              {isApproved && election?.status === 'live' && (
                 <button
                   onClick={() => navigateTo('digital_ballot', { electionId: candidate.electionId })}
                   className="px-5 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs cursor-pointer transition-colors"
@@ -246,9 +268,10 @@ export const CandidateProfilePage: React.FC = () => {
                   <p key={idx}>{paragraph}</p>
                 ))
               ) : (
-                <p>
-                  {candidate.fullName} is a dedicated student of the University of Cape Coast, enrolled in {candidate.programme || candidate.department}. 
-                  With a commitment to academic excellence, student rights, and infrastructural transformation, {candidate.fullName} brings a demonstrated history of service to {candidate.hall || 'the university community'}.
+                <p className="text-slate-500 italic">
+                  {candidate.isHistoricalRecord
+                    ? 'Biography not yet provided (Historical 2026 Record). Administrators may add verified biographical details.'
+                    : 'No candidate biography submitted.'}
                 </p>
               )}
             </div>
@@ -260,9 +283,15 @@ export const CandidateProfilePage: React.FC = () => {
               <FileText className="w-4 h-4 text-[#123B70]" />
               <span>Vision Statement & Core Slogan</span>
             </h2>
-            <blockquote className="p-4 rounded-xl bg-[#EAF2FA] text-xs sm:text-sm text-[#0B1F3A] font-medium leading-relaxed italic border-l-4 border-[#123B70]">
-              "{candidate.manifestoSummary}"
-            </blockquote>
+            {candidate.manifestoSummary ? (
+              <blockquote className="p-4 rounded-xl bg-[#EAF2FA] text-xs sm:text-sm text-[#0B1F3A] font-medium leading-relaxed italic border-l-4 border-[#123B70]">
+                "{candidate.manifestoSummary}"
+              </blockquote>
+            ) : (
+              <p className="text-xs text-slate-500 italic">
+                Vision statement not yet provided.
+              </p>
+            )}
           </div>
 
           {/* Full Manifesto Pillars */}
@@ -277,20 +306,26 @@ export const CandidateProfilePage: React.FC = () => {
               </span>
             </div>
 
-            <div className="space-y-3">
-              {(candidate.fullManifesto || []).map((pillar, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-[#123B70] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                    {idx + 1}
-                  </span>
-                  <div className="space-y-1">
-                    <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
-                      {pillar}
-                    </p>
+            {candidate.fullManifesto && candidate.fullManifesto.length > 0 ? (
+              <div className="space-y-3">
+                {candidate.fullManifesto.map((pillar, idx) => (
+                  <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-[#123B70] text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
+                        {pillar}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">
+                No manifesto policy proposals recorded yet.
+              </p>
+            )}
           </div>
 
           {/* Prior Leadership Experience */}
@@ -299,14 +334,20 @@ export const CandidateProfilePage: React.FC = () => {
               <Award className="w-4 h-4 text-[#123B70]" />
               <span>Prior University Leadership & Service Record</span>
             </h2>
-            <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
-              {(candidate.leadershipExperience || []).map((exp, idx) => (
-                <li key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="leading-snug">{exp}</span>
-                </li>
-              ))}
-            </ul>
+            {candidate.leadershipExperience && candidate.leadershipExperience.length > 0 ? (
+              <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
+                {candidate.leadershipExperience.map((exp, idx) => (
+                  <li key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{exp}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">
+                No prior leadership record provided.
+              </p>
+            )}
           </div>
 
           {/* Campaign Video */}
@@ -366,15 +407,17 @@ export const CandidateProfilePage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <div className="aspect-video w-full rounded-xl bg-slate-900 flex flex-col items-center justify-center text-white p-6 text-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-amber-400">
-                  <Video className="w-6 h-6" />
+              <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center text-center space-y-1.5">
+                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">
+                  <Video className="w-5 h-5" />
                 </div>
-                <p className="text-xs font-semibold text-slate-200">
-                  Manifesto Town Hall Address by {candidate.fullName}
+                <p className="text-xs font-semibold text-slate-700">
+                  No campaign video URL submitted
                 </p>
-                <p className="text-[11px] text-slate-400 max-w-sm">
-                  Official live broadcast recorded at UCC Students' Centre Auditorium. No third-party video URL submitted by candidate committee.
+                <p className="text-[11px] text-slate-500 max-w-sm">
+                  {candidate.isHistoricalRecord
+                    ? 'No archival campaign address recording was included in the 2026 record.'
+                    : 'No third-party campaign address URL has been linked for this candidate.'}
                 </p>
               </div>
             )}
@@ -418,24 +461,36 @@ export const CandidateProfilePage: React.FC = () => {
               <span>Immediate 100-Day Pledges</span>
               <span className="text-[10px] font-mono text-slate-500">{candidate.keyPromises?.length || 0} Pledges</span>
             </h3>
-            <ul className="space-y-2 text-xs text-slate-700">
-              {(candidate.keyPromises || []).map((promise, idx) => (
-                <li key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="leading-snug">{promise}</span>
-                </li>
-              ))}
-            </ul>
+            {candidate.keyPromises && candidate.keyPromises.length > 0 ? (
+              <ul className="space-y-2 text-xs text-slate-700">
+                {candidate.keyPromises.map((promise, idx) => (
+                  <li key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{promise}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500 italic">
+                No campaign pledges recorded yet.
+              </p>
+            )}
           </div>
 
           {/* Electoral Commission Vetting & Eligibility Seal */}
           <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 text-center space-y-2">
             <ShieldCheck className="w-8 h-8 text-emerald-600 mx-auto" />
             <h4 className="text-xs font-bold text-slate-900">
-              {isApproved ? 'Vetted & Cleared by UCC EC' : `Application Status: ${candidate.applicationStatus}`}
+              {candidate.isHistoricalRecord
+                ? 'Historical 2026 Record'
+                : isApproved
+                ? 'Vetted & Cleared by UCC EC'
+                : `Application Status: ${candidate.applicationStatus}`}
             </h4>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              {isApproved 
+              {candidate.isHistoricalRecord
+                ? 'Recorded from 2026 UCC historical election archives. Administrators may enrich incomplete biography or manifesto details.'
+                : isApproved 
                 ? 'Candidate has satisfied all constitutional requirements including CGPA qualification (min 3.0), student status, and disciplinary standing.'
                 : candidate.rejectionReason 
                 ? `Rejection Notice: ${candidate.rejectionReason}`

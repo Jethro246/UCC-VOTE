@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { evaluateStudentEligibilityLocal } from './electionClient';
 import { convertTimestamp } from './firebaseDbService';
+import { getHistoricalElectionById } from '../data/historical2026Elections';
 
 function mapDoc<T>(id: string, data: Record<string, any>): T {
   const out: Record<string, any> = { id };
@@ -66,6 +67,15 @@ class FirebaseVotingService {
       ]);
 
       if (!eSnap.exists()) {
+        const hist = getHistoricalElectionById(electionId);
+        if (hist) {
+          return {
+            success: false,
+            httpStatus: 403,
+            election: hist,
+            error: `Voting is not permitted for historical archive elections (status: ${hist.status}).`,
+          };
+        }
         return { success: false, httpStatus: 404, error: 'Election not found in Firestore.' };
       }
 

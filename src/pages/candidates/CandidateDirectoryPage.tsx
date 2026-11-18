@@ -538,9 +538,24 @@ export const CandidateDirectoryPage: React.FC = () => {
                           </div>
 
                           <div className="min-w-0 space-y-1">
-                            <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider block truncate">
-                              {group.positionTitle}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider truncate">
+                                {group.positionTitle}
+                              </span>
+                              {cand.historicalRole && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                                    cand.historicalRole === 'Winner' ||
+                                    cand.historicalRole === 'Elected' ||
+                                    cand.historicalRole === 'Elected Unopposed'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {cand.historicalRole}
+                                </span>
+                              )}
+                            </div>
                             <h3 className="text-base font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-tight truncate">
                               {cand.fullName}
                             </h3>
@@ -549,7 +564,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                                 "{cand.nickname}"
                               </p>
                             )}
-                            <p className="text-[11px] text-slate-500 font-mono">
+                            <p className="text-[11px] text-slate-500 font-mono truncate">
                               {cand.studentId} · {cand.hall}
                             </p>
                           </div>
@@ -572,7 +587,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                                 className="font-semibold text-slate-800 truncate max-w-[170px]"
                                 title={cand.programme}
                               >
-                                {cand.programme || 'Registered Student'}
+                                {cand.programme || (cand.isHistoricalRecord ? 'Not verified' : 'Registered Student')}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -587,7 +602,11 @@ export const CandidateDirectoryPage: React.FC = () => {
                             Policy Vision
                           </span>
                           <p className="text-xs text-slate-600 line-clamp-2 italic leading-relaxed">
-                            "{cand.manifestoSummary}"
+                            {cand.manifestoSummary
+                              ? `"${cand.manifestoSummary}"`
+                              : cand.isHistoricalRecord
+                              ? 'Manifesto not yet provided (Historical 2026 Record)'
+                              : 'Manifesto summary not provided.'}
                           </p>
                         </div>
                       </div>

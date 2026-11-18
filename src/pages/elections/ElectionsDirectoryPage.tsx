@@ -65,7 +65,8 @@ export const ElectionsDirectoryPage: React.FC = () => {
     { label: 'Pending Approval', value: 'pending_approval' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Closed', value: 'closed' },
-    { label: 'Results Published', value: 'results_published' }
+    { label: 'Results Published', value: 'results_published' },
+    { label: 'Historical Archive (2026)', value: 'archived' }
   ];
 
   const filteredElections = elections.filter((e) => {
@@ -250,6 +251,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
               const isUpcoming =
                 election.status === 'upcoming' || election.status === 'scheduled';
               const isResults = election.status === 'results_published';
+              const isArchived = election.status === 'archived';
 
               return (
                 <div
@@ -281,6 +283,8 @@ export const ElectionsDirectoryPage: React.FC = () => {
                             ? 'text-amber-700'
                             : isUpcoming
                             ? 'text-[#123B70]'
+                            : isArchived
+                            ? 'text-slate-600'
                             : 'text-slate-600'
                         }`}
                       >
@@ -290,6 +294,8 @@ export const ElectionsDirectoryPage: React.FC = () => {
                           ? 'Scheduled'
                           : isResults
                           ? 'Results Certified'
+                          : isArchived
+                          ? 'Historical Archive'
                           : election.status.replace(/_/g, ' ')}
                       </span>
                     </div>
@@ -315,7 +321,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {(isLive || isResults) && (
+                    {(isLive || (isResults && election.tallyAvailable !== false)) && (
                       <div className="pt-1">
                         <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
                           <span>Turnout</span>
@@ -378,6 +384,16 @@ export const ElectionsDirectoryPage: React.FC = () => {
                         className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer whitespace-nowrap"
                       >
                         Aspirants
+                      </button>
+                    )}
+
+                    {isArchived && (election.provisionalResultsReady || election.resultsCertified) && (
+                      <button
+                        onClick={() => navigateTo('election_results', { electionId: election.id })}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-[#123B70] text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <Award className="w-3 h-3 text-amber-400" />
+                        <span>View Historical Outcomes</span>
                       </button>
                     )}
                   </div>

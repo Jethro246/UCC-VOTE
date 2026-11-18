@@ -56,6 +56,7 @@ import {
   isElectionForHall,
   matchesHallAffiliation,
 } from '../../utils/hallUtils';
+import { formatElectionWindow } from '../../utils/dateUtils';
 
 function matchesHallScope(criteriaHalls: string[] | undefined, managedHalls: string[] | undefined): boolean {
   if (!managedHalls || managedHalls.length === 0) return true;
@@ -245,6 +246,7 @@ const AdminDashboardContent: React.FC = () => {
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
   const [selectedHallFilterId, setSelectedHallFilterId] = useState<string>('all');
   const [syncingHalls, setSyncingHalls] = useState(false);
+  const [syncingHistorical2026, setSyncingHistorical2026] = useState(false);
   const [uploadingHallLogoId, setUploadingHallLogoId] = useState<string | null>(null);
   const [resultsDefaultElectionId, setResultsDefaultElectionId] = useState<string | undefined>(undefined);
 
@@ -946,7 +948,7 @@ const AdminDashboardContent: React.FC = () => {
                                 </span>
                               </div>
                               <div className="text-[10px] text-slate-500">
-                                {new Date(primaryElection.startDate).toLocaleDateString()} – {new Date(primaryElection.endDate).toLocaleDateString()} · {primaryElection.positionsCount} positions
+                                {formatElectionWindow(primaryElection)} · {primaryElection.positionsCount} positions
                               </div>
                             </div>
                           ) : (
@@ -1049,7 +1051,7 @@ const AdminDashboardContent: React.FC = () => {
                     Configure schedules, edit dates &amp; hall details, control publish/open/close states, and manage dynamic portfolios.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selectedHallObj && (
                     <button
                       type="button"
@@ -1059,6 +1061,27 @@ const AdminDashboardContent: React.FC = () => {
                       Clear Hall Filter
                     </button>
                   )}
+                  <button
+                    type="button"
+                    disabled={syncingHistorical2026}
+                    onClick={async () => {
+                      setSyncingHistorical2026(true);
+                      const res = await adminService.seedHistorical2026Elections();
+                      if (res.success) {
+                        await Promise.all([refreshElections(), refreshDomains(), refreshCandidates()]);
+                        showSuccessToast(
+                          `2026 Historical Archive synced to Firestore (added ${res.createdElections} elections, ${res.createdPositions} positions, ${res.createdCandidates} candidates).`
+                        );
+                      } else {
+                        showSuccessToast(res.error || 'Unable to sync 2026 historical elections to Firestore.');
+                      }
+                      setSyncingHistorical2026(false);
+                    }}
+                    className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingHistorical2026 ? 'animate-spin' : ''}`} />
+                    <span>{syncingHistorical2026 ? 'Syncing 2026 Elections...' : 'Sync 2026 Elections to DB'}</span>
+                  </button>
                   <button
                     onClick={() => {
                       setCreateDefaultDomainId(selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace);
@@ -1099,7 +1122,7 @@ const AdminDashboardContent: React.FC = () => {
                             <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
                             <div className="truncate font-bold">{el.title}</div>
                             <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                              {new Date(el.startDate).toLocaleDateString()} – {new Date(el.endDate).toLocaleDateString()}
+                              {formatElectionWindow(el)}
                             </div>
                           </td>
                           <td className="py-3.5 px-4 font-medium text-slate-700">
@@ -1373,7 +1396,22 @@ const AdminDashboardContent: React.FC = () => {
                                   className="w-11 h-11 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                                 />
                                 <div className="min-w-0">
-                                  <div className="font-bold text-slate-900 truncate">{cand.fullName}</div>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-bold text-slate-900 truncate">{cand.fullName}</span>
+                                    {cand.historicalRole && (
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                                          cand.historicalRole === 'Winner' ||
+                                          cand.historicalRole === 'Elected' ||
+                                          cand.historicalRole === 'Elected Unopposed'
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-slate-100 text-slate-600'
+                                        }`}
+                                      >
+                                        {cand.historicalRole}
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="font-mono text-[10px] text-slate-500">{cand.studentId}</div>
                                 </div>
                               </div>
@@ -1389,7 +1427,7 @@ const AdminDashboardContent: React.FC = () => {
                                 {cand.programme || cand.department}
                               </div>
                               <div className="text-[11px] text-slate-500">
-                                Level {cand.level} · {cand.hall || 'Off Campus'}
+                                {cand.level === 'Not verified' ? 'Level not verified' : `Level ${cand.level}`} · {cand.hall || 'Not verified'}
                               </div>
                             </td>
                             <td className="py-3 px-4 font-bold text-[11px]">

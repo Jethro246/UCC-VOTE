@@ -56,7 +56,9 @@ export const ElectionResultsPage: React.FC = () => {
   useEffect(() => {
     if (filteredElections.length > 0 && !filteredElections.some((e) => e.id === activeElectionId)) {
       const preferred =
-        filteredElections.find((e) => e.status === 'results_published') || filteredElections[0];
+        filteredElections.find((e) => e.status === 'results_published') ||
+        filteredElections.find((e) => e.status === 'archived' && e.provisionalResultsReady) ||
+        filteredElections[0];
       setActiveElectionId(preferred.id);
     } else if (filteredElections.length === 0 && activeElectionId) {
       setActiveElectionId('');
@@ -158,6 +160,11 @@ export const ElectionResultsPage: React.FC = () => {
       election.resultsCertified ||
       election.status === 'results_published'
     : false;
+  const isHistoricalNoTally = Boolean(
+    election &&
+      (resultsPayload?.tallyAvailable === false ||
+        (election.isHistorical && election.tallyAvailable === false))
+  );
   const totalVotes = resultsPayload?.ballotSummary?.totalBallotsCast ?? election?.totalVotesCast ?? 0;
   const totalEligible =
     resultsPayload?.ballotSummary?.totalEligibleVoters ?? election?.totalEligibleVoters ?? 0;
@@ -292,7 +299,9 @@ export const ElectionResultsPage: React.FC = () => {
       {/* Certification Status Bar */}
       <div
         className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-          isCertified
+          isHistoricalNoTally
+            ? 'bg-slate-50 border-slate-300 text-slate-900'
+            : isCertified
             ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
             : 'bg-amber-50 border-amber-200 text-amber-900'
         }`}
@@ -300,7 +309,11 @@ export const ElectionResultsPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-              isCertified ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+              isHistoricalNoTally
+                ? 'bg-[#123B70] text-white'
+                : isCertified
+                ? 'bg-emerald-600 text-white'
+                : 'bg-amber-600 text-white'
             }`}
           >
             <Award className="w-5 h-5" />
@@ -308,7 +321,9 @@ export const ElectionResultsPage: React.FC = () => {
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-extrabold text-sm uppercase tracking-wide">
-                {isCertified
+                {isHistoricalNoTally
+                  ? 'Historical 2026 Outcome Archive (Vote Tally Unavailable)'
+                  : isCertified
                   ? 'Official Certified Declaration'
                   : 'Provisional Live Tally / Pre-Publication'}
               </span>
@@ -318,7 +333,11 @@ export const ElectionResultsPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs mt-0.5 opacity-90">
-              {isCertified
+              {isHistoricalNoTally
+                ? resultsPayload?.historicalNote ||
+                  election.historicalNote ||
+                  'Recorded historical outcomes preserved in read-only archive. Vote count breakdowns were not included in the source record.'
+                : isCertified
                 ? `Tallies audited, signed, and gazetted (${resultsPayload?.certifiedBy || 'UCC Electoral Commission'}).`
                 : 'Tallies are provisionally tracked in real time and remain unofficial until final Electoral Commission certification.'}
             </p>
@@ -369,9 +388,11 @@ export const ElectionResultsPage: React.FC = () => {
             Total Eligible Voters
           </span>
           <span className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1 block">
-            {totalEligible.toLocaleString()}
+            {isHistoricalNoTally ? 'Not recorded' : totalEligible.toLocaleString()}
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Domain registry roll</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">
+            {isHistoricalNoTally ? 'Historical 2026 archive' : 'Domain registry roll'}
+          </span>
         </div>
 
         <div className="p-5 bg-white rounded-2xl border border-slate-200">
@@ -379,9 +400,11 @@ export const ElectionResultsPage: React.FC = () => {
             Total Ballots Cast
           </span>
           <span className="text-2xl font-black text-[#123B70] font-mono tabular-nums mt-1 block">
-            {totalVotes.toLocaleString()}
+            {isHistoricalNoTally ? 'Unavailable' : totalVotes.toLocaleString()}
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Verified submissions</span>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">
+            {isHistoricalNoTally ? 'Vote counts not provided' : 'Verified submissions'}
+          </span>
         </div>
 
         <div className="p-5 bg-white rounded-2xl border border-slate-200">
@@ -389,14 +412,16 @@ export const ElectionResultsPage: React.FC = () => {
             Voter Turnout Rate
           </span>
           <span className="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-1 block">
-            {turnout}%
+            {isHistoricalNoTally ? 'Unavailable' : `${turnout}%`}
           </span>
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
-            <div
-              className="bg-emerald-600 h-full rounded-full"
-              style={{ width: `${Math.min(turnout, 100)}%` }}
-            />
-          </div>
+          {!isHistoricalNoTally && (
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+              <div
+                className="bg-emerald-600 h-full rounded-full"
+                style={{ width: `${Math.min(turnout, 100)}%` }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="p-5 bg-white rounded-2xl border border-slate-200">
@@ -404,10 +429,10 @@ export const ElectionResultsPage: React.FC = () => {
             Invalid / Rejected Ballots
           </span>
           <span className="text-2xl font-black text-slate-400 font-mono tabular-nums mt-1 block">
-            {resultsPayload?.ballotSummary?.invalidBallots ?? 0}
+            {isHistoricalNoTally ? 'Unavailable' : resultsPayload?.ballotSummary?.invalidBallots ?? 0}
           </span>
           <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 block">
-            100% Validated Digital Format
+            {isHistoricalNoTally ? 'Historical outcome record' : '100% Validated Digital Format'}
           </span>
         </div>
       </div>
@@ -445,13 +470,26 @@ export const ElectionResultsPage: React.FC = () => {
                   <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">{pos.title}</h3>
                 </div>
                 <div className="text-xs font-mono text-slate-500 tabular-nums">
-                  {pos.totalValidVotes.toLocaleString()} Valid Votes ·{' '}
-                  {pos.blankVotes.toLocaleString()} Blank / Abstained
-                  {pos.isTie && (
-                    <span className="ml-2 font-bold text-amber-700">· TIE DETECTED</span>
+                  {isHistoricalNoTally ? (
+                    <span>Historical Outcome Record · Tally unavailable</span>
+                  ) : (
+                    <>
+                      {pos.totalValidVotes.toLocaleString()} Valid Votes ·{' '}
+                      {pos.blankVotes.toLocaleString()} Blank / Abstained
+                      {pos.isTie && (
+                        <span className="ml-2 font-bold text-amber-700">· TIE DETECTED</span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
+
+              {pos.contestNote && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
+                  <strong className="font-bold">Archive Note: </strong>
+                  {pos.contestNote}
+                </div>
+              )}
 
               {pos.candidates.length === 0 ? (
                 <p className="text-xs text-slate-500 italic">
@@ -468,7 +506,7 @@ export const ElectionResultsPage: React.FC = () => {
                           : 'border-slate-200 bg-slate-50/50'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                         <div className="flex items-center gap-3">
                           <CandidateAvatar
                             src={cand.photoUrl}
@@ -476,14 +514,20 @@ export const ElectionResultsPage: React.FC = () => {
                             className="w-12 h-12 rounded-xl object-cover border border-slate-200 text-xs"
                           />
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <h4 className="text-sm sm:text-base font-bold text-slate-900">
                                 {cand.fullName}
                               </h4>
-                              {cand.isWinner && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider">
-                                  <Award className="w-3 h-3" />
-                                  Winner Elect
+                              {(cand.isWinner || cand.historicalRole) && (
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                    cand.isWinner
+                                      ? 'bg-amber-500 text-white'
+                                      : 'bg-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  {cand.isWinner && <Award className="w-3 h-3" />}
+                                  {cand.historicalRole || 'Winner Elect'}
                                 </span>
                               )}
                               {cand.isTied && (
@@ -495,29 +539,42 @@ export const ElectionResultsPage: React.FC = () => {
                             <p className="text-xs text-slate-500">
                               {cand.department} · {cand.hall}
                             </p>
+                            {cand.outcomeNote && (
+                              <p className="text-[11px] text-slate-600 mt-0.5">{cand.outcomeNote}</p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="text-right">
-                          <div className="text-lg sm:text-xl font-black font-mono text-slate-900 tabular-nums">
-                            {cand.percentageOfValidVotes}%
+                        {isHistoricalNoTally ? (
+                          <div className="text-left sm:text-right">
+                            <span className="text-xs font-mono font-semibold text-slate-500">
+                              Vote tally unavailable
+                            </span>
                           </div>
-                          <span className="text-xs font-mono text-slate-500 tabular-nums">
-                            {cand.votesReceived.toLocaleString()} votes
-                          </span>
-                        </div>
+                        ) : (
+                          <div className="text-right">
+                            <div className="text-lg sm:text-xl font-black font-mono text-slate-900 tabular-nums">
+                              {cand.percentageOfValidVotes}%
+                            </div>
+                            <span className="text-xs font-mono text-slate-500 tabular-nums">
+                              {cand.votesReceived.toLocaleString()} votes
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${
-                            cand.isWinner ? 'bg-amber-500' : 'bg-[#123B70]'
-                          }`}
-                          style={{
-                            width: `${Math.min(cand.percentageOfValidVotes, 100)}%`
-                          }}
-                        />
-                      </div>
+                      {!isHistoricalNoTally && (
+                        <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              cand.isWinner ? 'bg-amber-500' : 'bg-[#123B70]'
+                            }`}
+                            style={{
+                              width: `${Math.min(cand.percentageOfValidVotes, 100)}%`
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

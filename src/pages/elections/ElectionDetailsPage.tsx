@@ -11,6 +11,7 @@ import {
   matchesHallAffiliation,
   resolveElectionHallUnit
 } from '../../utils/hallUtils';
+import { formatElectionWindow } from '../../utils/dateUtils';
 import { 
   ArrowLeft, 
   Vote, 
@@ -195,9 +196,22 @@ export const ElectionDetailsPage: React.FC = () => {
               {election.description}
             </p>
 
-            <div className="pt-2 flex items-center gap-2 text-xs text-slate-500">
-              <Building className="w-4 h-4 text-slate-400" />
-              <span>Organizing Secretariat: <strong>{election.organizingBody}</strong></span>
+            {election.historicalNote && (
+              <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
+                <strong className="font-bold">Historical Archive Record Notice: </strong>
+                {election.historicalNote}
+              </div>
+            )}
+
+            <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-2">
+                <Building className="w-4 h-4 text-slate-400" />
+                <span>Organizing Secretariat: <strong>{election.organizingBody}</strong></span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span>{formatElectionWindow(election)}</span>
+              </span>
             </div>
             </div>
           </div>
@@ -285,13 +299,17 @@ export const ElectionDetailsPage: React.FC = () => {
               </div>
             )}
 
-            {(election.status === 'results_published' || hasVoted) && (
+            {(election.status === 'results_published' ||
+              hasVoted ||
+              (election.status === 'archived' && (election.provisionalResultsReady || election.resultsCertified))) && (
               <button
                 onClick={() => navigateTo('election_results', { electionId: election.id })}
                 className="w-full py-2.5 px-4 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Award className="w-4 h-4 text-amber-400" />
-                <span>View Certified Results</span>
+                <span>
+                  {election.status === 'archived' ? 'View Historical Outcomes' : 'View Certified Results'}
+                </span>
               </button>
             )}
           </div>
@@ -354,16 +372,31 @@ export const ElectionDetailsPage: React.FC = () => {
                               className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform text-xs"
                             />
                             <div className="min-w-0">
-                              <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-[#123B70]">
-                                {cand.fullName}
-                              </h4>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-[#123B70]">
+                                  {cand.fullName}
+                                </h4>
+                                {cand.historicalRole && (
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                                    cand.historicalRole === 'Winner' ||
+                                    cand.historicalRole === 'Elected' ||
+                                    cand.historicalRole === 'Elected Unopposed'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {cand.historicalRole}
+                                  </span>
+                                )}
+                              </div>
                               {cand.nickname && (
                                 <p className="text-[11px] text-[#C62828] font-semibold truncate">
                                   "{cand.nickname}"
                                 </p>
                               )}
                               <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                                {cand.department} · {cand.hall}
+                                {cand.department === 'Not verified' && cand.hall === 'Not verified'
+                                  ? 'Hall & Dept not verified'
+                                  : `${cand.department} · ${cand.hall}`}
                               </p>
                             </div>
                           </div>
@@ -387,7 +420,17 @@ export const ElectionDetailsPage: React.FC = () => {
               <span>Your Voter Eligibility</span>
             </h3>
 
-            {isEligible ? (
+            {election.status === 'archived' ? (
+              <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 space-y-2">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                  <Clock className="w-4 h-4 text-slate-600" />
+                  <span>Historical Archive — Voting Closed</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Voting is disabled for historical 2026 archive records. You can inspect portfolios, verified candidates, and recorded outcomes.
+                </p>
+              </div>
+            ) : isEligible ? (
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
                 <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />

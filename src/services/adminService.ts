@@ -22,6 +22,16 @@ import {
   getPermissionsForRole,
 } from '../data/uccStructure';
 import {
+  HISTORICAL_2026_CANDIDATES,
+  HISTORICAL_2026_ELECTIONS,
+  HISTORICAL_2026_POSITIONS,
+  HISTORICAL_2026_RESULTS,
+  getHistoricalCandidateById,
+  getHistoricalElectionById,
+  getHistoricalPositionsByElectionId,
+  getHistoricalResultsByElectionId,
+} from '../data/historical2026Elections';
+import {
   AdminProfile,
   AdminRoleType,
   AuditLogItem,
@@ -86,7 +96,125 @@ async function getCurrentAdminContext(): Promise<{ name: string; role: string; u
   return { name: user.displayName || user.email || 'Administrator', role: 'Admin', uid: user.uid };
 }
 
+async function ensureHistoricalElectionInFirestore(id: string): Promise<void> {
+  const hist = getHistoricalElectionById(id);
+  if (!hist) return;
+  const ref = doc(db, 'elections', id);
+  const snap = await getDoc(ref).catch(() => null);
+  if (snap && !snap.exists()) {
+    await setDoc(ref, stripUndefined({ ...hist, updatedAt: serverTimestamp() }));
+    const histPositions = getHistoricalPositionsByElectionId(id);
+    for (const pos of histPositions) {
+      const pRef = doc(db, 'positions', pos.id);
+      const pSnap = await getDoc(pRef).catch(() => null);
+      if (pSnap && !pSnap.exists()) {
+        await setDoc(pRef, stripUndefined(pos));
+      }
+    }
+  }
+}
+
+async function ensureHistoricalPositionInFirestore(posId: string): Promise<void> {
+  const hist = HISTORICAL_2026_POSITIONS.find((p) => p.id === posId);
+  if (!hist) return;
+  await ensureHistoricalElectionInFirestore(hist.electionId);
+  const ref = doc(db, 'positions', posId);
+  const snap = await getDoc(ref).catch(() => null);
+  if (snap && !snap.exists()) {
+    await setDoc(ref, stripUndefined(hist));
+  }
+}
+
+async function ensureHistoricalCandidateInFirestore(id: string): Promise<void> {
+  const hist = getHistoricalCandidateById(id);
+  if (!hist) return;
+  await ensureHistoricalElectionInFirestore(hist.electionId);
+  const ref = doc(db, 'candidates', id);
+  const snap = await getDoc(ref).catch(() => null);
+  if (snap && !snap.exists()) {
+    await setDoc(ref, stripUndefined({ ...hist, updatedAt: serverTimestamp() }));
+  }
+}
+
 class FirebaseAdminService {
+  async seedHistorical2026Elections(): Promise<{
+    success: boolean;
+    createdElections: number;
+    createdPositions: number;
+    createdCandidates: number;
+    createdResults: number;
+    error?: string;
+  }> {
+    let createdElections = 0;
+    let createdPositions = 0;
+    let createdCandidates = 0;
+    let createdResults = 0;
+
+    try {
+      await this.syncOfficialHallsToFirestore().catch(() => {});
+
+      for (const elec of HISTORICAL_2026_ELECTIONS) {
+        const ref = doc(db, 'elections', elec.id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, stripUndefined({ ...elec, updatedAt: serverTimestamp() }));
+          createdElections++;
+        }
+      }
+
+      for (const pos of HISTORICAL_2026_POSITIONS) {
+        const ref = doc(db, 'positions', pos.id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, stripUndefined(pos));
+          createdPositions++;
+        }
+      }
+
+      for (const cand of HISTORICAL_2026_CANDIDATES) {
+        const ref = doc(db, 'candidates', cand.id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, stripUndefined({ ...cand, updatedAt: serverTimestamp() }));
+          createdCandidates++;
+        }
+      }
+
+      for (const [elecId, resPayload] of Object.entries(HISTORICAL_2026_RESULTS)) {
+        const ref = doc(db, 'election_results', elecId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, stripUndefined({ ...resPayload, updatedAt: serverTimestamp() }));
+          createdResults++;
+        }
+      }
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Synchronised 2026 Historical Elections Archive to Firestore',
+        target: `elections(${createdElections}), positions(${createdPositions}), candidates(${createdCandidates}), results(${createdResults})`,
+      });
+
+      return {
+        success: true,
+        createdElections,
+        createdPositions,
+        createdCandidates,
+        createdResults,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        createdElections,
+        createdPositions,
+        createdCandidates,
+        createdResults,
+        error: err?.message || 'Unable to seed 2026 historical elections into Firestore.',
+      };
+    }
+  }
   async createDomain(payload: {
     id?: string;
     name: string;
@@ -355,6 +483,7 @@ class FirebaseAdminService {
     updates: Partial<Election>
   ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
     try {
+      await ensureHistoricalElectionInFirestore(id);
       const cleanUpdates = stripUndefined({
         ...updates,
         updatedAt: serverTimestamp(),
@@ -403,6 +532,7 @@ class FirebaseAdminService {
         statusUpdate.resultsCertified = false;
       }
 
+      await ensureHistoricalElectionInFirestore(id);
       await updateDoc(doc(db, 'elections', id), statusUpdate);
 
       // Keep published state of election_results synced when unpublishing results
@@ -447,6 +577,7 @@ class FirebaseAdminService {
   ) {
     const posId = `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     try {
+      await ensureHistoricalElectionInFirestore(electionId);
       const [existingSnap, electionSnap] = await Promise.all([
         getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
         getDoc(doc(db, 'elections', electionId)).catch(() => null),
@@ -492,6 +623,7 @@ class FirebaseAdminService {
     }
   ) {
     try {
+      await ensureHistoricalPositionInFirestore(posId);
       await updateDoc(doc(db, 'positions', posId), stripUndefined(updates));
       return { success: true, message: 'Position updated.' };
     } catch (err: any) {
@@ -501,6 +633,8 @@ class FirebaseAdminService {
 
   async deletePosition(electionId: string, posId: string) {
     try {
+      await ensureHistoricalElectionInFirestore(electionId);
+      await ensureHistoricalPositionInFirestore(posId);
       await deleteDoc(doc(db, 'positions', posId));
       const remaining = await getDocs(
         query(collection(db, 'positions'), where('electionId', '==', electionId))
@@ -521,6 +655,7 @@ class FirebaseAdminService {
 
   async verifyCandidateEligibility(id: string) {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
       const cSnap = await getDoc(doc(db, 'candidates', id));
       if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
       const cand = mapDoc<Candidate>(cSnap.id, cSnap.data());
@@ -567,6 +702,7 @@ class FirebaseAdminService {
 
   async approveCandidate(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       const cSnap = await getDoc(doc(db, 'candidates', id));
       if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
@@ -581,6 +717,7 @@ class FirebaseAdminService {
       });
 
       if (cand.positionId) {
+        await ensureHistoricalPositionInFirestore(cand.positionId);
         await updateDoc(doc(db, 'positions', cand.positionId), {
           candidateIds: arrayUnion(id),
         }).catch(() => {});
@@ -603,6 +740,7 @@ class FirebaseAdminService {
     reason: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Rejected',
@@ -628,6 +766,7 @@ class FirebaseAdminService {
     notes: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Under review',
@@ -653,6 +792,7 @@ class FirebaseAdminService {
     _reason?: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Withdrawn',
@@ -678,6 +818,9 @@ class FirebaseAdminService {
     positionId: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
+      await ensureHistoricalCandidateInFirestore(id);
+      await ensureHistoricalElectionInFirestore(electionId);
+      await ensureHistoricalPositionInFirestore(positionId);
       await updateDoc(doc(db, 'candidates', id), {
         electionId,
         positionId,
@@ -708,6 +851,56 @@ class FirebaseAdminService {
       ]);
 
       if (!eSnap.exists()) {
+        const histResults = getHistoricalResultsByElectionId(electionId);
+        if (histResults) {
+          return { success: true, results: histResults };
+        }
+        const histElection = getHistoricalElectionById(electionId);
+        if (histElection) {
+          return {
+            success: true,
+            results: {
+              electionId: histElection.id,
+              electionTitle: histElection.title,
+              electionCode: histElection.code,
+              category: histElection.category,
+              domainId: histElection.domainId,
+              subdomainLabel: histElection.subdomainLabel,
+              status: histElection.status,
+              academicYear: histElection.academicYear,
+              organizingBody: histElection.organizingBody,
+              startDate: histElection.startDate,
+              endDate: histElection.endDate,
+              workflowStage: 'archived' as any,
+              workflowHistory: [],
+              isPublished: false,
+              resultsCertified: false,
+              isHistorical: true,
+              tallyAvailable: false,
+              historicalNote: histElection.historicalNote,
+              ballotSummary: {
+                totalEligibleVoters: 0,
+                totalBallotsCast: 0,
+                validBallots: 0,
+                invalidBallots: 0,
+                blankBallots: 0,
+                uncastBallots: 0,
+                turnoutPercentage: 0,
+                validBallotRate: 0,
+                invalidBallotRate: 0,
+                blankBallotRate: 0,
+              },
+              positions: [],
+              turnoutAnalytics: {
+                privacyThreshold: 5,
+                byFaculty: [],
+                byDepartment: [],
+                byLevel: [],
+                byHall: [],
+              },
+            } as ElectionResultsPayload,
+          };
+        }
         return { success: false, error: 'Election not found.' };
       }
 
@@ -716,6 +909,11 @@ class FirebaseAdminService {
           success: true,
           results: mapDoc<ElectionResultsPayload>(rSnap.id, rSnap.data()),
         };
+      }
+
+      const histResults = getHistoricalResultsByElectionId(electionId);
+      if (histResults) {
+        return { success: true, results: histResults };
       }
 
       // Construct real zero-tallied shell from actual Firestore election/positions/candidates
@@ -935,10 +1133,12 @@ class FirebaseAdminService {
     }
 
     const lines: string[] = [
-      'Position,Candidate,Student ID,Department,Hall,Votes Received,Valid Vote Share (%)',
+      'Position,Candidate,Student ID,Department,Hall,Votes Received,Valid Vote Share (%),Historical Outcome',
     ];
     r.positions.forEach((p) => {
       p.candidates.forEach((c) => {
+        const outcomeLabel =
+          c.historicalRole || (c.isWinner ? 'Winner' : r.tallyAvailable === false ? 'Recorded' : '');
         lines.push(
           [
             `"${p.title.replace(/"/g, '""')}"`,
@@ -946,8 +1146,9 @@ class FirebaseAdminService {
             `"${c.studentId}"`,
             `"${c.department.replace(/"/g, '""')}"`,
             `"${c.hall.replace(/"/g, '""')}"`,
-            c.votesReceived,
-            c.percentageOfValidVotes.toFixed(1),
+            r.tallyAvailable === false ? 'Not tallied' : c.votesReceived,
+            r.tallyAvailable === false ? 'Not tallied' : c.percentageOfValidVotes.toFixed(1),
+            `"${outcomeLabel.replace(/"/g, '""')}"`,
           ].join(',')
         );
       });

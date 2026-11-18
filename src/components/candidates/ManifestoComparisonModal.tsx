@@ -302,7 +302,14 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm shrink-0"
                 />
                 <div>
-                  <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider block">Candidate A</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider">Candidate A</span>
+                    {candidate1?.historicalRole && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold uppercase">
+                        {candidate1.historicalRole}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-base font-extrabold text-slate-900">{candidate1?.fullName}</h3>
                   {candidate1?.nickname && (
                     <p className="text-xs font-bold text-[#C62828]">"{candidate1.nickname}"</p>
@@ -318,7 +325,9 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block">Hall of Residence</span>
-                  <span className="font-medium text-slate-800">{candidate1?.hall} (L{candidate1?.level})</span>
+                  <span className="font-medium text-slate-800">
+                    {candidate1?.hall}{candidate1?.level && candidate1.level !== 'Not verified' ? ` (L${candidate1.level})` : ''}
+                  </span>
                 </div>
               </div>
             </div>
@@ -332,7 +341,14 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#C62828] shadow-sm shrink-0"
                 />
                 <div>
-                  <span className="text-[10px] font-bold text-[#C62828] uppercase tracking-wider block">Candidate B</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-[#C62828] uppercase tracking-wider">Candidate B</span>
+                    {candidate2?.historicalRole && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold uppercase">
+                        {candidate2.historicalRole}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-base font-extrabold text-slate-900">{candidate2?.fullName}</h3>
                   {candidate2?.nickname && (
                     <p className="text-xs font-bold text-[#C62828]">"{candidate2.nickname}"</p>
@@ -348,7 +364,9 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block">Hall of Residence</span>
-                  <span className="font-medium text-slate-800">{candidate2?.hall} (L{candidate2?.level})</span>
+                  <span className="font-medium text-slate-800">
+                    {candidate2?.hall}{candidate2?.level && candidate2.level !== 'Not verified' ? ` (L${candidate2.level})` : ''}
+                  </span>
                 </div>
               </div>
             </div>
@@ -361,10 +379,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="p-4 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 text-xs text-[#123B70] font-medium leading-relaxed italic">
-                "{candidate1?.manifestoSummary}"
+                {candidate1?.manifestoSummary ? `"${candidate1.manifestoSummary}"` : 'Not yet provided'}
               </div>
               <div className="p-4 rounded-xl border border-red-100 bg-red-50/50 text-xs text-red-900 font-medium leading-relaxed italic">
-                "{candidate2?.manifestoSummary}"
+                {candidate2?.manifestoSummary ? `"${candidate2.manifestoSummary}"` : 'Not yet provided'}
               </div>
             </div>
           </div>
@@ -376,21 +394,33 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                {candidate1?.fullManifesto.map((item, idx) => (
-                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
-                    <span className="font-bold text-[#123B70] shrink-0">{idx + 1}.</span>
-                    <span>{item}</span>
+                {candidate1?.fullManifesto && candidate1.fullManifesto.length > 0 ? (
+                  candidate1.fullManifesto.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
+                      <span className="font-bold text-[#123B70] shrink-0">{idx + 1}.</span>
+                      <span>{item}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-400 italic">
+                    Not yet provided
                   </div>
-                ))}
+                )}
               </div>
 
               <div className="space-y-2">
-                {candidate2?.fullManifesto.map((item, idx) => (
-                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
-                    <span className="font-bold text-[#C62828] shrink-0">{idx + 1}.</span>
-                    <span>{item}</span>
+                {candidate2?.fullManifesto && candidate2.fullManifesto.length > 0 ? (
+                  candidate2.fullManifesto.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
+                      <span className="font-bold text-[#C62828] shrink-0">{idx + 1}.</span>
+                      <span>{item}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-400 italic">
+                    Not yet provided
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -402,21 +432,33 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1.5">
-                {candidate1?.keyPromises.map((promise, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#123B70] shrink-0 mt-0.5" />
-                    <span>{promise}</span>
+                {candidate1?.keyPromises && candidate1.keyPromises.length > 0 ? (
+                  candidate1.keyPromises.map((promise, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#123B70] shrink-0 mt-0.5" />
+                      <span>{promise}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic">
+                    Not yet provided
                   </div>
-                ))}
+                )}
               </div>
 
               <div className="space-y-1.5">
-                {candidate2?.keyPromises.map((promise, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#C62828] shrink-0 mt-0.5" />
-                    <span>{promise}</span>
+                {candidate2?.keyPromises && candidate2.keyPromises.length > 0 ? (
+                  candidate2.keyPromises.map((promise, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#C62828] shrink-0 mt-0.5" />
+                      <span>{promise}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic">
+                    Not yet provided
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -428,21 +470,29 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 text-xs text-slate-700">
-                {candidate1?.leadershipExperience.map((exp, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="text-[#123B70] font-bold">·</span>
-                    <span>{exp}</span>
-                  </div>
-                ))}
+                {candidate1?.leadershipExperience && candidate1.leadershipExperience.length > 0 ? (
+                  candidate1.leadershipExperience.map((exp, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-[#123B70] font-bold">·</span>
+                      <span>{exp}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-slate-400 italic">Not yet provided</span>
+                )}
               </div>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 text-xs text-slate-700">
-                {candidate2?.leadershipExperience.map((exp, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="text-[#C62828] font-bold">·</span>
-                    <span>{exp}</span>
-                  </div>
-                ))}
+                {candidate2?.leadershipExperience && candidate2.leadershipExperience.length > 0 ? (
+                  candidate2.leadershipExperience.map((exp, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-[#C62828] font-bold">·</span>
+                      <span>{exp}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-slate-400 italic">Not yet provided</span>
+                )}
               </div>
             </div>
           </div>
@@ -502,19 +552,21 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              disabled={!candidate1?.electionId}
-              onClick={() => {
-                onClose();
-                if (candidate1?.electionId) {
-                  navigateTo('digital_ballot', { electionId: candidate1.electionId });
-                }
-              }}
-              className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Vote className="w-4 h-4" />
-              <span>Proceed to Digital Ballot</span>
-            </button>
+            {activeElection?.status === 'live' && (
+              <button
+                disabled={!candidate1?.electionId}
+                onClick={() => {
+                  onClose();
+                  if (candidate1?.electionId) {
+                    navigateTo('digital_ballot', { electionId: candidate1.electionId });
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Vote className="w-4 h-4" />
+                <span>Proceed to Digital Ballot</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}

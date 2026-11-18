@@ -87,6 +87,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [keyPromisesText, setKeyPromisesText] = useState('');
   const [leadershipExpText, setLeadershipExpText] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [historicalRole, setHistoricalRole] = useState<
+    '' | 'Winner' | 'Contestant' | 'Elected' | 'Elected Unopposed'
+  >('');
+  const [historicalOutcomeNote, setHistoricalOutcomeNote] = useState('');
 
   const [availablePositions, setAvailablePositions] = useState<Position[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,6 +159,8 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setKeyPromisesText(candidateToEdit.keyPromises.join('\n'));
       setLeadershipExpText(candidateToEdit.leadershipExperience.join('\n'));
       setVideoUrl(candidateToEdit.videoUrl || '');
+      setHistoricalRole(candidateToEdit.historicalRole || '');
+      setHistoricalOutcomeNote(candidateToEdit.historicalOutcomeNote || '');
     } else {
       const initialElectionId = defaultElectionId || (selectableElections[0]?.id || elections[0]?.id || '');
       const initialElectionObj = elections.find((e) => e.id === initialElectionId);
@@ -188,6 +194,8 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setKeyPromisesText('');
       setLeadershipExpText('');
       setVideoUrl('');
+      setHistoricalRole('');
+      setHistoricalOutcomeNote('');
       setPhotoUrl('');
       setPhotoStoragePath('');
       setUploadStatus('idle');
@@ -321,7 +329,9 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       return;
     }
 
-    if (!isDraft && (!manifestoSummary.trim() || !fullManifestoText.trim())) {
+    const isHistoricalEdit = Boolean(candidateToEdit?.isHistoricalRecord);
+
+    if (!isDraft && !isHistoricalEdit && (!manifestoSummary.trim() || !fullManifestoText.trim())) {
       setErrorMsg('For official submission, a manifesto summary and full manifesto points are required.');
       return;
     }
@@ -391,11 +401,22 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       photoUrl: cleanPhotoUrl,
       photoStoragePath: cleanPhotoUrl && photoStoragePath ? photoStoragePath : undefined,
       biography: biography.trim(),
-      manifestoSummary: manifestoSummary.trim() || 'Committed to student welfare and academic advancement.',
-      fullManifesto: fullManifesto.length > 0 ? fullManifesto : ['Advancing university student welfare and transparent representation.'],
-      keyPromises: keyPromises.length > 0 ? keyPromises : ['Prompt handling of student academic grievances'],
-      leadershipExperience: leadershipExperience.length > 0 ? leadershipExperience : ['Active member of UCC Student Body'],
+      manifestoSummary: manifestoSummary.trim(),
+      fullManifesto,
+      keyPromises,
+      leadershipExperience,
       videoUrl: videoUrl.trim() || undefined,
+      ...(candidateToEdit?.isHistoricalRecord
+        ? {
+            isHistoricalRecord: true,
+            historicalRole: historicalRole || undefined,
+            historicalOutcomeNote: historicalOutcomeNote.trim() || undefined,
+            profileDataStatus:
+              biography.trim() || manifestoSummary.trim() || fullManifesto.length > 0
+                ? ('complete' as const)
+                : ('incomplete_historical' as const),
+          }
+        : {}),
       isDraft
     };
 
@@ -550,6 +571,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   onChange={(e) => setFaculty(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
+                  {faculty === 'Not verified' && <option value="Not verified">Not verified</option>}
                   {facultyOptions.map((f) => (
                     <option key={f} value={f}>{f}</option>
                   ))}
@@ -591,6 +613,9 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   onChange={(e) => setLevel(e.target.value as any)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
+                  {(level as string) === 'Not verified' && (
+                    <option value="Not verified">Not verified</option>
+                  )}
                   <option value="100">Level 100</option>
                   <option value="200">Level 200</option>
                   <option value="300">Level 300</option>
@@ -620,6 +645,39 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                 </select>
               </div>
             </div>
+
+            {candidateToEdit?.isHistoricalRecord && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Historical Outcome Designation
+                  </label>
+                  <select
+                    value={historicalRole}
+                    onChange={(e) => setHistoricalRole(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  >
+                    <option value="">None specified</option>
+                    <option value="Winner">Winner</option>
+                    <option value="Elected">Elected</option>
+                    <option value="Elected Unopposed">Elected Unopposed</option>
+                    <option value="Contestant">Contestant</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Historical Outcome Note
+                  </label>
+                  <input
+                    type="text"
+                    value={historicalOutcomeNote}
+                    onChange={(e) => setHistoricalOutcomeNote(e.target.value)}
+                    placeholder="Optional historical record note"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* SECTION 2: Election & Contested Portfolio */}

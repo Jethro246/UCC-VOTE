@@ -213,6 +213,10 @@ export interface Candidate {
   };
   votesReceived?: number;
   votePercentage?: number;
+  isHistoricalRecord?: boolean;
+  historicalRole?: 'Winner' | 'Contestant' | 'Elected' | 'Elected Unopposed';
+  historicalOutcomeNote?: string;
+  profileDataStatus?: 'incomplete_historical' | 'complete';
 }
 
 export interface Position {
@@ -269,6 +273,15 @@ export interface Election {
   updatedAt?: string;
   approvedBy?: string;
   guidelinesUrl?: string;
+  isHistorical?: boolean;
+  historicalNote?: string;
+  candidateListStatus?:
+    | 'complete'
+    | 'elected_executives_only'
+    | 'partial_contestants_unverified'
+    | 'hall_records_pending_admin_input';
+  unverifiedContestantsCount?: number;
+  tallyAvailable?: boolean;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;
@@ -379,6 +392,8 @@ export interface CandidateResultRow {
   isLeading: boolean;
   isWinner: boolean;
   isTied: boolean;
+  historicalRole?: string;
+  outcomeNote?: string;
 }
 
 export interface PositionResultSummary {
@@ -393,6 +408,8 @@ export interface PositionResultSummary {
   isTie: boolean;
   tiedCandidateIds: string[];
   winnerCandidateIds: string[];
+  contestNote?: string;
+  unverifiedContestantsCount?: number;
   candidates: CandidateResultRow[];
 }
 
@@ -446,6 +463,11 @@ export interface ElectionResultsPayload {
     byLevel: TurnoutBreakdownRow[];
     byHall: TurnoutBreakdownRow[];
   };
+  isHistorical?: boolean;
+  tallyAvailable?: boolean;
+  historicalNote?: string;
+  candidateListStatus?: string;
+  unverifiedContestantsCount?: number;
 }
 
 export interface AuditLogItem {

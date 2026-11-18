@@ -40,6 +40,7 @@ import {
   matchesHallAffiliation,
   resolveElectionHallUnit
 } from '../../utils/hallUtils';
+import { formatElectionDate } from '../../utils/dateUtils';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -203,12 +204,16 @@ export const StudentDashboard: React.FC = () => {
   const upcomingElections = allElectionsWithEligibility.filter(
     e => e.status === 'upcoming' || e.status === 'scheduled'
   );
-  const completedElections = allElectionsWithEligibility.filter(e => e.status === 'results_published' || e.status === 'closed');
+  const completedElections = allElectionsWithEligibility.filter(
+    e => e.status === 'results_published' || e.status === 'closed' || e.status === 'archived'
+  );
 
   // Voting Status figures
   const completedVotesCount = availableElections.filter(e => e.hasVoted).length;
   const pendingVotesCount = availableElections.filter(e => e.status === 'live' && !e.hasVoted).length;
-  const closedEligibleCount = availableElections.filter(e => e.status === 'results_published' || e.status === 'closed').length;
+  const closedEligibleCount = availableElections.filter(
+    e => e.status === 'results_published' || e.status === 'closed' || e.status === 'archived'
+  ).length;
 
   const firstPendingElection = availableElections.find(e => e.canVoteNow);
 
@@ -893,9 +898,18 @@ export const StudentDashboard: React.FC = () => {
                               Certified
                             </span>
                           )}
+                          {election.status === 'archived' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-800 text-xs font-bold">
+                              Archived Record
+                            </span>
+                          )}
 
                           <div>
-                            {election.hasVoted ? (
+                            {election.status === 'archived' ? (
+                              <span className="text-[11px] font-semibold text-slate-500 block">
+                                Historical Archive · Voting Closed
+                              </span>
+                            ) : election.hasVoted ? (
                               <span className="text-[11px] font-bold text-emerald-700 flex items-center sm:justify-end gap-1">
                                 <Check className="w-3 h-3" />
                                 Ballot Cast
@@ -916,14 +930,23 @@ export const StudentDashboard: React.FC = () => {
                       {/* Timeline dates bar */}
                       <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                         <div className="flex flex-wrap items-center gap-3">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            Opens: {new Date(election.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 08:00
-                          </span>
-                          <span>·</span>
-                          <span>
-                            Closes: {new Date(election.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 17:00 GMT
-                          </span>
+                          {election.isHistorical && !election.startDate ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              Historical {election.academicYear} Archive · Dates not recorded
+                            </span>
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                Opens: {formatElectionDate(election.startDate, 'Not scheduled', { day: 'numeric', month: 'short' })}, 08:00
+                              </span>
+                              <span>·</span>
+                              <span>
+                                Closes: {formatElectionDate(election.endDate, 'Not scheduled', { day: 'numeric', month: 'short' })}, 17:00 GMT
+                              </span>
+                            </>
+                          )}
                         </div>
 
                         {/* Card action buttons */}
@@ -945,13 +968,14 @@ export const StudentDashboard: React.FC = () => {
                             </button>
                           )}
 
-                          {election.hasVoted && (
+                          {(election.hasVoted ||
+                            (election.status === 'archived' && (election.provisionalResultsReady || election.resultsCertified))) && (
                             <button
                               onClick={() => navigateTo('election_results', { electionId: election.id })}
                               className="px-3 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-1"
                             >
                               <Award className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Live Tallies</span>
+                              <span>{election.status === 'archived' ? 'View Outcomes' : 'Live Tallies'}</span>
                             </button>
                           )}
                         </div>

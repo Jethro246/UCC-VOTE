@@ -171,6 +171,7 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
 
   const isCommissionerOrSuper =
     admin?.role === 'Electoral Commissioner' || admin?.role === 'Super Administrator';
+  const isHistoricalNoTally = Boolean(results?.isHistorical && results?.tallyAvailable === false);
 
   const handleAdvanceStage = async () => {
     if (!results || !nextStage) return;
@@ -338,8 +339,29 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
 
       {!loading && results && (
         <>
-          {/* 1. 6-STAGE RESULTS APPROVAL WORKFLOW */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-5">
+          {/* 1. 6-STAGE RESULTS APPROVAL WORKFLOW OR HISTORICAL ARCHIVE BANNER */}
+          {isHistoricalNoTally ? (
+            <div className="bg-white rounded-xl border border-amber-200 p-5 sm:p-6 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <Award className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">
+                    Historical 2026 Outcome Archive (Vote Tally Unavailable)
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {results.electionTitle} · {results.electionCode} · Status:{' '}
+                    <strong className="uppercase">{results.status.replace(/_/g, ' ')}</strong>
+                  </p>
+                </div>
+              </div>
+              {results.historicalNote && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
+                  {results.historicalNote}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2.5">
                 <Award className="w-4 h-4 text-[#123B70]" />
@@ -474,75 +496,80 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
               </div>
             )}
           </div>
+          )}
 
           {/* 2. AUTHORITATIVE BALLOT ACCOUNTING KPIs & DOUGHNUT */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Eligible Voters
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-slate-900 mt-1 block">
-                {results.ballotSummary.totalEligibleVoters.toLocaleString()}
-              </span>
-            </div>
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Ballots Cast
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-[#123B70] mt-1 block">
-                {results.ballotSummary.totalBallotsCast.toLocaleString()}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                {results.ballotSummary.turnoutPercentage.toFixed(1)}% turnout
-              </span>
-            </div>
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Valid Ballots
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-emerald-700 mt-1 block">
-                {results.ballotSummary.validBallots.toLocaleString()}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                {results.ballotSummary.validBallotRate.toFixed(1)}% of cast
-              </span>
-            </div>
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Invalid Ballots
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-[#C62828] mt-1 block">
-                {results.ballotSummary.invalidBallots.toLocaleString()}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                {results.ballotSummary.invalidBallotRate.toFixed(1)}% of cast
-              </span>
-            </div>
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Blank Ballots
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-amber-700 mt-1 block">
-                {results.ballotSummary.blankBallots.toLocaleString()}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                {results.ballotSummary.blankBallotRate.toFixed(1)}% of cast
-              </span>
-            </div>
-            <div className="p-4 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Uncast Ballots
-              </span>
-              <span className="text-xl font-black font-mono tabular-nums text-slate-600 mt-1 block">
-                {results.ballotSummary.uncastBallots.toLocaleString()}
-              </span>
-            </div>
-          </div>
+          {!isHistoricalNoTally && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Eligible Voters
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-slate-900 mt-1 block">
+                    {results.ballotSummary.totalEligibleVoters.toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Ballots Cast
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-[#123B70] mt-1 block">
+                    {results.ballotSummary.totalBallotsCast.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {results.ballotSummary.turnoutPercentage.toFixed(1)}% turnout
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Valid Ballots
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-emerald-700 mt-1 block">
+                    {results.ballotSummary.validBallots.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {results.ballotSummary.validBallotRate.toFixed(1)}% of cast
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Invalid Ballots
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-[#C62828] mt-1 block">
+                    {results.ballotSummary.invalidBallots.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {results.ballotSummary.invalidBallotRate.toFixed(1)}% of cast
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Blank Ballots
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-amber-700 mt-1 block">
+                    {results.ballotSummary.blankBallots.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {results.ballotSummary.blankBallotRate.toFixed(1)}% of cast
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Uncast Ballots
+                  </span>
+                  <span className="text-xl font-black font-mono tabular-nums text-slate-600 mt-1 block">
+                    {results.ballotSummary.uncastBallots.toLocaleString()}
+                  </span>
+                </div>
+              </div>
 
-          <BallotDoughnutChart
-            summary={results.ballotSummary}
-            title="Commission Ballot Vault Reconciliation"
-          />
+              <BallotDoughnutChart
+                summary={results.ballotSummary}
+                title="Commission Ballot Vault Reconciliation"
+              />
+            </>
+          )}
 
           {/* 3. REPORT GENERATION CENTER */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-4">
@@ -651,16 +678,26 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
                     <h4 className="text-base sm:text-lg font-extrabold text-slate-900">{pos.title}</h4>
                   </div>
                   <div className="text-xs font-mono tabular-nums text-slate-500">
-                    Valid: <strong>{pos.totalValidVotes.toLocaleString()}</strong> · Blank: {pos.blankVotes.toLocaleString()} · Invalid: {pos.invalidVotes.toLocaleString()}
+                    {isHistoricalNoTally ? (
+                      <span>Historical Outcome Record · Tally unavailable</span>
+                    ) : (
+                      <>
+                        Valid: <strong>{pos.totalValidVotes.toLocaleString()}</strong> · Blank: {pos.blankVotes.toLocaleString()} · Invalid: {pos.invalidVotes.toLocaleString()}
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                   <div className="lg:col-span-8">
-                    <CandidateBarChart position={pos} showOfficialOutcome={results.resultsCertified} />
+                    <CandidateBarChart
+                      position={pos}
+                      showOfficialOutcome={results.resultsCertified}
+                      tallyAvailable={results.tallyAvailable}
+                    />
                   </div>
                   <div className="lg:col-span-4">
-                    <PositionShareDoughnut position={pos} />
+                    <PositionShareDoughnut position={pos} tallyAvailable={results.tallyAvailable} />
                   </div>
                 </div>
               </div>
@@ -668,7 +705,7 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
           </div>
 
           {/* 5. PRIVACY-PRESERVING VOTER TURNOUT ANALYTICS */}
-          <TurnoutAnalyticsChart analytics={results.turnoutAnalytics} />
+          {!isHistoricalNoTally && <TurnoutAnalyticsChart analytics={results.turnoutAnalytics} />}
         </>
       )}
     </div>

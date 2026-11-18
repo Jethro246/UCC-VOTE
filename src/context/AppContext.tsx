@@ -36,6 +36,11 @@ import {
   getPermissionsForRole,
   mergeOfficialHalls,
 } from '../data/uccStructure';
+import {
+  mergeHistoricalCandidates,
+  mergeHistoricalElections,
+  mergeHistoricalPositions,
+} from '../data/historical2026Elections';
 import { authClient } from '../services/authClient';
 import { electionClient } from '../services/electionClient';
 import { votingService } from '../services/votingService';
@@ -312,13 +317,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [compareCandidateIds, setCompareCandidateIds] = useState<[string, string] | null>(null);
   const [ballotSelections, setBallotSelections] = useState<BallotSelectionMap>({});
 
-  const [elections, setElections] = useState<Election[]>([]);
+  const [rawElections, setRawElections] = useState<Election[]>([]);
   const [rawDomains, setRawDomains] = useState<DomainRegistryItem[]>(DOMAIN_REGISTRY);
   const [halls, setHalls] = useState<HallUnit[]>(UCC_HALLS);
   const [faculties, setFaculties] = useState<FacultyUnit[]>(UCC_FACULTIES);
   const [departments, setDepartments] = useState<DepartmentUnit[]>(UCC_DEPARTMENTS);
-  const [positionsByElection, setPositionsByElection] = useState<Record<string, Position[]>>({});
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [rawPositionsByElection, setRawPositionsByElection] = useState<Record<string, Position[]>>({});
+  const [rawCandidates, setRawCandidates] = useState<Candidate[]>([]);
+
+  const elections = useMemo(() => mergeHistoricalElections(rawElections), [rawElections]);
+  const positionsByElection = useMemo(
+    () => mergeHistoricalPositions(rawPositionsByElection),
+    [rawPositionsByElection]
+  );
+  const candidates = useMemo(() => mergeHistoricalCandidates(rawCandidates), [rawCandidates]);
   const [rawNotifications, setRawNotifications] = useState<NotificationItem[]>([]);
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -482,17 +494,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const unsubElections = subscribeElections((items) => {
-      setElections(items);
+      setRawElections(items);
       setIsLoadingData(false);
       setDataError(null);
     }, handleErr);
 
     const unsubPositions = subscribePositions((grouped) => {
-      setPositionsByElection(grouped);
+      setRawPositionsByElection(grouped);
     }, handleErr);
 
     const unsubCandidates = subscribeCandidates((items) => {
-      setCandidates(items);
+      setRawCandidates(items);
     }, handleErr);
 
     const unsubAnnouncements = subscribeAnnouncements((items) => {
@@ -871,14 +883,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshElections = async () => {
     const res = await electionClient.getElections();
     if (res.success) {
-      setElections(res.elections);
+      setRawElections(res.elections);
     }
   };
 
   const refreshCandidates = async () => {
     const res = await electionClient.getCandidates();
     if (res.success) {
-      setCandidates(res.candidates);
+      setRawCandidates(res.candidates);
     }
   };
 

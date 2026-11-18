@@ -12,6 +12,7 @@ import {
   matchesHallAffiliation,
   resolveElectionHallUnit
 } from '../../utils/hallUtils';
+import { formatElectionWindow } from '../../utils/dateUtils';
 import {
   ArrowLeft,
   Vote,
@@ -632,6 +633,7 @@ export const DomainElectionsPage: React.FC = () => {
           <option value="scheduled">Scheduled / Upcoming</option>
           <option value="results_published">Results Published</option>
           <option value="closed">Closed</option>
+          <option value="archived">Historical Archive (2026)</option>
         </select>
       </div>
 
@@ -675,6 +677,7 @@ export const DomainElectionsPage: React.FC = () => {
             const elig = checkStudentDomainEligibility(election, student, halls);
             const isLive = election.status === 'live';
             const isResults = election.status === 'results_published';
+            const isArchived = election.status === 'archived';
 
             return (
               <div
@@ -697,6 +700,8 @@ export const DomainElectionsPage: React.FC = () => {
                           ? 'text-emerald-700'
                           : isResults
                           ? 'text-amber-700'
+                          : isArchived
+                          ? 'text-slate-600'
                           : 'text-[#123B70]'
                       }`}
                     >
@@ -704,6 +709,8 @@ export const DomainElectionsPage: React.FC = () => {
                         ? 'Polling Open'
                         : isResults
                         ? 'Certified Results'
+                        : isArchived
+                        ? 'Historical Archive'
                         : election.status === 'scheduled' || election.status === 'upcoming'
                         ? 'Scheduled'
                         : election.status.replace(/_/g, ' ')}
@@ -718,6 +725,13 @@ export const DomainElectionsPage: React.FC = () => {
                       {election.description}
                     </p>
                   </div>
+
+                  {election.historicalNote && (
+                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] text-amber-950 leading-relaxed">
+                      <strong className="font-bold">Historical Record Note: </strong>
+                      {election.historicalNote}
+                    </div>
+                  )}
 
                   {/* Contested Portfolios List (Constitution/Domain Specific) */}
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
@@ -735,7 +749,9 @@ export const DomainElectionsPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="text-xs text-slate-400 italic">
-                        Portfolios awaiting configuration by domain administrator.
+                        {isArchived
+                          ? 'No portfolios recorded in source archive — awaiting administrator input.'
+                          : 'Portfolios awaiting configuration by domain administrator.'}
                       </div>
                     )}
                   </div>
@@ -745,33 +761,41 @@ export const DomainElectionsPage: React.FC = () => {
                     <div>
                       <span className="text-[11px] text-slate-500 block">Polling Window</span>
                       <span className="font-semibold text-slate-800 font-mono text-[11px] tabular-nums">
-                        {election.startDate} – {election.endDate}
+                        {formatElectionWindow(election)}
                       </span>
                     </div>
                     <div>
                       <span className="text-[11px] text-slate-500 block">Turnout Progress</span>
                       <span className="font-bold text-[#123B70] font-mono tabular-nums">
-                        {election.turnoutPercentage}% ({election.totalVotesCast.toLocaleString()} /{' '}
-                        {election.totalEligibleVoters.toLocaleString()})
+                        {isArchived && election.tallyAvailable === false
+                          ? 'Tally unavailable'
+                          : `${election.turnoutPercentage}% (${election.totalVotesCast.toLocaleString()} / ${election.totalEligibleVoters.toLocaleString()})`}
                       </span>
                     </div>
                   </div>
 
                   {student && (
-                    <div
-                      className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${
-                        elig.eligible
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800'
-                          : 'bg-amber-50/70 border-amber-200 text-amber-900'
-                      }`}
-                    >
-                      {elig.eligible ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      )}
-                      <span>{elig.reason}</span>
-                    </div>
+                    isArchived ? (
+                      <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-[11px] flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>Historical Archive · Voting Disabled (Read-only historical record)</span>
+                      </div>
+                    ) : (
+                      <div
+                        className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${
+                          elig.eligible
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800'
+                            : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        {elig.eligible ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        )}
+                        <span>{elig.reason}</span>
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -814,13 +838,13 @@ export const DomainElectionsPage: React.FC = () => {
                       </button>
                     )}
 
-                    {(isResults || !isLive) && (
+                    {(isResults || (!isLive && (!isArchived || election.provisionalResultsReady || election.resultsCertified))) && (
                       <button
                         onClick={() => navigateTo('election_results', { electionId: election.id })}
                         className="px-3.5 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#123B70] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                       >
                         <Award className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{isResults ? 'View Results' : 'Results Portal'}</span>
+                        <span>{isResults ? 'View Results' : isArchived ? 'View Outcomes' : 'Results Portal'}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     )}
