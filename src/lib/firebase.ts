@@ -11,20 +11,18 @@ import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDylk64tRY1GhVEfN2UWBTqSIseSOaozug',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'ucc-vote.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'ucc-vote',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'ucc-vote.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '81600235294',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:81600235294:web:1ec432df156ad61d24eb0f',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-HWNFXDRLKE',
+  apiKey: 'AIzaSyDylk64tRY1GhVEfN2UWBTqSIseSOaozug',
+  authDomain: 'ucc-vote.firebaseapp.com',
+  projectId: 'ucc-vote',
+  storageBucket: 'ucc-vote.firebasestorage.app',
+  messagingSenderId: '81600235294',
+  appId: '1:81600235294:web:1ec432df156ad61d24eb0f',
+  measurementId: 'G-HWNFXDRLKE',
 };
 
-export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+export const FIREBASE_PROJECT_ID = 'ucc-vote';
 export const FIREBASE_STORAGE_BUCKET = firebaseConfig.storageBucket;
-export const FIRESTORE_DATABASE_ID =
-  import.meta.env.VITE_FIRESTORE_DATABASE_ID ||
-  'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c';
+export const FIRESTORE_DATABASE_ID = 'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c';
 
 // Initialize Firebase only once across HMR / module evaluations
 export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -46,13 +44,14 @@ export const db: Firestore = dbInstance;
 
 export const storage: FirebaseStorage = getStorage(app);
 try {
-  // Prevent Firebase SDK default 10-minute silent retry stall at 0% on CORS/network/bucket errors
   storage.maxUploadRetryTime = 25000;
   storage.maxOperationRetryTime = 15000;
 } catch {
-  // Ignore if running against a test mock
+  // Ignore if running in a mock harness
 }
-export const functions: Functions = getFunctions(app);
+export const FIREBASE_FUNCTIONS_REGION =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1';
+export const functions: Functions = getFunctions(app, FIREBASE_FUNCTIONS_REGION);
 
 export enum OperationType {
   CREATE = 'create',
@@ -125,49 +124,13 @@ export function formatFirestorePermissionError(
   path: string | null
 ): string {
   const errInfo = buildFirestoreErrorInfo(error, operationType, path);
-  console.error('[UCC VOTE][Firestore] Operation failed:', JSON.stringify(errInfo));
+  console.warn('Firestore operation failed:', JSON.stringify(errInfo));
   const raw = errInfo.error || '';
-  const code = String((error as any)?.code || '');
-
-  if (code === 'unauthenticated') {
-    return 'Your administrator session has expired or you are not signed in. Please sign in again and retry.';
-  }
+  const code = (error as any)?.code || '';
   if (code === 'permission-denied' || raw.includes('Missing or insufficient permissions')) {
-    if (!errInfo.authInfo.userId) {
-      return 'Authentication required: No active Firebase user session was found. Sign in as an Electoral Commission administrator and retry.';
-    }
-    return `Permission denied on Firestore database "${FIRESTORE_DATABASE_ID}" (${operationType} ${path || ''}). Verify that your account has verified administrator custom claims (admin: true) and that firestore.rules is published to "${FIRESTORE_DATABASE_ID}".`;
-  }
-  if (code === 'unavailable' || raw.toLowerCase().includes('offline') || raw.toLowerCase().includes('network')) {
-    return 'Network error: Unable to reach Cloud Firestore. Check your internet connection and retry.';
-  }
-  if (code === 'invalid-argument') {
-    return `Invalid election data rejected by Cloud Firestore (${raw}). Check all form fields and retry.`;
+    return `Permission denied on Firestore database "${FIRESTORE_DATABASE_ID}" (${operationType} ${path || ''}). Publish the security rules from firestore.rules to database "${FIRESTORE_DATABASE_ID}" in Firebase Console.`;
   }
   return raw || 'Cloud Firestore operation failed.';
-}
-
-export function stripUndefinedDeep<T>(value: T): T {
-  if (value === null || value === undefined || typeof value !== 'object') {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value
-      .filter((item) => item !== undefined)
-      .map((item) => stripUndefinedDeep(item)) as unknown as T;
-  }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    // Preserve Firestore FieldValue sentinels (e.g. serverTimestamp(), arrayUnion()), Date, Timestamp, etc.
-    return value;
-  }
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(value as Record<string, any>)) {
-    if (v !== undefined) {
-      out[k] = stripUndefinedDeep(v);
-    }
-  }
-  return out as T;
 }
 
 export async function testFirestoreConnection(): Promise<{

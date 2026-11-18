@@ -13,6 +13,11 @@ import {
 import { ManifestoComparisonModal } from '../../components/candidates/ManifestoComparisonModal';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
 import { Candidate } from '../../types';
+import {
+  getHallDisplayName,
+  isElectionForHall,
+  matchesHallAffiliation
+} from '../../utils/hallUtils';
 
 export const CandidateDirectoryPage: React.FC = () => {
   const {
@@ -21,6 +26,7 @@ export const CandidateDirectoryPage: React.FC = () => {
     toggleCompareCandidate,
     elections,
     domains,
+    halls,
     positionsByElection,
     candidates,
     userRole,
@@ -29,6 +35,7 @@ export const CandidateDirectoryPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
+  const [selectedHall, setSelectedHall] = useState<string>('All');
   const [selectedElection, setSelectedElection] = useState<string>('All');
   const [selectedPosition, setSelectedPosition] = useState<string>('All');
   const [selectedFaculty, setSelectedFaculty] = useState<string>('All');
@@ -58,23 +65,26 @@ export const CandidateDirectoryPage: React.FC = () => {
   const approvedCandidates = candidates.filter((c) => c.applicationStatus === 'Approved');
 
   const electionsForDomain = useMemo(() => {
-    const visibleElections =
-      userRole === 'admin'
-        ? elections
-        : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-    if (selectedDomain === 'All') return visibleElections;
-    return visibleElections.filter(
-      (e) =>
+    return elections.filter((e) => {
+      const domMatches =
+        selectedDomain === 'All' ||
         e.domainId === selectedDomain ||
         (selectedDomain === 'src' && e.category === 'SRC') ||
         (selectedDomain === 'jcrc_hall' && e.category === 'JCR / Hall') ||
         (selectedDomain === 'grasag' && e.category === 'GRASAG') ||
         (selectedDomain === 'local_nugs' && e.category === 'Local NUGS') ||
         (selectedDomain === 'departmental' && e.category === 'Departmental') ||
-        (selectedDomain === 'faculty_school' && e.category === 'Faculty / School')
-    );
-  }, [elections, selectedDomain, userRole]);
+        (selectedDomain === 'faculty_school' && e.category === 'Faculty / School');
+      if (!domMatches) return false;
+      if (selectedHall !== 'All') {
+        const hallObj = halls.find((h) => h.id === selectedHall);
+        if (hallObj && (e.domainId === 'jcrc_hall' || e.category === 'JCR / Hall')) {
+          return isElectionForHall(e, hallObj, halls);
+        }
+      }
+      return true;
+    });
+  }, [elections, selectedDomain, selectedHall, halls]);
 
   const allFaculties = Array.from(new Set(approvedCandidates.map((c) => c.faculty))).filter(Boolean);
 
@@ -122,6 +132,13 @@ export const CandidateDirectoryPage: React.FC = () => {
     const matchesFaculty =
       selectedFaculty === 'All' || c.faculty.toLowerCase().includes(selectedFaculty.toLowerCase());
 
+    const hallObj = selectedHall === 'All' ? undefined : halls.find((h) => h.id === selectedHall);
+    const matchesHall =
+      !hallObj ||
+      (el && (elDom === 'jcrc_hall' || el.category === 'JCR / Hall')
+        ? isElectionForHall(el, hallObj, halls)
+        : matchesHallAffiliation(c.hallId || c.hall, hallObj.name, hallObj));
+
     const q = search.toLowerCase();
     const posTitle = (positionLookup.get(c.positionId) || '').toLowerCase();
     const matchesSearch =
@@ -135,7 +152,12 @@ export const CandidateDirectoryPage: React.FC = () => {
       c.manifestoSummary.toLowerCase().includes(q);
 
     return (
-      matchesDomain && matchesElection && matchesPosition && matchesFaculty && matchesSearch
+      matchesDomain &&
+      matchesHall &&
+      matchesElection &&
+      matchesPosition &&
+      matchesFaculty &&
+      matchesSearch
     );
   });
 
@@ -273,6 +295,7 @@ export const CandidateDirectoryPage: React.FC = () => {
           <button
             onClick={() => {
               setSelectedDomain('All');
+              setSelectedHall('All');
               setSelectedElection('All');
               setSelectedPosition('All');
             }}
@@ -289,6 +312,7 @@ export const CandidateDirectoryPage: React.FC = () => {
               key={dom.id}
               onClick={() => {
                 setSelectedDomain(dom.id);
+                if (dom.id !== 'jcrc_hall') setSelectedHall('All');
                 setSelectedElection('All');
                 setSelectedPosition('All');
               }}
@@ -318,6 +342,7 @@ export const CandidateDirectoryPage: React.FC = () => {
           </div>
 
           {(selectedDomain !== 'All' ||
+            selectedHall !== 'All' ||
             selectedElection !== 'All' ||
             selectedPosition !== 'All' ||
             selectedFaculty !== 'All' ||
@@ -325,6 +350,7 @@ export const CandidateDirectoryPage: React.FC = () => {
             <button
               onClick={() => {
                 setSelectedDomain('All');
+                setSelectedHall('All');
                 setSelectedElection('All');
                 setSelectedPosition('All');
                 setSelectedFaculty('All');
@@ -337,7 +363,29 @@ export const CandidateDirectoryPage: React.FC = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              Hall of Residence / JCR
+            </label>
+            <select
+              value={selectedHall}
+              onChange={(e) => {
+                setSelectedHall(e.target.value);
+                setSelectedElection('All');
+                setSelectedPosition('All');
+              }}
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+            >
+              <option value="All">All 8 UCC Halls</option>
+              {halls.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {getHallDisplayName(h)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
               Election
@@ -409,12 +457,13 @@ export const CandidateDirectoryPage: React.FC = () => {
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             {approvedCandidates.length === 0
               ? 'Approved election candidates will appear here once vetted and published in Firestore.'
-              : 'No candidates matched your search criteria. Try modifying your domain, election, or position filters.'}
+              : 'No candidates matched your search criteria. Try modifying your domain, hall, election, or position filters.'}
           </p>
           {approvedCandidates.length > 0 && (
             <button
               onClick={() => {
                 setSelectedDomain('All');
+                setSelectedHall('All');
                 setSelectedElection('All');
                 setSelectedPosition('All');
                 setSelectedFaculty('All');

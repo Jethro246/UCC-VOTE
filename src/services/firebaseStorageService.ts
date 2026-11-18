@@ -328,6 +328,51 @@ export async function uploadCandidatePhoto(
   return startCandidatePhotoUpload(file, candidateKey, onProgress).promise;
 }
 
+export function startHallLogoUpload(
+  file: File,
+  hallId: string,
+  onProgress?: (pct: number) => void
+): UploadTaskHandle {
+  let innerHandle: UploadTaskHandle | null = null;
+  let canceledBeforeStart = false;
+
+  const promise = (async () => {
+    const validation = await validateCandidateImageFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+    if (canceledBeforeStart) {
+      throw new Error(mapFirebaseStorageError({ code: 'storage/canceled' }));
+    }
+
+    const safeHallId = sanitizePathSegment(hallId);
+    const uniqueSuffix = Math.random().toString(36).slice(2, 7);
+    const path = `halls/${safeHallId}/${Date.now()}_${uniqueSuffix}_${sanitizeFilename(file.name)}`;
+
+    innerHandle = startResumableUpload(path, file, validation.contentType, onProgress);
+    if (canceledBeforeStart) {
+      innerHandle.cancel();
+    }
+    return innerHandle.promise;
+  })();
+
+  return {
+    promise,
+    cancel: () => {
+      canceledBeforeStart = true;
+      innerHandle?.cancel();
+    },
+  };
+}
+
+export async function uploadHallLogo(
+  file: File,
+  hallId: string,
+  onProgress?: (pct: number) => void
+): Promise<{ url: string; path: string }> {
+  return startHallLogoUpload(file, hallId, onProgress).promise;
+}
+
 export async function uploadElectionDocument(
   file: File,
   electionId: string,

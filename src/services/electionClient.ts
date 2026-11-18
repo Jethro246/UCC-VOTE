@@ -10,21 +10,22 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import {
-  auth,
-  db,
-  functions,
-  formatFirestorePermissionError,
-  stripUndefinedDeep,
-  OperationType,
-} from '../lib/firebase';
+import { auth, db, functions, formatFirestorePermissionError, OperationType } from '../lib/firebase';
 import {
   DOMAIN_REGISTRY,
   UCC_DEPARTMENTS,
   UCC_FACULTIES,
   UCC_HALLS,
   categoryToDomainId,
+  mergeOfficialHalls,
 } from '../data/uccStructure';
+import {
+  UNVERIFIED_HALL_MESSAGE,
+  findMatchingHallUnit,
+  isOfficialHallAffiliation,
+  matchesHallAffiliation,
+  resolveElectionHallUnit,
+} from '../utils/hallUtils';
 import {
   Candidate,
   DepartmentUnit,
@@ -87,28 +88,63 @@ export function evaluateStudentEligibilityLocal(
   }
 
   const criteria = election.eligibilityCriteria || {};
+  const resolvedFaculty = eligibilityRecord?.faculty || student.faculty || '';
+  const resolvedDepartment = eligibilityRecord?.department || student.department || '';
+  const resolvedLevel = String(eligibilityRecord?.level || student.level || '');
+  const resolvedHall = eligibilityRecord?.hall || student.hall || '';
+
   if (criteria.faculties && criteria.faculties.length > 0) {
     checks.facultyMatch = criteria.faculties.some(
-      (f) => f.toLowerCase() === student.faculty.toLowerCase()
+      (f) => f.toLowerCase() === resolvedFaculty.toLowerCase()
     );
   }
   if (criteria.departments && criteria.departments.length > 0) {
     checks.departmentMatch = criteria.departments.some(
-      (d) => d.toLowerCase() === student.department.toLowerCase()
+      (d) => d.toLowerCase() === resolvedDepartment.toLowerCase()
     );
   }
   if (criteria.levels && criteria.levels.length > 0) {
     checks.levelMatch = criteria.levels.some(
-      (l) => l.toLowerCase() === String(student.level).toLowerCase()
-    );
-  }
-  if (criteria.halls && criteria.halls.length > 0) {
-    checks.hallMatch = criteria.halls.some(
-      (h) => h.toLowerCase() === student.hall.toLowerCase()
+      (l) => l.toLowerCase() === resolvedLevel.toLowerCase()
     );
   }
 
-  if (election.category === 'GRASAG' && student.level !== 'Postgraduate') {
+  const isHallElection =
+    election.domainId === 'jcrc_hall' ||
+    election.category === 'JCR / Hall' ||
+    Boolean(election.hallId) ||
+    Boolean(criteria.halls && criteria.halls.length > 0);
+
+  let unverifiedHallFailure = false;
+  let targetHallLabels: string[] = [];
+
+  if (isHallElection) {
+    const resolvedElectionHall = resolveElectionHallUnit(election, UCC_HALLS);
+    targetHallLabels =
+      criteria.halls && criteria.halls.length > 0
+        ? criteria.halls
+        : resolvedElectionHall
+        ? [resolvedElectionHall.name]
+        : election.hallId
+        ? [election.hallId]
+        : election.subdomainLabel
+        ? [election.subdomainLabel]
+        : [];
+
+    if (!isOfficialHallAffiliation(resolvedHall, UCC_HALLS)) {
+      checks.hallMatch = false;
+      unverifiedHallFailure = true;
+    } else if (targetHallLabels.length > 0) {
+      checks.hallMatch = targetHallLabels.some((target) => {
+        const unit = findMatchingHallUnit(target, UCC_HALLS);
+        return matchesHallAffiliation(resolvedHall, target, unit);
+      });
+    } else {
+      checks.hallMatch = true;
+    }
+  }
+
+  if (election.category === 'GRASAG' && resolvedLevel !== 'Postgraduate') {
     checks.levelMatch = false;
   }
 
@@ -122,7 +158,13 @@ export function evaluateStudentEligibilityLocal(
         : `Restricted to level(s): ${criteria.levels?.join(', ')}`
     );
   }
-  if (!checks.hallMatch) failedReasons.push(`Restricted to hall: ${criteria.halls?.join(', ')}`);
+  if (!checks.hallMatch) {
+    failedReasons.push(
+      unverifiedHallFailure
+        ? UNVERIFIED_HALL_MESSAGE
+        : `Restricted to hall: ${targetHallLabels.join(', ')}`
+    );
+  }
 
   return {
     isEligible: failedReasons.length === 0,
@@ -153,10 +195,11 @@ class FirebaseElectionClient {
           ? domainsSnap.docs.map((d) => mapDoc<DomainRegistryItem>(d.id, d.data()))
           : DOMAIN_REGISTRY;
 
-      const halls: HallUnit[] =
+      const remoteHalls: HallUnit[] =
         hallsSnap && !hallsSnap.empty
           ? hallsSnap.docs.map((d) => mapDoc<HallUnit>(d.id, d.data()))
-          : UCC_HALLS;
+          : [];
+      const halls: HallUnit[] = mergeOfficialHalls(remoteHalls);
 
       const faculties: FacultyUnit[] =
         facSnap && !facSnap.empty
@@ -486,22 +529,47 @@ class FirebaseElectionClient {
     }
 
     const candId = payload.id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const { isDraft, ...restPayload } = payload;
-    const status = isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
-    const rawPhotoUrl = typeof payload.photoUrl === 'string' ? payload.photoUrl.trim() : '';
-    const safePhotoUrl = rawPhotoUrl.startsWith('blob:') ? '' : rawPhotoUrl;
+    const status = payload.isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
 
-    const docPayload = stripUndefinedDeep({
-      ...restPayload,
+    let inferredDomainId = payload.domainId;
+    let inferredHallId = payload.hallId;
+    let inferredFacultyId = payload.facultyId;
+    let inferredDepartmentId = payload.departmentId;
+
+    if (payload.electionId && (!inferredDomainId || !inferredHallId)) {
+      const eSnap = await getDoc(doc(db, 'elections', payload.electionId)).catch(() => null);
+      if (eSnap?.exists()) {
+        const elec = eSnap.data() as Election;
+        inferredDomainId = inferredDomainId || elec.domainId || categoryToDomainId(elec.category);
+        inferredHallId = inferredHallId || elec.hallId;
+        inferredFacultyId = inferredFacultyId || elec.facultyId;
+        inferredDepartmentId = inferredDepartmentId || elec.departmentId;
+      }
+    }
+
+    if (!inferredHallId && payload.hall && isOfficialHallAffiliation(payload.hall, UCC_HALLS)) {
+      inferredHallId = findMatchingHallUnit(payload.hall, UCC_HALLS)?.id;
+    }
+
+    const rawDoc: Record<string, any> = {
+      ...payload,
       id: candId,
+      domainId: inferredDomainId,
+      hallId: inferredHallId,
+      facultyId: inferredFacultyId,
+      departmentId: inferredDepartmentId,
       submittedByUid: user.uid,
       applicationStatus: status,
-      photoUrl: safePhotoUrl,
-      photoStoragePath: safePhotoUrl ? payload.photoStoragePath : undefined,
+      photoUrl: payload.photoUrl || '',
       submittedAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
-    });
+    };
+
+    const docPayload: Record<string, any> = {};
+    for (const [k, v] of Object.entries(rawDoc)) {
+      if (v !== undefined) docPayload[k] = v;
+    }
 
     try {
       await setDoc(doc(db, 'candidates', candId), docPayload);
@@ -520,7 +588,7 @@ class FirebaseElectionClient {
 
   async updateCandidate(
     id: string,
-    updates: Partial<Candidate> & { resubmit?: boolean; isDraft?: boolean }
+    updates: Partial<Candidate> & { resubmit?: boolean }
   ): Promise<{
     success: boolean;
     candidate?: Candidate;
@@ -528,21 +596,17 @@ class FirebaseElectionClient {
     error?: string;
   }> {
     try {
-      const { resubmit, isDraft: _ignoredDraft, ...restUpdates } = updates;
-      const sanitizedUpdates: Record<string, any> = { ...restUpdates };
-      if (typeof sanitizedUpdates.photoUrl === 'string') {
-        const trimmedUrl = sanitizedUpdates.photoUrl.trim();
-        sanitizedUpdates.photoUrl = trimmedUrl.startsWith('blob:') ? '' : trimmedUrl;
-        if (!sanitizedUpdates.photoUrl) {
-          sanitizedUpdates.photoStoragePath = '';
-        }
-      }
-
-      const payload: Record<string, any> = stripUndefinedDeep({
-        ...sanitizedUpdates,
+      const payload: Record<string, any> = {
         updatedAt: serverTimestamp(),
-      });
-      if (resubmit) {
+      };
+      for (const [k, v] of Object.entries(updates)) {
+        if (v !== undefined) payload[k] = v;
+      }
+      if (!payload.hallId && typeof payload.hall === 'string' && isOfficialHallAffiliation(payload.hall, UCC_HALLS)) {
+        const matched = findMatchingHallUnit(payload.hall, UCC_HALLS);
+        if (matched) payload.hallId = matched.id;
+      }
+      if (updates.resubmit) {
         payload.applicationStatus = 'Submitted';
       }
       await updateDoc(doc(db, 'candidates', id), payload);

@@ -1,0 +1,17 @@
+{
+  "name": "ucc-vote-submit-ballot-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker replacement for UCC-VOTE submitBallot Firebase Cloud Function (no Blaze plan required).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/index.test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250409.0",
+    "typescript": "^5.8.2",
+    "wrangler": "^4.10.0"
+  }
+}

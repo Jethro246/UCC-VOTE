@@ -1,8 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   ShieldCheck, 
-  AlertTriangle
+  ArrowRight, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Info,
+  Clock
 } from 'lucide-react';
 import { Election, ElectionStatus } from '../../types';
 import { adminService } from '../../services/adminService';
@@ -11,7 +15,7 @@ interface StatusTransitionModalProps {
   isOpen: boolean;
   election: Election | null;
   onClose: () => void;
-  onSuccess: (updatedElection: Election) => void | Promise<void>;
+  onSuccess: (updatedElection: Election) => void;
 }
 
 export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
@@ -23,61 +27,55 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
   const [targetStatus, setTargetStatus] = useState<ElectionStatus | ''>('');
   const [justification, setJustification] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const isSubmittingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  useEffect(() => {
-    if (isOpen && election) {
-      setTargetStatus('');
-      setJustification('');
-      setErrorMsg('');
-      setSubmitting(false);
-      isSubmittingRef.current = false;
-    }
-  }, [isOpen, election?.id, election?.status]);
 
   if (!isOpen || !election) return null;
 
   // Allowed transitions per election lifecycle state machine
   const transitionOptions: Record<ElectionStatus, { status: ElectionStatus; label: string; desc: string }[]> = {
     draft: [
+      { status: 'scheduled', label: 'Publish & Schedule Election', desc: 'Publish election configuration to students with official poll schedule.' },
+      { status: 'live', label: 'Publish & Open Voting Now', desc: 'Publish election and open digital ballot box immediately for accredited voters.' },
       { status: 'pending_approval', label: 'Submit for Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' },
-      { status: 'scheduled', label: 'Approve & Publish Schedule', desc: 'Confirm ballot ready, publish to students, and schedule official poll opening.' },
-      { status: 'live', label: 'Publish & Open Voting Now', desc: 'Immediately publish election to Student Portal and open voting ballots.' }
     ],
     pending_approval: [
       { status: 'scheduled', label: 'Gazette & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
-      { status: 'live', label: 'Approve & Open Polling Now', desc: 'Publish to students and open ballot submission immediately.' },
+      { status: 'live', label: 'Approve & Open Voting Now', desc: 'Approve election and immediately open polls.' },
       { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections.' },
       { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' }
     ],
     scheduled: [
-      { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
-      { status: 'draft', label: 'Unpublish to Draft', desc: 'Hide election from Student Portal for administrative edits.' },
+      { status: 'live', label: 'Open Voting Now (Activate)', desc: 'Open digital ballot interface for accredited voters.' },
+      { status: 'draft', label: 'Unpublish (Revert to Draft)', desc: 'Remove from published student schedule and return to draft.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     upcoming: [
-      { status: 'live', label: 'Open Polling Now (Activate)', desc: 'Open digital ballot interface for voting.' },
+      { status: 'live', label: 'Open Voting Now (Activate)', desc: 'Open digital ballot interface for accredited voters.' },
+      { status: 'draft', label: 'Unpublish (Revert to Draft)', desc: 'Remove from published student schedule and return to draft.' },
       { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
     ],
     live: [
-      { status: 'closed', label: 'Close Polling Portal', desc: 'Officially close ballot submission. No further votes will be accepted.' },
+      { status: 'closed', label: 'Close Voting Portal', desc: 'Officially close ballot submission. No further votes will be accepted.' },
       { status: 'suspended', label: 'Emergency Suspension', desc: 'Halt voting immediately due to security or connectivity alert.' }
     ],
     suspended: [
-      { status: 'live', label: 'Resume Live Polling', desc: 'Restore voting access to accredited students.' },
+      { status: 'live', label: 'Resume Live Voting', desc: 'Restore voting access to accredited students.' },
       { status: 'scheduled', label: 'Reschedule Opening', desc: 'Assign new timeline for voting.' },
-      { status: 'closed', label: 'Terminate & Close', desc: 'Permanently conclude the election without resuming.' }
+      { status: 'closed', label: 'Close Election', desc: 'Conclude the election without resuming polls.' },
+      { status: 'draft', label: 'Unpublish to Draft', desc: 'Return election to unpublished draft state.' }
     ],
     closed: [
       { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin cryptographic ballot counting and reconciliation.' },
+      { status: 'live', label: 'Reopen Voting Portal', desc: 'Reopen digital polling portal for additional voting.' },
       { status: 'archived', label: 'Archive Record', desc: 'Lock election as an immutable historical record.' }
     ],
     results_pending_certification: [
-      { status: 'results_published', label: 'Publish Certified Gazette', desc: 'Release officially signed election outcomes to students.' },
+      { status: 'results_published', label: 'Publish Certified Results', desc: 'Release officially signed election outcomes to students.' },
       { status: 'closed', label: 'Return for Recount', desc: 'Audit discrepancies detected; return for investigation.' }
     ],
     results_published: [
+      { status: 'closed', label: 'Unpublish Results', desc: 'Withdraw public result publication and revert status to closed.' },
+      { status: 'results_pending_certification', label: 'Return to Certification Audit', desc: 'Unpublish public gazette and reopen audit verification.' },
       { status: 'archived', label: 'Archive Record', desc: 'Seal election archives permanently.' }
     ],
     archived: []
@@ -87,7 +85,6 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
 
   const handleTransition = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingRef.current || submitting) return;
     setErrorMsg('');
 
     if (!targetStatus) {
@@ -100,25 +97,15 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
       return;
     }
 
-    isSubmittingRef.current = true;
     setSubmitting(true);
-    try {
-      const res = await adminService.changeStatus(
-        election.id,
-        targetStatus as ElectionStatus,
-        justification.trim()
-      );
-      if (res?.success && res.election) {
-        await onSuccess(res.election);
-        onClose();
-      } else {
-        setErrorMsg(res?.error || 'Failed to update election status.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to update election status.');
-    } finally {
-      isSubmittingRef.current = false;
-      setSubmitting(false);
+    const res = await adminService.changeStatus(election.id, targetStatus as ElectionStatus, justification);
+    setSubmitting(false);
+
+    if (res?.success && res.election) {
+      onSuccess(res.election);
+      onClose();
+    } else {
+      setErrorMsg('Failed to update status.');
     }
   };
 

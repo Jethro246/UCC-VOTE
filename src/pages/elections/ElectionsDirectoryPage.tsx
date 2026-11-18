@@ -38,14 +38,12 @@ export const ElectionsDirectoryPage: React.FC = () => {
   const {
     elections,
     domains,
-    positionsByElection,
     navigateTo,
     categoryFilter,
     setCategoryFilter,
     statusFilter,
     setStatusFilter,
-    student,
-    userRole
+    student
   } = useApp();
 
   const [search, setSearch] = useState('');
@@ -64,18 +62,13 @@ export const ElectionsDirectoryPage: React.FC = () => {
     { label: 'All Statuses', value: 'All' },
     { label: 'Live Polling', value: 'live' },
     { label: 'Scheduled', value: 'scheduled' },
-    ...(userRole === 'admin' ? [{ label: 'Pending Approval', value: 'pending_approval' as ElectionStatus }] : []),
+    { label: 'Pending Approval', value: 'pending_approval' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Closed', value: 'closed' },
     { label: 'Results Published', value: 'results_published' }
   ];
 
-  const publicElections =
-    userRole === 'admin'
-      ? elections
-      : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-  const filteredElections = publicElections.filter((e) => {
+  const filteredElections = elections.filter((e) => {
     const matchesCategory = categoryFilter === 'All' || e.category === categoryFilter;
     const matchesStatus =
       statusFilter === 'All' ||
@@ -229,14 +222,14 @@ export const ElectionsDirectoryPage: React.FC = () => {
               <Search className="w-6 h-6" />
             </div>
             <h3 className="text-base font-bold text-slate-900">
-              {publicElections.length === 0 ? 'No active elections at the moment.' : 'No elections found'}
+              {elections.length === 0 ? 'No active elections at the moment.' : 'No elections found'}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {publicElections.length === 0
+              {elections.length === 0
                 ? 'Elections configured by the UCC Electoral Commission will appear here automatically once published.'
                 : 'Try adjusting your search query or reset the filters to view all available university ballots.'}
             </p>
-            {publicElections.length > 0 && (
+            {elections.length > 0 && (
               <button
                 onClick={() => {
                   setCategoryFilter('All');
@@ -317,7 +310,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
                       <div>
                         <span className="block text-slate-400">Contested Portfolios</span>
                         <span className="font-semibold text-slate-800 font-mono tabular-nums">
-                          {positionsByElection[election.id]?.length ?? election.positionsCount} Positions
+                          {election.positionsCount} Positions
                         </span>
                       </div>
                     </div>

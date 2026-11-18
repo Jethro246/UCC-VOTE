@@ -109,6 +109,8 @@ export interface HallUnit {
   displayName?: string;
   motto?: string;
   affiliationNote?: string;
+  logoUrl?: string;
+  isOfficial?: boolean;
 }
 
 export interface FacultyUnit {
@@ -267,7 +269,6 @@ export interface Election {
   updatedAt?: string;
   approvedBy?: string;
   guidelinesUrl?: string;
-  idempotencyKey?: string;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;

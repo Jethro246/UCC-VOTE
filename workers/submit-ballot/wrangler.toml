@@ -1,0 +1,16 @@
+name = "ucc-vote-submit-ballot"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "ucc-vote"
+FIRESTORE_DATABASE_ID = "ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c"
+# Comma-separated allowed browser origins (or "*" during preview/development).
+# Example for production: "https://ucc-vote.web.app,https://ucc-vote.firebaseapp.com"
+ALLOWED_ORIGINS = "*"
+
+# Required Cloudflare Worker secrets (set via `wrangler secret put`):
+#   wrangler secret put FIREBASE_CLIENT_EMAIL
+#   wrangler secret put FIREBASE_PRIVATE_KEY
+# OR provide the full Service Account JSON in a single secret:
+#   wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON

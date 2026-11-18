@@ -36,7 +36,8 @@ import {
   Send,
   ExternalLink,
   Edit3,
-  X,
+  BarChart3,
+  Upload,
 } from 'lucide-react';
 import { AdminProfile, AdminRoleType, DomainId, Election, Candidate } from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
@@ -47,21 +48,20 @@ import { EligibilityTesterModal } from '../../components/admin/EligibilityTester
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
 import { CandidateReviewModal } from '../../components/admin/CandidateReviewModal';
 import { AdminResultsPanel } from '../../components/admin/AdminResultsPanel';
+import { uploadHallLogo } from '../../services/firebaseStorageService';
+import {
+  computeHallMetrics,
+  findMatchingHallUnit,
+  getHallDisplayName,
+  isElectionForHall,
+  matchesHallAffiliation,
+} from '../../utils/hallUtils';
 
 function matchesHallScope(criteriaHalls: string[] | undefined, managedHalls: string[] | undefined): boolean {
   if (!managedHalls || managedHalls.length === 0) return true;
   if (!criteriaHalls || criteriaHalls.length === 0) return false;
   return criteriaHalls.some((ch) =>
-    managedHalls.some((mh) => {
-      const a = ch.toLowerCase();
-      const b = mh.toLowerCase();
-      return (
-        a.includes(b) ||
-        b.includes(a) ||
-        (a.includes('casford') && b.includes('casely')) ||
-        (a.includes('casely') && b.includes('casford'))
-      );
-    })
+    managedHalls.some((mh) => matchesHallAffiliation(mh, ch, findMatchingHallUnit(mh)))
   );
 }
 
@@ -137,7 +137,12 @@ const AdminDashboardContent: React.FC = () => {
         return false;
       }
       if (admin?.managedHalls?.length && el.domainId === 'jcrc_hall') {
-        if (!matchesHallScope(el.eligibilityCriteria?.halls, admin.managedHalls)) {
+        const hallRefs = [
+          ...(el.eligibilityCriteria?.halls || []),
+          ...(el.hallId ? [el.hallId] : []),
+          ...(el.subdomainLabel ? [el.subdomainLabel] : []),
+        ];
+        if (!matchesHallScope(hallRefs, admin.managedHalls)) {
           return false;
         }
       }
@@ -232,18 +237,21 @@ const AdminDashboardContent: React.FC = () => {
 
   // Election & Candidate Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [recentCreatedElection, setRecentCreatedElection] = useState<{
-    election: Election;
-    positionsCount: number;
-  } | null>(null);
+  const [createDefaultDomainId, setCreateDefaultDomainId] = useState<DomainId | undefined>(undefined);
+  const [createDefaultHallId, setCreateDefaultHallId] = useState<string | undefined>(undefined);
   const [selectedElectionForEdit, setSelectedElectionForEdit] = useState<Election | null>(null);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
+  const [selectedHallFilterId, setSelectedHallFilterId] = useState<string>('all');
+  const [syncingHalls, setSyncingHalls] = useState(false);
+  const [uploadingHallLogoId, setUploadingHallLogoId] = useState<string | null>(null);
+  const [resultsDefaultElectionId, setResultsDefaultElectionId] = useState<string | undefined>(undefined);
 
   const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<Candidate | null>(null);
   const [selectedCandidateForEdit, setSelectedCandidateForEdit] = useState<Candidate | null>(null);
   const [showCandidateRegisterModal, setShowCandidateRegisterModal] = useState(false);
+  const [candidateDefaultElectionId, setCandidateDefaultElectionId] = useState<string | undefined>(undefined);
   const [candidateFilterStatus, setCandidateFilterStatus] = useState<string>('all');
   const [candidateFilterElection, setCandidateFilterElection] = useState<string>('all');
   const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
@@ -377,14 +385,14 @@ const AdminDashboardContent: React.FC = () => {
       eligibilityRuleSummary:
         newDomainEligSummary.trim() || 'Accredited UCC student membership verified against registry.',
     });
-    if (res?.success) {
+    if (res.success) {
       await refreshDomains();
       setNewDomainName('');
       setNewDomainShortName('');
       setNewDomainEligSummary('');
       showSuccessToast(`New election domain "${res.domain?.name}" registered.`);
     } else {
-      setRbacError(res?.error || 'Failed to create domain.');
+      setRbacError('Failed to create domain.');
     }
   };
 
@@ -405,13 +413,13 @@ const AdminDashboardContent: React.FC = () => {
       facultyId: type === 'department' ? newSubFacultyId : undefined,
       facultyName: type === 'department' ? facObj?.name : undefined,
     });
-    if (res?.success) {
+    if (res.success) {
       await refreshDomains();
       setNewSubName('');
       setNewSubShort('');
       showSuccessToast(`Subdomain "${res.subdomain?.name}" added.`);
     } else {
-      setRbacError(res?.error || 'Failed to add subdomain.');
+      setRbacError('Failed to add subdomain.');
     }
   };
 
@@ -723,20 +731,16 @@ const AdminDashboardContent: React.FC = () => {
             </div>
 
             <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Participating Halls Registry</h3>
-              <div className="space-y-2.5 text-xs">
+              <h3 className="text-base font-bold text-slate-900">Participating Halls Registry (8)</h3>
+              <div className="space-y-2 text-xs">
                 {halls.map((h) => {
-                  const hallElections = rbacElections.filter(
-                    (e) =>
-                      e.domainId === 'jcrc_hall' &&
-                      (e.hallId === h.id || matchesHallScope(e.eligibilityCriteria?.halls, [h.name]))
-                  );
+                  const hallElections = rbacElections.filter((e) => isElectionForHall(e, h, halls));
                   return (
                     <div
                       key={h.id}
                       className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100"
                     >
-                      <span className="font-medium text-slate-700">{h.name}</span>
+                      <span className="font-medium text-slate-700">{getHallDisplayName(h)}</span>
                       <span className="font-mono font-bold text-[#123B70] tabular-nums">
                         {hallElections.length} {hallElections.length === 1 ? 'poll' : 'polls'}
                       </span>
@@ -750,195 +754,413 @@ const AdminDashboardContent: React.FC = () => {
       )}
 
       {/* TAB 2: ELECTIONS MANAGER */}
-      {activeTab === 'elections' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
-          {recentCreatedElection && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-xs space-y-1">
-                  <div className="font-extrabold text-emerald-950 text-sm">
-                    Election Provisioned: {recentCreatedElection.election.title}
+      {activeTab === 'elections' && (() => {
+        const canAccessJcrcHalls =
+          !admin?.managedDomainIds?.length || admin.managedDomainIds.includes('jcrc_hall');
+        const managedAdminHalls = admin?.managedHalls?.length
+          ? halls.filter((h) => admin.managedHalls!.some((mh) => matchesHallAffiliation(mh, h.name, h)))
+          : halls;
+        const selectedHallObj =
+          selectedHallFilterId !== 'all'
+            ? halls.find((h) => h.id === selectedHallFilterId)
+            : undefined;
+        const displayedTableElections = selectedHallObj
+          ? scopedElections.filter((el) => isElectionForHall(el, selectedHallObj, halls))
+          : scopedElections;
+
+        return (
+          <div className="space-y-6">
+            {/* Dedicated JCRC / Hall Management (All 8 Official UCC Halls) */}
+            {canAccessJcrcHalls && (selectedDomainWorkspace === 'all' || selectedDomainWorkspace === 'jcrc_hall') && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                  <div>
+                    <div className="text-[11px] font-bold text-[#123B70] uppercase tracking-wider">
+                      JCRC / Hall Elections · Residential Subdomain Governance
+                    </div>
+                    <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">
+                      Hall Management (All {managedAdminHalls.length} Official UCC Halls)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Create hall-scoped elections, edit schedules, manage hall positions and candidates, control voting access, and monitor hall participation.
+                    </p>
                   </div>
-                  <p className="text-emerald-800">
-                    Saved with <span className="font-mono font-bold">{recentCreatedElection.positionsCount}</span> contested portfolio(s) · Code{' '}
-                    <span className="font-mono font-bold">{recentCreatedElection.election.code}</span> · ID{' '}
-                    <span className="font-mono">{recentCreatedElection.election.id}</span> · Status:{' '}
-                    <span className="font-bold uppercase">
-                      {recentCreatedElection.election.status.replace(/_/g, ' ')}
-                    </span>
-                    {recentCreatedElection.election.status === 'draft' &&
-                      ' (Hidden from Student Portal until published via Status)'}
-                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={selectedHallFilterId}
+                      onChange={(e) => setSelectedHallFilterId(e.target.value)}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700"
+                    >
+                      <option value="all">Filter Table: All Halls &amp; Domains</option>
+                      {managedAdminHalls.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          Filter Table: {getHallDisplayName(h)}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={syncingHalls}
+                      onClick={async () => {
+                        setSyncingHalls(true);
+                        const res = await adminService.syncOfficialHallsToFirestore();
+                        if (res.success) {
+                          await refreshDomains();
+                          showSuccessToast(`Synchronised all ${res.syncedCount} official UCC halls to Cloud Firestore.`);
+                        } else {
+                          showSuccessToast(res.error || 'Unable to sync halls to database.');
+                        }
+                        setSyncingHalls(false);
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingHalls ? 'animate-spin' : ''}`} />
+                      <span>{syncingHalls ? 'Syncing Halls...' : 'Sync 8 Halls to DB'}</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSelectedElectionForStatus(recentCreatedElection.election)}
-                  className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] cursor-pointer"
-                >
-                  Publish / Status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedElectionForPositions(recentCreatedElection.election)}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-xs font-bold hover:bg-emerald-100 cursor-pointer"
-                >
-                  Manage Positions
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecentCreatedElection(null)}
-                  className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 cursor-pointer"
-                  title="Dismiss"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Elections Management Table</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Configure schedules, edit properties, manage state transitions, and inspect contested portfolios within your authorized domains.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] flex items-center gap-1.5 cursor-pointer self-start sm:self-auto whitespace-nowrap"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Election</span>
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-4">Election ID, Code &amp; Title</th>
-                  <th className="py-3 px-4">Domain &amp; Subdomain</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Portfolios &amp; Candidates</th>
-                  <th className="py-3 px-4">Turnout</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {scopedElections.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                      No elections configured in this domain workspace yet.
-                    </td>
-                  </tr>
-                ) : (
-                  scopedElections.map((el) => {
-                    const livePositionsCount =
-                      positionsByElection[el.id]?.length ?? el.positionsCount ?? 0;
-                    const electionCands = candidates.filter((c) => c.electionId === el.id);
-                    const approvedCands = electionCands.filter(
-                      (c) => c.applicationStatus === 'Approved'
-                    ).length;
-                    const isDraftOrPending =
-                      el.status === 'draft' || el.status === 'pending_approval';
-                    const isNewlyCreated = recentCreatedElection?.election.id === el.id;
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {managedAdminHalls.map((hall) => {
+                    const hallElections = rbacElections.filter((el) => isElectionForHall(el, hall, halls));
+                    const primaryElection =
+                      hallElections.find((e) => e.status === 'live') ||
+                      hallElections.find((e) => e.status === 'scheduled' || e.status === 'upcoming') ||
+                      hallElections[0];
+                    const metrics = computeHallMetrics(
+                      hall,
+                      halls,
+                      rbacElections,
+                      candidates,
+                      allStudents,
+                      eligibilityRecords
+                    );
+                    const isTableFiltered = selectedHallFilterId === hall.id;
 
                     return (
-                      <tr
-                        key={el.id}
-                        className={`hover:bg-slate-50/70 transition-colors ${
-                          isNewlyCreated ? 'bg-emerald-50/40' : ''
+                      <div
+                        key={hall.id}
+                        className={`rounded-xl border p-4 flex flex-col justify-between gap-3.5 transition-colors ${
+                          isTableFiltered
+                            ? 'border-[#123B70] bg-[#EAF2FA]/30'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
-                        <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
-                          <div className="font-mono text-[10px] text-slate-400">
-                            {el.code} · <span className="text-slate-400">{el.id}</span>
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {hall.logoUrl ? (
+                                <img
+                                  src={hall.logoUrl}
+                                  alt={hall.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-lg bg-[#EAF2FA] text-[#123B70] flex items-center justify-center font-mono font-bold text-xs shrink-0 border border-[#123B70]/15">
+                                  {hall.code || hall.shortName.slice(0, 3).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h4 className="text-xs font-extrabold text-slate-900 leading-snug truncate">
+                                  {getHallDisplayName(hall)}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 font-mono truncate">
+                                  {hall.code || 'HALL'} · {hallElections.length} {hallElections.length === 1 ? 'election' : 'elections'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <label
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 cursor-pointer shrink-0"
+                              title="Upload official verified hall emblem"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                disabled={uploadingHallLogoId === hall.id}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  if (!file) return;
+                                  setUploadingHallLogoId(hall.id);
+                                  try {
+                                    const uploaded = await uploadHallLogo(file, hall.id);
+                                    const saveRes = await adminService.updateHallRecord(hall.id, {
+                                      logoUrl: uploaded.url,
+                                    });
+                                    if (saveRes.success) {
+                                      await refreshDomains();
+                                      showSuccessToast(`Updated official emblem for ${hall.name}.`);
+                                    } else {
+                                      showSuccessToast(saveRes.error || 'Could not save hall emblem.');
+                                    }
+                                  } catch (err: any) {
+                                    showSuccessToast(err?.message || 'Hall emblem upload failed.');
+                                  } finally {
+                                    setUploadingHallLogoId(null);
+                                  }
+                                }}
+                              />
+                            </label>
                           </div>
-                          <div className="truncate font-bold">{el.title}</div>
-                          <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                            {new Date(el.startDate).toLocaleDateString()} {el.startTime || '08:00'} –{' '}
-                            {new Date(el.endDate).toLocaleDateString()} {el.endTime || '17:00'} GMT
+
+                          {/* Real DB Metrics (Strictly 0 when unused) */}
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-2 py-2.5 border-y border-slate-100 text-[11px]">
+                            <div>
+                              <span className="text-slate-500 block">Approved Candidates</span>
+                              <span className="font-mono font-bold text-slate-900 tabular-nums">
+                                {metrics.approvedCandidatesCount}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block">Eligible Voters</span>
+                              <span className="font-mono font-bold text-slate-900 tabular-nums">
+                                {metrics.eligibleVotersCount.toLocaleString()}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block">Votes Cast</span>
+                              <span className="font-mono font-bold text-[#123B70] tabular-nums">
+                                {metrics.votesCast.toLocaleString()}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block">Turnout Rate</span>
+                              <span className="font-mono font-bold text-slate-900 tabular-nums">
+                                {metrics.turnoutPercentage}%
+                              </span>
+                            </div>
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-medium text-slate-700">
-                          <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
-                          {el.subdomainLabel && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
+
+                          {primaryElection ? (
+                            <div className="text-[11px] space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-slate-800 truncate">{primaryElection.title}</span>
+                                <span className="font-mono font-bold uppercase text-[10px] text-[#123B70] shrink-0">
+                                  {primaryElection.status.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                {new Date(primaryElection.startDate).toLocaleDateString()} – {new Date(primaryElection.endDate).toLocaleDateString()} · {primaryElection.positionsCount} positions
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500">
+                              No hall election configured yet.
+                            </p>
                           )}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
-                              el.status === 'live'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : el.status === 'scheduled' || el.status === 'upcoming'
-                                ? 'bg-blue-100 text-[#123B70]'
-                                : el.status === 'results_published'
-                                ? 'bg-amber-100 text-amber-900'
-                                : isDraftOrPending
-                                ? 'bg-slate-100 text-slate-700'
-                                : 'bg-slate-200 text-slate-800'
-                            }`}
-                          >
-                            {el.status.replace(/_/g, ' ')}
-                          </span>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {isDraftOrPending ? 'Hidden from students' : 'Student Portal active'}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
+                        </div>
+
+                        <div className="space-y-1.5 pt-1">
+                          {primaryElection && (
+                            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedElectionForEdit(primaryElection)}
+                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                              >
+                                Edit Details
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedElectionForPositions(primaryElection)}
+                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                              >
+                                Positions ({primaryElection.positionsCount})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCandidateDefaultElectionId(primaryElection.id);
+                                  setSelectedCandidateForEdit(null);
+                                  setShowCandidateRegisterModal(true);
+                                }}
+                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                              >
+                                Add Candidate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedElectionForStatus(primaryElection)}
+                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[#123B70] font-bold cursor-pointer whitespace-nowrap"
+                              >
+                                Publish / Voting
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResultsDefaultElectionId(primaryElection.id);
+                                  setActiveTab('results');
+                                }}
+                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
+                              >
+                                <BarChart3 className="w-3 h-3" />
+                                <span>Results</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedHallFilterId(isTableFiltered ? 'all' : hall.id)
+                                }
+                                className={`px-2 py-1.5 rounded-lg border text-center font-semibold cursor-pointer whitespace-nowrap ${
+                                  isTableFiltered
+                                    ? 'bg-[#123B70] text-white border-[#123B70]'
+                                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                {isTableFiltered ? 'Show All Polls' : `Polls (${hallElections.length})`}
+                              </button>
+                            </div>
+                          )}
+
                           <button
-                            onClick={() => setSelectedElectionForPositions(el)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-mono font-bold cursor-pointer transition-colors whitespace-nowrap"
+                            type="button"
+                            onClick={() => {
+                              setCreateDefaultDomainId('jcrc_hall');
+                              setCreateDefaultHallId(hall.id);
+                              setShowCreateModal(true);
+                            }}
+                            className="w-full py-2 px-3 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
                           >
-                            {livePositionsCount} Portfolio{livePositionsCount === 1 ? '' : 's'}
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Create {hall.shortName} Election</span>
                           </button>
-                          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                            {approvedCands}/{electionCands.length} Candidates
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
-                          {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
-                        </td>
-                        <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                          <button
-                            onClick={() => setSelectedElectionForEdit(el)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            onClick={() => setSelectedElectionForStatus(el)}
-                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] transition-colors cursor-pointer"
-                          >
-                            Status
-                          </button>
-                          <button
-                            onClick={() => setSelectedElectionForEligibility(el)}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
-                          >
-                            Eligibility
-                          </button>
-                          <button
-                            onClick={() => navigateTo('election_details', { electionId: el.id })}
-                            className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
-                          >
-                            Inspect
-                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Elections Management Table
+                    {selectedHallObj ? ` · ${getHallDisplayName(selectedHallObj)}` : ''}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure schedules, edit dates &amp; hall details, control publish/open/close states, and manage dynamic portfolios.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedHallObj && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHallFilterId('all')}
+                      className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                    >
+                      Clear Hall Filter
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setCreateDefaultDomainId(selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace);
+                      setCreateDefaultHallId(selectedHallObj?.id);
+                      setShowCreateModal(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] flex items-center gap-1.5 cursor-pointer self-start sm:self-auto whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Election</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-4">Election Code &amp; Title</th>
+                      <th className="py-3 px-4">Domain &amp; Subdomain</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Portfolios</th>
+                      <th className="py-3 px-4">Turnout</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayedTableElections.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                          No active elections match this filter.
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                    ) : (
+                      displayedTableElections.map((el) => (
+                        <tr key={el.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
+                            <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
+                            <div className="truncate font-bold">{el.title}</div>
+                            <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                              {new Date(el.startDate).toLocaleDateString()} – {new Date(el.endDate).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-medium text-slate-700">
+                            <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
+                            {el.subdomainLabel && (
+                              <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-[11px] text-slate-800 uppercase">
+                              {el.status.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                            <button
+                              onClick={() => setSelectedElectionForPositions(el)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                            >
+                              {el.positionsCount} Portfolios
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                            {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
+                          </td>
+                          <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedElectionForEdit(el)}
+                              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => setSelectedElectionForStatus(el)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Status
+                            </button>
+                            <button
+                              onClick={() => setSelectedElectionForEligibility(el)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Eligibility
+                            </button>
+                            <button
+                              onClick={() => navigateTo('election_details', { electionId: el.id })}
+                              className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Inspect
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB 3: CANDIDATE NOMINATIONS & VETTING */}
       {activeTab === 'candidates' &&
@@ -1345,7 +1567,7 @@ const AdminDashboardContent: React.FC = () => {
       )}
 
       {/* TAB 5: RESULTS CERTIFICATION */}
-      {activeTab === 'results' && <AdminResultsPanel />}
+      {activeTab === 'results' && <AdminResultsPanel defaultElectionId={resultsDefaultElectionId} />}
 
       {/* TAB 6: ANNOUNCEMENTS, CALENDAR & COMPLAINTS */}
       {activeTab === 'communications' && (
@@ -2033,22 +2255,15 @@ const AdminDashboardContent: React.FC = () => {
       {/* Modals */}
       <CreateElectionModal
         isOpen={showCreateModal}
-        defaultDomainId={selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={async (newElection, createdPositions) => {
-          const savedPositionsCount = createdPositions?.length ?? newElection.positionsCount ?? 0;
-          setRecentCreatedElection({ election: newElection, positionsCount: savedPositionsCount });
-          if (
-            selectedDomainWorkspace !== 'all' &&
-            newElection.domainId &&
-            selectedDomainWorkspace !== newElection.domainId
-          ) {
-            setSelectedDomainWorkspace('all');
-          }
-          setActiveTab('elections');
-          showSuccessToast(
-            `Election "${newElection.title}" (${savedPositionsCount} portfolios) saved successfully.`
-          );
+        defaultDomainId={createDefaultDomainId ?? (selectedDomainWorkspace === 'all' ? undefined : selectedDomainWorkspace)}
+        defaultHallId={createDefaultHallId}
+        onClose={() => {
+          setShowCreateModal(false);
+          setCreateDefaultDomainId(undefined);
+          setCreateDefaultHallId(undefined);
+        }}
+        onSuccess={async (newElection) => {
+          showSuccessToast(`Election "${newElection.title}" created successfully.`);
           await refreshElections();
         }}
       />
@@ -2058,13 +2273,7 @@ const AdminDashboardContent: React.FC = () => {
         election={selectedElectionForEdit}
         onClose={() => setSelectedElectionForEdit(null)}
         onSuccess={async (updated) => {
-          if (recentCreatedElection?.election.id === updated.id) {
-            setRecentCreatedElection({
-              election: updated,
-              positionsCount: recentCreatedElection.positionsCount,
-            });
-          }
-          showSuccessToast(`Election "${updated.title}" configuration updated.`);
+          showSuccessToast(`Updated election "${updated.title}".`);
           await refreshElections();
         }}
       />
@@ -2074,12 +2283,6 @@ const AdminDashboardContent: React.FC = () => {
         election={selectedElectionForStatus}
         onClose={() => setSelectedElectionForStatus(null)}
         onSuccess={async (updated) => {
-          if (recentCreatedElection?.election.id === updated.id) {
-            setRecentCreatedElection({
-              election: updated,
-              positionsCount: recentCreatedElection.positionsCount,
-            });
-          }
           showSuccessToast(`Election "${updated.title}" status changed to ${updated.status.toUpperCase()}.`);
           await refreshElections();
         }}
@@ -2089,16 +2292,7 @@ const AdminDashboardContent: React.FC = () => {
         isOpen={!!selectedElectionForPositions}
         election={selectedElectionForPositions}
         onClose={() => setSelectedElectionForPositions(null)}
-        onPositionsUpdated={async (count) => {
-          if (
-            recentCreatedElection &&
-            selectedElectionForPositions?.id === recentCreatedElection.election.id
-          ) {
-            setRecentCreatedElection({
-              election: recentCreatedElection.election,
-              positionsCount: count,
-            });
-          }
+        onPositionsUpdated={async () => {
           await refreshElections();
         }}
       />
@@ -2129,10 +2323,11 @@ const AdminDashboardContent: React.FC = () => {
       <CandidateRegistrationModal
         isOpen={showCandidateRegisterModal}
         candidateToEdit={selectedCandidateForEdit}
-        defaultElectionId={scopedElections[0]?.id}
+        defaultElectionId={candidateDefaultElectionId || scopedElections[0]?.id}
         onClose={() => {
           setShowCandidateRegisterModal(false);
           setSelectedCandidateForEdit(null);
+          setCandidateDefaultElectionId(undefined);
         }}
       />
 

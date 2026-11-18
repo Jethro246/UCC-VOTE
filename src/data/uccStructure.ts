@@ -170,15 +170,59 @@ export const DOMAIN_REGISTRY: DomainRegistryItem[] = [
 ];
 
 export const UCC_HALLS: HallUnit[] = [
-  { id: 'hall-casford', code: 'CHF', name: 'Casely Hayford Hall', shortName: 'Casford' },
-  { id: 'hall-valco', code: 'VLC', name: 'Valco Hall', shortName: 'Valco' },
-  { id: 'hall-oguaa', code: 'OGU', name: 'Oguaa Hall', shortName: 'Oguaa' },
-  { id: 'hall-nkrumah', code: 'KNH', name: 'Kwame Nkrumah Hall', shortName: 'KNH' },
-  { id: 'hall-atlantic', code: 'ATL', name: 'Atlantic Hall', shortName: 'ATL' },
-  { id: 'hall-adehye', code: 'ADH', name: 'Adehye Hall', shortName: 'Adehye' },
-  { id: 'hall-superannuation', code: 'SUP', name: 'Superannuation Hall', shortName: 'Superannuation' },
-  { id: 'hall-psi', code: 'PSI', name: 'PSI Hall', shortName: 'PSI' },
+  { id: 'hall-adehye', code: 'ADH', name: 'Adehye Hall', shortName: 'Adehye', displayName: 'Adehye Hall', isOfficial: true },
+  { id: 'hall-atlantic', code: 'ATL', name: 'Atlantic Hall', shortName: 'ATL', displayName: 'Atlantic Hall', isOfficial: true },
+  { id: 'hall-casford', code: 'CHF', name: 'Casely Hayford Hall', shortName: 'Casford', displayName: 'Casely Hayford Hall (Casford)', isOfficial: true },
+  { id: 'hall-nkrumah', code: 'KNH', name: 'Kwame Nkrumah Hall', shortName: 'KNH', displayName: 'Kwame Nkrumah Hall (KNH)', isOfficial: true },
+  { id: 'hall-oguaa', code: 'OGU', name: 'Oguaa Hall', shortName: 'Oguaa', displayName: 'Oguaa Hall', isOfficial: true },
+  { id: 'hall-valco', code: 'VLC', name: 'Valco Hall', shortName: 'Valco', displayName: 'Valco Hall', isOfficial: true },
+  { id: 'hall-src', code: 'SRH', name: 'SRC Hall', shortName: 'SRC Hall', displayName: 'SRC Hall', isOfficial: true },
+  { id: 'hall-superannuation', code: 'SUP', name: 'Superannuation Hall', shortName: 'Super Hall', displayName: 'Superannuation Hall (Super Hall)', isOfficial: true },
 ];
+
+export const OFFICIAL_UCC_HALL_IDS = UCC_HALLS.map((h) => h.id);
+
+export function mergeOfficialHalls(firestoreHalls: HallUnit[] = []): HallUnit[] {
+  const norm = (val?: string) => (val || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const isSameOfficial = (remote: HallUnit, official: HallUnit) => {
+    const rId = norm(remote.id);
+    const rName = norm(remote.name);
+    const oName = norm(official.name);
+    if (rId === official.id) return true;
+    if (rName === oName) return true;
+    if (official.id === 'hall-casford' && (rName.includes('casford') || rName.includes('casely hayford'))) return true;
+    if (official.id === 'hall-nkrumah' && (rName.includes('kwame nkrumah') || rName === 'knh' || rId === 'hall-knh')) return true;
+    if (official.id === 'hall-atlantic' && (rName.includes('atlantic') || rName === 'atl' || rId === 'hall-atl')) return true;
+    if (official.id === 'hall-adehye' && (rName.includes('adehye') || rId === 'hall-ade')) return true;
+    if (official.id === 'hall-oguaa' && (rName.includes('oguaa') || rId === 'hall-ogu')) return true;
+    if (official.id === 'hall-valco' && (rName.includes('valco') || rId === 'hall-val')) return true;
+    if (official.id === 'hall-src' && (rName === 'src hall' || rName === 'src hostel' || rId === 'hall_src')) return true;
+    if (official.id === 'hall-superannuation' && (rName.includes('superannuation') || rName === 'super hall')) return true;
+    return false;
+  };
+
+  const merged = UCC_HALLS.map((official) => {
+    const remote = firestoreHalls.find((item) => isSameOfficial(item, official));
+    if (!remote) return official;
+    return {
+      ...official,
+      logoUrl: remote.logoUrl || official.logoUrl,
+      motto: remote.motto || official.motto,
+      affiliationNote: remote.affiliationNote || official.affiliationNote,
+      isOfficial: true,
+    };
+  });
+
+  // Preserve any custom halls added outside the legacy obsolete 'hall-psi' placeholder
+  const extras = firestoreHalls.filter(
+    (item) =>
+      norm(item.id) !== 'hall-psi' &&
+      norm(item.name) !== 'psi hall' &&
+      !UCC_HALLS.some((official) => isSameOfficial(item, official))
+  );
+
+  return [...merged, ...extras];
+}
 
 export const UCC_FACULTIES: FacultyUnit[] = [
   {

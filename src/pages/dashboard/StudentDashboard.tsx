@@ -33,22 +33,13 @@ import {
 } from 'lucide-react';
 import { Election } from '../../types';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
-
-function matchesHallAlias(studentHall: string | undefined, targetHall: string): boolean {
-  const s = (studentHall || '').toLowerCase().trim();
-  const t = targetHall.toLowerCase().trim();
-  if (!s || !t) return false;
-  if (s.includes(t) || t.includes(s)) return true;
-  if ((s.includes('casford') || s.includes('casely hayford')) && (t.includes('casford') || t.includes('casely hayford'))) {
-    return true;
-  }
-  if (s.includes('adehye') && t.includes('adehye')) return true;
-  if (s.includes('atlantic') && t.includes('atlantic')) return true;
-  if (s.includes('oguaa') && t.includes('oguaa')) return true;
-  if (s.includes('valco') && t.includes('valco')) return true;
-  if (s.includes('nkrumah') && t.includes('nkrumah')) return true;
-  return false;
-}
+import {
+  UNVERIFIED_HALL_MESSAGE,
+  getHallDisplayName,
+  isOfficialHallAffiliation,
+  matchesHallAffiliation,
+  resolveElectionHallUnit
+} from '../../utils/hallUtils';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -59,6 +50,7 @@ export const StudentDashboard: React.FC = () => {
     setPostLoginView,
     elections,
     domains,
+    halls,
     positionsByElection,
     notifications,
     announcements,
@@ -144,6 +136,38 @@ export const StudentDashboard: React.FC = () => {
       return { isEligible: true, reason: 'Verified Postgraduate voter (GRASAG)' };
     }
     const crit = el.eligibilityCriteria;
+    const resolvedHallUnit = resolveElectionHallUnit(el, halls);
+    const isHallScoped =
+      el.domainId === 'jcrc_hall' ||
+      el.category === 'JCR / Hall' ||
+      Boolean(el.hallId) ||
+      Boolean(crit?.halls && crit.halls.length > 0);
+
+    if (isHallScoped) {
+      if (!isOfficialHallAffiliation(currentStudent.hall, halls)) {
+        return { isEligible: false, reason: UNVERIFIED_HALL_MESSAGE };
+      }
+      const targetHalls =
+        crit?.halls && crit.halls.length > 0
+          ? crit.halls
+          : resolvedHallUnit
+          ? [resolvedHallUnit.name]
+          : el.hallId
+          ? [el.hallId]
+          : el.subdomainLabel
+          ? [el.subdomainLabel]
+          : [];
+      if (
+        targetHalls.length > 0 &&
+        !targetHalls.some((h) => matchesHallAffiliation(currentStudent.hall, h, resolvedHallUnit))
+      ) {
+        const targetLabel = resolvedHallUnit
+          ? getHallDisplayName(resolvedHallUnit)
+          : targetHalls.join(', ');
+        return { isEligible: false, reason: `Restricted to verified affiliates of ${targetLabel}` };
+      }
+    }
+
     if (!crit) return { isEligible: true, reason: 'Verified eligible UCC voter' };
 
     if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(currentStudent.level)) {
@@ -158,17 +182,10 @@ export const StudentDashboard: React.FC = () => {
     if (crit.programmes && crit.programmes.length > 0 && !crit.programmes.some(p => currentStudent.programme?.toLowerCase().includes(p.toLowerCase()))) {
       return { isEligible: false, reason: `Restricted to ${crit.programmes.join(', ')}` };
     }
-    if (crit.halls && crit.halls.length > 0 && !crit.halls.some(h => matchesHallAlias(currentStudent.hall, h))) {
-      return { isEligible: false, reason: `Restricted to residents of ${crit.halls.join(', ')}` };
-    }
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  const publishedElections = elections.filter(
-    (el) => el.status !== 'draft' && el.status !== 'pending_approval'
-  );
-
-  const allElectionsWithEligibility = publishedElections.map((el: any) => {
+  const allElectionsWithEligibility = elections.map((el: any) => {
     const { isEligible, reason } = computeEligibility(el);
     const hasVoted = currentStudent.hasVotedElections?.includes(el.id);
     const canVoteNow = isEligible && el.status === 'live' && !hasVoted && !isSuspended;
@@ -843,7 +860,7 @@ export const StudentDashboard: React.FC = () => {
                             </span>
                             <span className="text-slate-400">·</span>
                             <span className="text-slate-600 text-[11px]">
-                              {positionsByElection[election.id]?.length ?? election.positionsCount ?? 0} Contested Positions
+                              {election.positionsCount} Contested Positions
                             </span>
                           </div>
 
@@ -864,15 +881,10 @@ export const StudentDashboard: React.FC = () => {
                               Polls Open
                             </span>
                           )}
-                          {(election.status === 'upcoming' || election.status === 'scheduled') && (
+                          {election.status === 'upcoming' && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] text-xs font-semibold">
                               <Clock className="w-3.5 h-3.5" />
-                              {election.status === 'scheduled' ? 'Scheduled' : 'Upcoming'}
-                            </span>
-                          )}
-                          {election.status === 'closed' && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold">
-                              Closed
+                              Upcoming
                             </span>
                           )}
                           {election.status === 'results_published' && (
@@ -906,11 +918,11 @@ export const StudentDashboard: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            Opens: {new Date(election.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, {election.startTime || '08:00'}
+                            Opens: {new Date(election.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 08:00
                           </span>
                           <span>·</span>
                           <span>
-                            Closes: {new Date(election.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, {election.endTime || '17:00'} GMT
+                            Closes: {new Date(election.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, 17:00 GMT
                           </span>
                         </div>
 

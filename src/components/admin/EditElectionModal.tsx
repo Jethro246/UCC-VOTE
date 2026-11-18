@@ -3,6 +3,7 @@ import { X, Edit3, AlertCircle, Calendar, Clock, Users } from 'lucide-react';
 import { Election } from '../../types';
 import { adminService } from '../../services/adminService';
 import { useApp } from '../../context/AppContext';
+import { resolveElectionHallUnit, getHallDisplayName } from '../../utils/hallUtils';
 
 interface EditElectionModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
   const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('17:00');
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [selectedHallId, setSelectedHallId] = useState<string>('');
   const [selectedHalls, setSelectedHalls] = useState<string[]>([]);
   const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
 
@@ -66,7 +68,15 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
       setEndDate(extractDatePart(election.endDate));
       setEndTime(election.endTime || extractTimePart(election.endDate, '17:00'));
       setSelectedLevels(election.eligibilityCriteria?.levels || ['100', '200', '300', '400']);
-      setSelectedHalls(election.eligibilityCriteria?.halls || []);
+      const resolvedHall = resolveElectionHallUnit(election, halls);
+      setSelectedHallId(election.hallId || resolvedHall?.id || '');
+      setSelectedHalls(
+        election.eligibilityCriteria?.halls?.length
+          ? election.eligibilityCriteria.halls
+          : resolvedHall
+          ? [resolvedHall.name]
+          : []
+      );
       setSelectedFaculties(election.eligibilityCriteria?.faculties || []);
       setErrorMsg('');
       setSaving(false);
@@ -77,6 +87,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
   if (!isOpen || !election) return null;
 
   const isGrasag = election.domainId === 'grasag' || election.category === 'GRASAG';
+  const isHallElection = election.domainId === 'jcrc_hall' || election.category === 'JCR / Hall';
 
   const toggleItem = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
     setList((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
@@ -114,6 +125,12 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
       return;
     }
 
+    const selectedHallObj = halls.find((h) => h.id === selectedHallId);
+    if (isHallElection && !selectedHallObj) {
+      setErrorMsg('Please select the participating UCC Hall of Residence.');
+      return;
+    }
+
     isSubmittingRef.current = true;
     setSaving(true);
     try {
@@ -127,10 +144,16 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
         endDate: endIso,
         startTime,
         endTime,
+        ...(isHallElection && selectedHallObj
+          ? {
+              hallId: selectedHallObj.id,
+              subdomainLabel: selectedHallObj.name,
+            }
+          : {}),
         eligibilityCriteria: {
           ...election.eligibilityCriteria,
           levels: isGrasag ? ['Postgraduate'] : selectedLevels,
-          halls: selectedHalls,
+          halls: isHallElection && selectedHallObj ? [selectedHallObj.name] : selectedHalls,
           faculties: selectedFaculties,
         },
       });
@@ -225,6 +248,36 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
               />
             </div>
           </div>
+
+          {isHallElection && (
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block font-bold text-slate-800 mb-1">
+                Participating Hall of Residence <span className="text-red-600">*</span>
+              </label>
+              <select
+                value={selectedHallId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedHallId(nextId);
+                  const hObj = halls.find((h) => h.id === nextId);
+                  if (hObj) {
+                    setSelectedHalls([hObj.name]);
+                  }
+                }}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
+              >
+                <option value="">Select Official UCC Hall...</option>
+                {halls.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {getHallDisplayName(h)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Updates hall ID, subdomain label, and voter hall eligibility restriction simultaneously.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block font-bold text-slate-800 mb-1">Official Description</label>

@@ -22,6 +22,14 @@ import {
   validateCandidateImageFile,
   UploadTaskHandle,
 } from '../../services/firebaseStorageService';
+import {
+  NON_RESIDENT_HALL_LABEL,
+  findMatchingHallUnit,
+  getHallDisplayName,
+  matchesHallAffiliation,
+  resolveElectionHallUnit,
+} from '../../utils/hallUtils';
+import { categoryToDomainId } from '../../data/uccStructure';
 
 interface CandidateRegistrationModalProps {
   isOpen: boolean;
@@ -38,7 +46,16 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   defaultElectionId,
   defaultPositionId
 }) => {
-  const { elections, positionsByElection, admin, registerCandidateAction, updateCandidateAction, student } = useApp();
+  const {
+    elections,
+    positionsByElection,
+    halls,
+    faculties,
+    admin,
+    registerCandidateAction,
+    updateCandidateAction,
+    student,
+  } = useApp();
 
   const selectableElections = admin?.managedDomainIds?.length
     ? elections.filter((e) => !e.domainId || admin.managedDomainIds!.includes(e.domainId))
@@ -104,27 +121,11 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   }, []);
 
   const hallOptions = [
-    'Casely Hayford Hall',
-    'Valco Hall',
-    'Kwame Nkrumah Hall',
-    'Oguaa Hall',
-    'Atlantic Hall',
-    'Adehye Hall',
-    'Superannuation Hostel',
-    'SRC Hostel',
-    'University Hall'
+    ...halls.map((h) => h.name),
+    NON_RESIDENT_HALL_LABEL,
   ];
 
-  const facultyOptions = [
-    'School of Physical Sciences',
-    'Faculty of Arts',
-    'School of Business',
-    'Faculty of Educational Foundations',
-    'School of Biological Sciences',
-    'School of Medical Sciences',
-    'Faculty of Social Sciences',
-    'School of Agriculture'
-  ];
+  const facultyOptions = faculties.map((f) => f.name);
 
   // Prefill when editing or opening
   useEffect(() => {
@@ -155,8 +156,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setLeadershipExpText(candidateToEdit.leadershipExperience.join('\n'));
       setVideoUrl(candidateToEdit.videoUrl || '');
     } else {
-      const initialElection = defaultElectionId || (elections[0]?.id || '');
-      setSelectedElectionId(initialElection);
+      const initialElectionId = defaultElectionId || (selectableElections[0]?.id || elections[0]?.id || '');
+      const initialElectionObj = elections.find((e) => e.id === initialElectionId);
+      const initialElectionHall = initialElectionObj ? resolveElectionHallUnit(initialElectionObj, halls) : undefined;
+      setSelectedElectionId(initialElectionId);
       setSelectedPositionId(defaultPositionId || '');
 
       if (student) {
@@ -167,16 +170,16 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
         setFaculty(student.faculty);
         setProgramme(student.programme);
         setLevel(student.level as any);
-        setHall(student.hall);
+        setHall(student.hall || initialElectionHall?.name || hallOptions[0] || '');
       } else {
         setFullName('');
         setStudentId('');
         setEmail('');
         setDepartment('');
-        setFaculty(facultyOptions[0]);
+        setFaculty(facultyOptions[0] || '');
         setProgramme('');
         setLevel('300');
-        setHall(hallOptions[0]);
+        setHall(initialElectionHall?.name || hallOptions[0] || '');
       }
       setNickname('');
       setBiography('');
@@ -329,6 +332,29 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       return;
     }
 
+    const selectedElection = elections.find((e) => e.id === selectedElectionId);
+    const electionDomainId = selectedElection
+      ? selectedElection.domainId || categoryToDomainId(selectedElection.category)
+      : undefined;
+    const electionHallUnit = selectedElection
+      ? resolveElectionHallUnit(selectedElection, halls)
+      : undefined;
+
+    if (
+      !isDraft &&
+      selectedElection &&
+      (electionDomainId === 'jcrc_hall' || selectedElection.category === 'JCR / Hall') &&
+      electionHallUnit &&
+      !matchesHallAffiliation(hall, electionHallUnit.name, electionHallUnit)
+    ) {
+      setErrorMsg(
+        `This hall election is restricted to ${getHallDisplayName(electionHallUnit)}. Candidate hall affiliation ("${hall || 'None'}") must match ${electionHallUnit.name}.`
+      );
+      return;
+    }
+
+    const matchedCandidateHall = findMatchingHallUnit(hall, halls);
+
     setIsSubmitting(true);
 
     const fullManifesto = fullManifestoText
@@ -358,6 +384,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       hall,
       electionId: selectedElectionId,
       positionId: selectedPositionId,
+      domainId: electionDomainId,
+      hallId: electionHallUnit?.id || selectedElection?.hallId || matchedCandidateHall?.id,
+      facultyId: selectedElection?.facultyId,
+      departmentId: selectedElection?.departmentId,
       photoUrl: cleanPhotoUrl,
       photoStoragePath: cleanPhotoUrl && photoStoragePath ? photoStoragePath : undefined,
       biography: biography.trim(),
@@ -578,9 +608,15 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   onChange={(e) => setHall(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
-                  {hallOptions.map((h) => (
-                    <option key={h} value={h}>{h}</option>
+                  {halls.map((h) => (
+                    <option key={h.id} value={h.name}>
+                      {getHallDisplayName(h)}
+                    </option>
                   ))}
+                  <option value={NON_RESIDENT_HALL_LABEL}>{NON_RESIDENT_HALL_LABEL}</option>
+                  {!hallOptions.includes(hall) && hall && (
+                    <option value={hall}>{hall}</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -600,7 +636,15 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                 </label>
                 <select
                   value={selectedElectionId}
-                  onChange={(e) => setSelectedElectionId(e.target.value)}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setSelectedElectionId(nextId);
+                    const nextElection = elections.find((el) => el.id === nextId);
+                    if (nextElection && !candidateToEdit && !student) {
+                      const nextHall = resolveElectionHallUnit(nextElection, halls);
+                      if (nextHall) setHall(nextHall.name);
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
                   {selectableElections.map((el) => (

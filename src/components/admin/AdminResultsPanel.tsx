@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { adminService } from '../../services/adminService';
 import { ElectionResultsPayload, ResultsWorkflowStage } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../common/Logo';
+import { findMatchingHallUnit, matchesHallAffiliation } from '../../utils/hallUtils';
 import {
   BallotDoughnutChart,
   CandidateBarChart,
@@ -75,8 +76,10 @@ const WORKFLOW_STAGES: {
   },
 ];
 
-export const AdminResultsPanel: React.FC = () => {
-  const { elections, domains, admin, navigateTo, refreshElections } = useApp();
+export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
+  defaultElectionId,
+}) => {
+  const { elections, domains, halls, admin, navigateTo, refreshElections } = useApp();
 
   const [domainFilter, setDomainFilter] = useState<string>('all');
 
@@ -85,8 +88,18 @@ export const AdminResultsPanel: React.FC = () => {
       return false;
     }
     if (admin?.managedHalls?.length && el.domainId === 'jcrc_hall') {
-      const hList = el.eligibilityCriteria?.halls || [];
-      if (!hList.some((h) => admin.managedHalls!.some((mh) => h.toLowerCase().includes(mh.toLowerCase().split(' ')[0])))) {
+      const hList = [
+        ...(el.eligibilityCriteria?.halls || []),
+        ...(el.hallId ? [el.hallId] : []),
+        ...(el.subdomainLabel ? [el.subdomainLabel] : []),
+      ];
+      if (
+        !hList.some((h) =>
+          admin.managedHalls!.some((mh) =>
+            matchesHallAffiliation(mh, h, findMatchingHallUnit(mh, halls))
+          )
+        )
+      ) {
         return false;
       }
     }
@@ -95,9 +108,17 @@ export const AdminResultsPanel: React.FC = () => {
   });
 
   const [selectedId, setSelectedId] = useState<string>(() => {
+    if (defaultElectionId) return defaultElectionId;
     const pending = scopedElections.find(e => e.status === 'results_pending_certification');
     return pending?.id || scopedElections[0]?.id || elections[0]?.id || '';
   });
+
+  useEffect(() => {
+    if (defaultElectionId && elections.some((e) => e.id === defaultElectionId)) {
+      setDomainFilter('all');
+      setSelectedId(defaultElectionId);
+    }
+  }, [defaultElectionId]);
 
   useEffect(() => {
     if (scopedElections.length > 0 && !scopedElections.some((e) => e.id === selectedId)) {

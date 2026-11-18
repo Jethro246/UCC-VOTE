@@ -6,8 +6,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import {
   BallotSelectionMap,
   Candidate,
@@ -155,7 +154,7 @@ class FirebaseVotingService {
     selections: BallotSelectionMap,
     idempotencyKey?: string
   ) {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return {
         success: false,
         httpStatus: 503,
@@ -175,18 +174,85 @@ class FirebaseVotingService {
     }
 
     try {
-      const submitFn = httpsCallable(functions, 'submitBallot');
-      const response = await submitFn({
-        electionId,
-        selections,
-        idempotencyKey: idempotencyKey || `${electionId}_${user.uid}_${Date.now()}`,
-      });
-      const data = response.data as any;
-      if (!data?.success) {
+      const endpoint = (import.meta.env.VITE_SUBMIT_BALLOT_URL || '').trim();
+      if (!endpoint) {
         return {
           success: false,
-          httpStatus: 400,
-          error: data?.error || 'Ballot submission was rejected by the voting server.',
+          httpStatus: 503,
+          code: 'BALLOT_WORKER_NOT_CONFIGURED',
+          error:
+            'Ballot submission endpoint (VITE_SUBMIT_BALLOT_URL) is not configured. Deploy workers/submit-ballot and set VITE_SUBMIT_BALLOT_URL to enable ballot casting without Firebase Blaze.',
+        };
+      }
+
+      const idToken = await user.getIdToken();
+      const httpRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          electionId,
+          selections,
+          idempotencyKey: idempotencyKey || `${electionId}_${user.uid}_${Date.now()}`,
+        }),
+      });
+
+      let data: any = null;
+      try {
+        data = await httpRes.json();
+      } catch {
+        data = null;
+      }
+
+      if (!httpRes.ok || !data?.success) {
+        const errCode = String(data?.code || '');
+        const errMsg = String(
+          data?.error || 'Ballot submission was rejected by the voting server.'
+        );
+
+        if (httpRes.status === 409 || errCode === 'ALREADY_VOTED') {
+          return {
+            success: false,
+            httpStatus: 409,
+            code: errCode === 'CONCURRENT_SUBMISSION_BLOCKED' ? errCode : 'ALREADY_VOTED',
+            error:
+              errCode === 'CONCURRENT_SUBMISSION_BLOCKED'
+                ? errMsg
+                : 'Duplicate vote prevented: You have already voted in this election.',
+          };
+        }
+        if (httpRes.status === 401 || httpRes.status === 403 || httpRes.status === 400) {
+          return {
+            success: false,
+            httpStatus: httpRes.status,
+            code: errCode || undefined,
+            error: errMsg,
+          };
+        }
+        if (httpRes.status === 503 || httpRes.status === 502 || httpRes.status === 504) {
+          return {
+            success: false,
+            httpStatus: 503,
+            code: errCode || 'BALLOT_WORKER_UNAVAILABLE',
+            error: errMsg,
+          };
+        }
+        return {
+          success: false,
+          httpStatus: httpRes.status || 500,
+          code: errCode || undefined,
+          error: errMsg,
+        };
+      }
+
+      if (!data?.receipt) {
+        return {
+          success: false,
+          httpStatus: 502,
+          code: 'INVALID_SERVER_RESPONSE',
+          error: 'Voting server did not return an official vote confirmation receipt.',
         };
       }
 
@@ -198,40 +264,14 @@ class FirebaseVotingService {
         updatedTurnout: data.updatedTurnout,
       };
     } catch (err: any) {
-      const code = err?.code || '';
-      const message = err?.message || 'Unable to submit ballot.';
-      if (code === 'functions/already-exists') {
-        return {
-          success: false,
-          httpStatus: 409,
-          code: 'ALREADY_VOTED',
-          error: 'Duplicate vote prevented: You have already voted in this election.',
-        };
-      }
-      if (code === 'functions/permission-denied' || code === 'functions/failed-precondition') {
-        return {
-          success: false,
-          httpStatus: 403,
-          error: message,
-        };
-      }
-      if (
-        code === 'functions/unavailable' ||
-        code === 'functions/not-found' ||
-        code === 'functions/internal'
-      ) {
-        return {
-          success: false,
-          httpStatus: 503,
-          code: 'CLOUD_FUNCTION_UNAVAILABLE',
-          error:
-            'Server-side ballot processing (Cloud Function submitBallot) is not yet deployed or reachable on ucc-vote. Deploy functions/ to enable secure server-side ballot casting.',
-        };
-      }
       return {
         success: false,
-        httpStatus: 500,
-        error: message,
+        httpStatus: 503,
+        code: 'NETWORK_ERROR',
+        error:
+          err?.message && !String(err.message).toLowerCase().includes('failed to fetch')
+            ? err.message
+            : 'Unable to reach the UCC VOTE ballot submission worker. Check your internet connection and VITE_SUBMIT_BALLOT_URL.',
       };
     }
   }

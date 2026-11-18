@@ -4,6 +4,13 @@ import { electionClient } from '../../services/electionClient';
 import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { Position } from '../../types';
+import {
+  UNVERIFIED_HALL_MESSAGE,
+  getHallDisplayName,
+  isOfficialHallAffiliation,
+  matchesHallAffiliation,
+  resolveElectionHallUnit
+} from '../../utils/hallUtils';
 import { 
   ArrowLeft, 
   Vote, 
@@ -19,37 +26,24 @@ import {
 } from 'lucide-react';
 
 export const ElectionDetailsPage: React.FC = () => {
-  const { selectedElectionId, elections, positionsByElection, candidates, navigateTo, student, userRole } = useApp();
+  const { selectedElectionId, elections, candidates, halls, navigateTo, student } = useApp();
 
-  const visiblePool =
-    userRole === 'admin'
-      ? elections
-      : elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-
-  const election =
-    visiblePool.find((e) => e.id === selectedElectionId) || visiblePool[0];
-  const [fetchedPositions, setFetchedPositions] = useState<Position[]>([]);
+  const election = elections.find(e => e.id === selectedElectionId) || elections[0];
+  const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
     if (!election?.id) {
-      setFetchedPositions([]);
+      setPositions([]);
       return;
     }
     let active = true;
     electionClient.getElectionById(election.id).then((res) => {
       if (active && res.success && res.positions) {
-        setFetchedPositions(res.positions);
+        setPositions(res.positions);
       }
     });
     return () => { active = false; };
   }, [election?.id]);
-
-  const positions =
-    fetchedPositions.length > 0
-      ? fetchedPositions
-      : election?.id
-      ? positionsByElection[election.id] || []
-      : [];
 
   if (!election) {
     return (
@@ -75,67 +69,74 @@ export const ElectionDetailsPage: React.FC = () => {
   let isEligible = true;
   let eligibilityReason = 'You satisfy all university eligibility criteria for this ballot.';
 
-  const matchesHall = (studentHall: string | undefined, targetHall: string) => {
-    if (!studentHall) return false;
-    const s = studentHall.trim().toLowerCase();
-    const t = targetHall.trim().toLowerCase();
-    if (s === t) return true;
-    const aliases: Record<string, string[]> = {
-      'casely hayford hall': ['casely hayford', 'casford'],
-      'atlantic hall': ['atlantic', 'atl'],
-      'adehye hall': ['adehye'],
-      'oguaa hall': ['oguaa'],
-      'kwame nkrumah hall': ['kwame nkrumah', 'knh', 'nkrumah'],
-      'valco hall': ['valco']
-    };
-    for (const [canon, list] of Object.entries(aliases)) {
-      const sOk = s.includes(canon) || list.some((a) => s.includes(a));
-      const tOk = t.includes(canon) || list.some((a) => t.includes(a));
-      if (sOk && tOk) return true;
-    }
-    return s.includes(t) || t.includes(s);
-  };
-
   if (student) {
+    const resolvedHallUnit = resolveElectionHallUnit(election, halls);
+    const crit = election.eligibilityCriteria;
+    const isHallScoped =
+      election.domainId === 'jcrc_hall' ||
+      election.category === 'JCR / Hall' ||
+      Boolean(election.hallId) ||
+      Boolean(crit?.halls && crit.halls.length > 0);
+
     if (student.status === 'suspended' || !student.isEligible) {
       isEligible = false;
-      eligibilityReason = 'Your voter account has been administratively suspended.';
+      eligibilityReason =
+        student.status === 'suspended'
+          ? 'Your voter account has been administratively suspended.'
+          : 'Pending UCC Electoral Commission voter roll confirmation.';
     } else if (
       (election.domainId === 'grasag' || election.category === 'GRASAG') &&
       student.level !== 'Postgraduate'
     ) {
       isEligible = false;
       eligibilityReason = `GRASAG elections are strictly restricted to Postgraduate students. Your level is Level ${student.level}.`;
-    } else {
-      const crit = election.eligibilityCriteria;
-      if (crit) {
-        if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(student.level)) {
-          isEligible = false;
-          eligibilityReason = `Restricted to ${crit.levels.join(', ')}. Your registered level is Level ${student.level}.`;
-        } else if (
-          crit.faculties &&
-          crit.faculties.length > 0 &&
-          !crit.faculties.some((f) => student.faculty?.toLowerCase().includes(f.toLowerCase()))
-        ) {
-          isEligible = false;
-          eligibilityReason = `Restricted to ${crit.faculties.join(', ')}. Your faculty is ${student.faculty}.`;
-        } else if (
-          crit.departments &&
-          crit.departments.length > 0 &&
-          !crit.departments.some((d) =>
-            student.department?.toLowerCase().includes(d.toLowerCase())
-          )
-        ) {
-          isEligible = false;
-          eligibilityReason = `Restricted to ${crit.departments.join(', ')}. Your department is ${student.department}.`;
-        } else if (
-          crit.halls &&
-          crit.halls.length > 0 &&
-          !crit.halls.some((h) => matchesHall(student.hall, h))
-        ) {
-          isEligible = false;
-          eligibilityReason = `Restricted to registered members of ${crit.halls.join(', ')}. Your hall is ${student.hall}.`;
-        }
+    } else if (isHallScoped && !isOfficialHallAffiliation(student.hall, halls)) {
+      isEligible = false;
+      eligibilityReason = UNVERIFIED_HALL_MESSAGE;
+    } else if (isHallScoped) {
+      const targetHalls =
+        crit?.halls && crit.halls.length > 0
+          ? crit.halls
+          : resolvedHallUnit
+          ? [resolvedHallUnit.name]
+          : election.hallId
+          ? [election.hallId]
+          : election.subdomainLabel
+          ? [election.subdomainLabel]
+          : [];
+
+      if (
+        targetHalls.length > 0 &&
+        !targetHalls.some((h) => matchesHallAffiliation(student.hall, h, resolvedHallUnit))
+      ) {
+        isEligible = false;
+        const targetLabel = resolvedHallUnit
+          ? getHallDisplayName(resolvedHallUnit)
+          : targetHalls.join(', ');
+        eligibilityReason = `Restricted to registered members of ${targetLabel}. Your hall is ${student.hall}.`;
+      }
+    }
+
+    if (isEligible && crit) {
+      if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(student.level)) {
+        isEligible = false;
+        eligibilityReason = `Restricted to ${crit.levels.join(', ')}. Your registered level is Level ${student.level}.`;
+      } else if (
+        crit.faculties &&
+        crit.faculties.length > 0 &&
+        !crit.faculties.some((f) => student.faculty?.toLowerCase().includes(f.toLowerCase()))
+      ) {
+        isEligible = false;
+        eligibilityReason = `Restricted to ${crit.faculties.join(', ')}. Your faculty is ${student.faculty}.`;
+      } else if (
+        crit.departments &&
+        crit.departments.length > 0 &&
+        !crit.departments.some((d) =>
+          student.department?.toLowerCase().includes(d.toLowerCase())
+        )
+      ) {
+        isEligible = false;
+        eligibilityReason = `Restricted to ${crit.departments.join(', ')}. Your department is ${student.department}.`;
       }
     }
   }
@@ -431,7 +432,7 @@ export const ElectionDetailsPage: React.FC = () => {
               <span>Official Polling Regulations</span>
             </h3>
             <ul className="space-y-2 text-xs text-slate-600">
-              {(election.rules && election.rules.length > 0 ? election.rules : ['Official Electoral Commission guidelines apply to this poll.']).map((rule, idx) => (
+              {election.rules.map((rule, idx) => (
                 <li key={idx} className="flex items-start gap-2">
                   <span className="text-[#123B70] font-bold">·</span>
                   <span className="leading-relaxed">{rule}</span>

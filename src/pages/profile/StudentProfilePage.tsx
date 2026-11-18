@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { authClient } from '../../services/authClient';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { NON_RESIDENT_HALL_LABEL, getHallDisplayName } from '../../utils/hallUtils';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -89,6 +90,12 @@ export const StudentProfilePage: React.FC = () => {
       if (student.hall) setInstHall(student.hall);
     }
   }, [student?.id, student?.phone, student?.emergencyContact, student?.studentId]);
+
+  React.useEffect(() => {
+    if (!instHall && halls.length > 0) {
+      setInstHall(halls[0].name);
+    }
+  }, [instHall, halls]);
 
   if (!sessionChecked) {
     return (
@@ -483,8 +490,13 @@ export const StudentProfilePage: React.FC = () => {
                       className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-[#123B70]"
                     >
                       {halls.map((h) => (
-                        <option key={h.id} value={h.name}>{h.name}</option>
+                        <option key={h.id} value={h.name}>
+                          {getHallDisplayName(h)}
+                        </option>
                       ))}
+                      <option value={NON_RESIDENT_HALL_LABEL}>
+                        {NON_RESIDENT_HALL_LABEL} (No Hall Affiliation)
+                      </option>
                     </select>
                   </div>
                 </div>

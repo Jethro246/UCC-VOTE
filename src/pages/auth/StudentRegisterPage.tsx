@@ -4,6 +4,7 @@ import { authClient } from '../../services/authClient';
 import { Logo } from '../../components/common/Logo';
 import { GoogleAuthButton } from '../../components/common/GoogleAuthButton';
 import { isValidEmail } from '../../services/firebaseAuthService';
+import { NON_RESIDENT_HALL_LABEL, getHallDisplayName } from '../../utils/hallUtils';
 import {
   UserPlus,
   Mail,
@@ -48,6 +49,12 @@ export const StudentRegisterPage: React.FC = () => {
       setEmail(firebaseUser.email);
     }
   }, [firebaseUser, email]);
+
+  useEffect(() => {
+    if (!hall && halls.length > 0) {
+      setHall(halls[0].name);
+    }
+  }, [hall, halls]);
 
   const filteredDepartments = departments.filter(
     (d) => !faculty || d.facultyName.toLowerCase() === faculty.toLowerCase()
@@ -497,9 +504,12 @@ export const StudentRegisterPage: React.FC = () => {
                   >
                     {halls.map((h) => (
                       <option key={h.id} value={h.name}>
-                        {h.name}
+                        {getHallDisplayName(h)}
                       </option>
                     ))}
+                    <option value={NON_RESIDENT_HALL_LABEL}>
+                      {NON_RESIDENT_HALL_LABEL} (No Hall Affiliation)
+                    </option>
                   </select>
                 </div>
               </div>

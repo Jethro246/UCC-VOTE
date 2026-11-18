@@ -6,20 +6,23 @@ import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { ElectionResultsPayload, DomainId } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { getHallDisplayName, isElectionForHall } from '../../utils/hallUtils';
 import {
   Award,
   Download,
   ShieldCheck,
   FileText,
   Lock,
-  WifiOff
+  WifiOff,
+  Building
 } from 'lucide-react';
 
 export const ElectionResultsPage: React.FC = () => {
-  const { elections, domains, selectedElectionId, userRole } = useApp();
+  const { elections, domains, halls, selectedElectionId, userRole } = useApp();
   const { isOnline } = useOnlineStatus();
 
   const [selectedDomainTab, setSelectedDomainTab] = useState<DomainId | 'All'>('All');
+  const [selectedHallId, setSelectedHallId] = useState<string>('All');
   const [activeElectionId, setActiveElectionId] = useState<string>(
     selectedElectionId || ''
   );
@@ -29,40 +32,45 @@ export const ElectionResultsPage: React.FC = () => {
   const [exportMsg, setExportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
-  const visiblePool = useMemo(() => {
-    if (userRole === 'admin') return elections;
-    return elections.filter((e) => e.status !== 'draft' && e.status !== 'pending_approval');
-  }, [elections, userRole]);
-
   const filteredElections = useMemo(() => {
-    if (selectedDomainTab === 'All') return visiblePool;
-    return visiblePool.filter(
-      (e) =>
+    return elections.filter((e) => {
+      const domOk =
+        selectedDomainTab === 'All' ||
         e.domainId === selectedDomainTab ||
         (selectedDomainTab === 'src' && e.category === 'SRC') ||
         (selectedDomainTab === 'jcrc_hall' && e.category === 'JCR / Hall') ||
         (selectedDomainTab === 'grasag' && e.category === 'GRASAG') ||
         (selectedDomainTab === 'local_nugs' && e.category === 'Local NUGS') ||
         (selectedDomainTab === 'departmental' && e.category === 'Departmental') ||
-        (selectedDomainTab === 'faculty_school' && e.category === 'Faculty / School')
-    );
-  }, [visiblePool, selectedDomainTab]);
+        (selectedDomainTab === 'faculty_school' && e.category === 'Faculty / School');
+      if (!domOk) return false;
+      if (selectedDomainTab === 'jcrc_hall' && selectedHallId !== 'All') {
+        const hallObj = halls.find((h) => h.id === selectedHallId);
+        if (!hallObj) return false;
+        return isElectionForHall(e, hallObj, halls);
+      }
+      return true;
+    });
+  }, [elections, selectedDomainTab, selectedHallId, halls]);
 
   useEffect(() => {
     if (filteredElections.length > 0 && !filteredElections.some((e) => e.id === activeElectionId)) {
       const preferred =
         filteredElections.find((e) => e.status === 'results_published') || filteredElections[0];
       setActiveElectionId(preferred.id);
+    } else if (filteredElections.length === 0 && activeElectionId) {
+      setActiveElectionId('');
     }
   }, [filteredElections, activeElectionId]);
 
   const election =
-    filteredElections.find((e) => e.id === activeElectionId) ||
-    visiblePool.find((e) => e.id === activeElectionId) ||
-    visiblePool[0];
+    filteredElections.length > 0
+      ? filteredElections.find((e) => e.id === activeElectionId) || filteredElections[0]
+      : undefined;
 
   useEffect(() => {
-    if (!election?.id) {
+    const electionId = election?.id;
+    if (!electionId) {
       setResultsPayload(null);
       setLoadingResults(false);
       return;
@@ -71,17 +79,17 @@ export const ElectionResultsPage: React.FC = () => {
     setLoadingResults(true);
     setResultsBlockedMsg(null);
 
-    async function fetchResults() {
+    async function fetchResults(targetElectionId: string) {
       try {
         if (userRole === 'admin') {
-          const adminRes = await adminService.getAdminElectionResults(election.id);
+          const adminRes = await adminService.getAdminElectionResults(targetElectionId);
           if (active && adminRes.success && adminRes.results) {
             setResultsPayload(adminRes.results);
             setLoadingResults(false);
             return;
           }
         }
-        const res = await electionClient.getPublishedResults(election.id);
+        const res = await electionClient.getPublishedResults(targetElectionId);
         if (!active) return;
         if (res.success && res.results) {
           setResultsPayload(res.results);
@@ -102,7 +110,7 @@ export const ElectionResultsPage: React.FC = () => {
       }
     }
 
-    fetchResults();
+    fetchResults(electionId);
     return () => {
       active = false;
     };
@@ -145,28 +153,16 @@ export const ElectionResultsPage: React.FC = () => {
     );
   }
 
-  if (!election) {
-    return (
-      <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-3">
-        <Award className="w-8 h-8 text-slate-400 mx-auto" />
-        <h2 className="text-base font-bold text-slate-900">
-          Election results have not been published.
-        </h2>
-        <p className="text-xs text-slate-500">
-          Certified returns will appear here once elections conclude and results are officially published by the UCC Electoral Commission.
-        </p>
-      </div>
-    );
-  }
-
-  const isCertified =
-    resultsPayload?.resultsCertified ||
-    election.resultsCertified ||
-    election.status === 'results_published';
-  const totalVotes = resultsPayload?.ballotSummary?.totalBallotsCast ?? election.totalVotesCast ?? 0;
+  const isCertified = election
+    ? resultsPayload?.resultsCertified ||
+      election.resultsCertified ||
+      election.status === 'results_published'
+    : false;
+  const totalVotes = resultsPayload?.ballotSummary?.totalBallotsCast ?? election?.totalVotesCast ?? 0;
   const totalEligible =
-    resultsPayload?.ballotSummary?.totalEligibleVoters ?? election.totalEligibleVoters ?? 0;
-  const turnout = resultsPayload?.ballotSummary?.turnoutPercentage ?? election.turnoutPercentage ?? 0;
+    resultsPayload?.ballotSummary?.totalEligibleVoters ?? election?.totalEligibleVoters ?? 0;
+  const turnout = resultsPayload?.ballotSummary?.turnoutPercentage ?? election?.turnoutPercentage ?? 0;
+  const selectedHallObj = halls.find((h) => h.id === selectedHallId);
 
   return (
     <div className="space-y-6">
@@ -192,13 +188,18 @@ export const ElectionResultsPage: React.FC = () => {
           <select
             value={activeElectionId}
             onChange={(e) => setActiveElectionId(e.target.value)}
-            className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-[#123B70] max-w-xs"
+            disabled={filteredElections.length === 0}
+            className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-[#123B70] max-w-xs disabled:opacity-50"
           >
-            {filteredElections.map((el) => (
-              <option key={el.id} value={el.id}>
-                {el.title} ({el.status === 'results_published' ? 'Certified' : el.status})
-              </option>
-            ))}
+            {filteredElections.length === 0 ? (
+              <option value="">No elections in filter</option>
+            ) : (
+              filteredElections.map((el) => (
+                <option key={el.id} value={el.id}>
+                  {el.title} ({el.status === 'results_published' ? 'Certified' : el.status})
+                </option>
+              ))
+            )}
           </select>
         </div>
       </div>
@@ -206,7 +207,10 @@ export const ElectionResultsPage: React.FC = () => {
       {/* Single-line Domain Selector Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         <button
-          onClick={() => setSelectedDomainTab('All')}
+          onClick={() => {
+            setSelectedDomainTab('All');
+            setSelectedHallId('All');
+          }}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
             selectedDomainTab === 'All'
               ? 'bg-[#123B70] text-white'
@@ -218,7 +222,10 @@ export const ElectionResultsPage: React.FC = () => {
         {domains.map((dom) => (
           <button
             key={dom.id}
-            onClick={() => setSelectedDomainTab(dom.id)}
+            onClick={() => {
+              setSelectedDomainTab(dom.id);
+              if (dom.id !== 'jcrc_hall') setSelectedHallId('All');
+            }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
               selectedDomainTab === dom.id
                 ? 'bg-[#123B70] text-white'
@@ -229,6 +236,58 @@ export const ElectionResultsPage: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {/* 8-Hall Sub-filter when JCR / Hall Results is active */}
+      {selectedDomainTab === 'jcrc_hall' && (
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+            <Building className="w-4 h-4 text-[#123B70]" />
+            <span>Filter Hall Results (All 8 Official UCC Halls):</span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <button
+              type="button"
+              onClick={() => setSelectedHallId('All')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                selectedHallId === 'All'
+                  ? 'bg-[#123B70] text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All 8 Halls
+            </button>
+            {halls.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setSelectedHallId(h.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  selectedHallId === h.id
+                    ? 'bg-[#123B70] text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {h.shortName || h.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!election ? (
+        <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-3">
+          <Award className="w-8 h-8 text-slate-400 mx-auto" />
+          <h2 className="text-base font-bold text-slate-900">
+            {selectedHallObj
+              ? `No election results found for ${getHallDisplayName(selectedHallObj)}.`
+              : 'No elections found for the selected domain.'}
+          </h2>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Certified returns and provisional tallies will appear here once an election is configured and conducted in this subdomain.
+          </p>
+        </div>
+      ) : (
+        <>
 
       {/* Certification Status Bar */}
       <div
@@ -496,6 +555,8 @@ export const ElectionResultsPage: React.FC = () => {
           </span>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

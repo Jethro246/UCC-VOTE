@@ -34,15 +34,29 @@
       "documentId": "{uid}",
       "description": "Electoral Commission / Domain Administrator record aligned with Auth custom claims."
     },
+    "HallUnit": {
+      "collection": "halls",
+      "documentId": "{hallId}",
+      "description": "Official UCC Hall of Residence units (Adehye, Atlantic, Casely Hayford, Kwame Nkrumah, Oguaa, Valco, SRC Hall, Superannuation Hall) with optional verified emblem logoUrl.",
+      "fields": {
+        "id": "string",
+        "code": "string (ADH | ATL | CHF | KNH | OGU | VLC | SRH | SUP)",
+        "name": "string",
+        "shortName": "string",
+        "displayName": "string",
+        "logoUrl": "string (optional Firebase Storage URL)",
+        "isOfficial": "boolean"
+      }
+    },
     "Election": {
       "collection": "elections",
       "documentId": "{electionId}",
-      "description": "Election configuration, scheduling, domain scope, eligibility criteria, and guidelinesUrl."
+      "description": "Election configuration, scheduling, domain scope (including hallId for JCRC / Hall elections), eligibility criteria, and guidelinesUrl."
     },
     "Position": {
       "collection": "positions",
       "documentId": "{positionId}",
-      "description": "Contested portfolio linked via electionId."
+      "description": "Contested portfolio linked via electionId, domainId, and optional hallId / facultyId / departmentId."
     },
     "Candidate": {
       "collection": "candidates",

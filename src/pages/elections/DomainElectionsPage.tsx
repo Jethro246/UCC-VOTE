@@ -1,7 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../../components/common/Logo';
-import { Election, DomainId } from '../../types';
+import { Election, DomainId, HallUnit, StudentProfile } from '../../types';
+import {
+  UNVERIFIED_HALL_MESSAGE,
+  computeHallMetrics,
+  findMatchingHallUnit,
+  getHallDisplayName,
+  isElectionForHall,
+  isOfficialHallAffiliation,
+  matchesHallAffiliation,
+  resolveElectionHallUnit
+} from '../../utils/hallUtils';
 import {
   ArrowLeft,
   Vote,
@@ -17,30 +27,10 @@ import {
   Layers
 } from 'lucide-react';
 
-function matchesHallClient(studentHall: string | undefined, targetHall: string): boolean {
-  if (!studentHall) return false;
-  const s = studentHall.trim().toLowerCase();
-  const t = targetHall.trim().toLowerCase();
-  if (s === t) return true;
-  const aliases: Record<string, string[]> = {
-    'casely hayford hall': ['casely hayford', 'casford'],
-    'atlantic hall': ['atlantic', 'atl'],
-    'adehye hall': ['adehye'],
-    'oguaa hall': ['oguaa'],
-    'kwame nkrumah hall': ['kwame nkrumah', 'knh', 'nkrumah'],
-    'valco hall': ['valco']
-  };
-  for (const [canonical, list] of Object.entries(aliases)) {
-    const sMatch = s.includes(canonical) || list.some((a) => s.includes(a));
-    const tMatch = t.includes(canonical) || list.some((a) => t.includes(a));
-    if (sMatch && tMatch) return true;
-  }
-  return s.includes(t) || t.includes(s);
-}
-
 function checkStudentDomainEligibility(
   election: Election,
-  student: any
+  student: StudentProfile | null,
+  halls: HallUnit[]
 ): { eligible: boolean; reason: string } {
   if (!student) {
     return {
@@ -63,21 +53,51 @@ function checkStudentDomainEligibility(
   }
 
   const crit = election.eligibilityCriteria;
+  const resolvedHallUnit = resolveElectionHallUnit(election, halls);
+  const isHallScoped =
+    domId === 'jcrc_hall' ||
+    election.category === 'JCR / Hall' ||
+    Boolean(election.hallId) ||
+    Boolean(crit?.halls && crit.halls.length > 0);
+
+  if (isHallScoped) {
+    if (!isOfficialHallAffiliation(student.hall, halls)) {
+      return {
+        eligible: false,
+        reason: UNVERIFIED_HALL_MESSAGE
+      };
+    }
+
+    const targetHalls =
+      crit?.halls && crit.halls.length > 0
+        ? crit.halls
+        : resolvedHallUnit
+        ? [resolvedHallUnit.name]
+        : election.hallId
+        ? [election.hallId]
+        : election.subdomainLabel
+        ? [election.subdomainLabel]
+        : [];
+
+    if (
+      targetHalls.length > 0 &&
+      !targetHalls.some((h) => matchesHallAffiliation(student.hall, h, resolvedHallUnit))
+    ) {
+      const targetLabel = resolvedHallUnit
+        ? getHallDisplayName(resolvedHallUnit)
+        : targetHalls.join(', ');
+      return {
+        eligible: false,
+        reason: `Restricted to verified affiliates of ${targetLabel} (Your hall: ${student.hall}).`
+      };
+    }
+  }
+
   if (crit) {
     if (crit.levels && crit.levels.length > 0 && !crit.levels.includes(student.level)) {
       return {
         eligible: false,
         reason: `Restricted to ${crit.levels.join(', ')} students (Your level: ${student.level}).`
-      };
-    }
-    if (
-      crit.halls &&
-      crit.halls.length > 0 &&
-      !crit.halls.some((h) => matchesHallClient(student.hall, h))
-    ) {
-      return {
-        eligible: false,
-        reason: `Restricted to ${crit.halls.join(', ')} (Your hall: ${student.hall}).`
       };
     }
     if (
@@ -126,7 +146,6 @@ export const DomainElectionsPage: React.FC = () => {
     positionsByElection,
     candidates,
     student,
-    userRole,
     navigateTo
   } = useApp();
 
@@ -170,11 +189,7 @@ export const DomainElectionsPage: React.FC = () => {
     };
 
   const domainElections = useMemo(() => {
-    const isAdmin = userRole === 'admin';
     return elections.filter((e) => {
-      if (!isAdmin && (e.status === 'draft' || e.status === 'pending_approval')) {
-        return false;
-      }
       const domId =
         e.domainId ||
         (e.category === 'SRC'
@@ -192,7 +207,12 @@ export const DomainElectionsPage: React.FC = () => {
           : 'src');
       return domId === activeDomain.id;
     });
-  }, [elections, activeDomain.id, userRole]);
+  }, [elections, activeDomain.id]);
+
+  const studentMatchedHall = useMemo(() => {
+    if (!student || !isOfficialHallAffiliation(student.hall, halls)) return undefined;
+    return findMatchingHallUnit(student.hall, halls);
+  }, [student, halls]);
 
   const filteredDepartments = useMemo(() => {
     if (selectedFacultyId === 'All') return departments;
@@ -203,11 +223,7 @@ export const DomainElectionsPage: React.FC = () => {
     return domainElections.filter((e) => {
       if (activeDomain.subdomainType === 'hall' && selectedHallId !== 'All') {
         const hallObj = halls.find((h) => h.id === selectedHallId);
-        const matchesId = e.hallId === selectedHallId;
-        const matchesCriteria =
-          hallObj &&
-          e.eligibilityCriteria?.halls?.some((h) => matchesHallClient(h, hallObj.name));
-        if (!matchesId && !matchesCriteria) return false;
+        if (!hallObj || !isElectionForHall(e, hallObj, halls)) return false;
       }
       if (
         (activeDomain.subdomainType === 'faculty' || activeDomain.subdomainType === 'department') &&
@@ -254,6 +270,7 @@ export const DomainElectionsPage: React.FC = () => {
   ]);
 
   const selectedDeptObj = departments.find((d) => d.id === selectedDepartmentId);
+  const selectedHallObj = halls.find((h) => h.id === selectedHallId);
 
   return (
     <div className="space-y-6">
@@ -375,67 +392,140 @@ export const DomainElectionsPage: React.FC = () => {
             </span>
           </div>
         )}
+
+        {/* Hall Affiliation Verification Callout for logged-in students */}
+        {activeDomain.subdomainType === 'hall' && student && (
+          <div
+            className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+              studentMatchedHall
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : 'bg-amber-50 border-amber-200 text-amber-900'
+            }`}
+          >
+            <div className="flex items-start sm:items-center gap-2.5">
+              {studentMatchedHall ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+              )}
+              <span>
+                {studentMatchedHall
+                  ? `Verified Hall Affiliation: ${getHallDisplayName(
+                      studentMatchedHall
+                    )}. You are strictly eligible to vote only in JCRC elections for ${getHallDisplayName(
+                      studentMatchedHall
+                    )}.`
+                  : UNVERIFIED_HALL_MESSAGE}
+              </span>
+            </div>
+            {studentMatchedHall && (
+              <button
+                type="button"
+                onClick={() => setSelectedHallId(studentMatchedHall.id)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
+              >
+                View My Hall Elections
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Subdomain Navigator: JCRC / Hall */}
+      {/* Subdomain Navigator: JCRC / Hall (All 8 Official UCC Halls) */}
       {activeDomain.subdomainType === 'hall' && (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Building className="w-4 h-4 text-[#123B70]" />
-                <span>Participating UCC Residential Halls (Independent JCRC Subdomains)</span>
+                <span>
+                  Official UCC Residential Halls ({halls.length} Independent JCRC Subdomains)
+                </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Select a residential hall to inspect its independent JCRC positions, contestants, and digital ballot.
+                Select any hall to view its JCRC election details and candidates. Voting access remains strictly enforced by your verified student hall affiliation.
               </p>
             </div>
             {selectedHallId !== 'All' && (
               <button
+                type="button"
                 onClick={() => setSelectedHallId('All')}
                 className="text-xs font-semibold text-[#123B70] hover:underline whitespace-nowrap cursor-pointer self-start"
               >
-                Show All Halls
+                Show All {halls.length} Halls
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {halls.map((hall) => {
-              const hallElections = domainElections.filter(
-                (e) =>
-                  e.hallId === hall.id ||
-                  e.eligibilityCriteria?.halls?.some((h) => matchesHallClient(h, hall.name))
-              );
+              const metrics = computeHallMetrics(hall, halls, domainElections, candidates);
               const isSelected = selectedHallId === hall.id;
-              const isStudentHall = student ? matchesHallClient(student.hall, hall.name) : false;
+              const isStudentHall = studentMatchedHall?.id === hall.id;
 
               return (
                 <button
                   key={hall.id}
+                  type="button"
                   onClick={() => setSelectedHallId(isSelected ? 'All' : hall.id)}
-                  className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between gap-3 ${
                     isSelected
-                      ? 'border-[#123B70] bg-[#EAF2FA]/50'
-                      : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                      ? 'border-[#123B70] bg-[#EAF2FA]/60'
+                      : isStudentHall
+                      ? 'border-emerald-300 bg-emerald-50/30 hover:bg-emerald-50/60'
+                      : 'border-slate-200 bg-slate-50/40 hover:bg-white'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-900">{hall.name}</span>
-                    {isStudentHall && (
-                      <span className="text-[10px] font-bold text-emerald-700 whitespace-nowrap">
-                        Your Hall
-                      </span>
-                    )}
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {hall.logoUrl ? (
+                          <img
+                            src={hall.logoUrl}
+                            alt={`${hall.name} emblem`}
+                            className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-[#123B70]/10 text-[#123B70] flex items-center justify-center text-[10px] font-extrabold font-mono shrink-0">
+                            {hall.code || hall.shortName.slice(0, 3).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-900 block leading-snug truncate">
+                            {getHallDisplayName(hall)}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {hall.code || hall.shortName}
+                          </span>
+                        </div>
+                      </div>
+                      {isStudentHall && (
+                        <span className="text-[10px] font-bold text-emerald-700 whitespace-nowrap shrink-0">
+                          Your Hall
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-                    <span>{hallElections.length} Election{hallElections.length === 1 ? '' : 's'}</span>
-                    <span aria-hidden="true">·</span>
+
+                  <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-600 tabular-nums">
                     <span>
-                      {hallElections.some((e) => e.status === 'live')
+                      {metrics.electionsCount} Election{metrics.electionsCount === 1 ? '' : 's'}
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        metrics.liveElectionsCount > 0
+                          ? 'text-emerald-700'
+                          : metrics.publishedResultsCount > 0
+                          ? 'text-amber-700'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      {metrics.liveElectionsCount > 0
                         ? 'Polling Open'
-                        : hallElections.some((e) => e.status === 'results_published')
+                        : metrics.publishedResultsCount > 0
                         ? 'Results Published'
+                        : metrics.scheduledElectionsCount > 0
+                        ? 'Scheduled'
                         : 'Awaiting Schedule'}
                     </span>
                   </div>
@@ -550,7 +640,9 @@ export const DomainElectionsPage: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
           <Clock className="w-8 h-8 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-900">
-            No Elections Currently Scheduled for Selection
+            {selectedHallObj
+              ? `No Elections Currently Scheduled for ${getHallDisplayName(selectedHallObj)}`
+              : 'No Elections Currently Scheduled for Selection'}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             This subdomain has no elections matching your current filter yet. Authorized Electoral Administrators can configure and publish new elections in the Admin Console.
@@ -580,7 +672,7 @@ export const DomainElectionsPage: React.FC = () => {
               (c) => c.electionId === election.id && c.applicationStatus === 'Approved'
             ).length;
             const hasVoted = student?.hasVotedElections.includes(election.id);
-            const elig = checkStudentDomainEligibility(election, student);
+            const elig = checkStudentDomainEligibility(election, student, halls);
             const isLive = election.status === 'live';
             const isResults = election.status === 'results_published';
 
