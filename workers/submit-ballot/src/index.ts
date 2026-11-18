@@ -11,12 +11,35 @@ type FetchFn = typeof fetch;
 
 const DEFAULT_PROJECT_ID = 'ucc-vote';
 const DEFAULT_DATABASE_ID = 'ai-studio-uccvote-84fbbe19-57dc-4b9d-8017-7c3fcf81fe8c';
+const DEFAULT_ALLOWED_ORIGINS =
+  'https://ucc-vote.vercel.app,https://ucc-vote.web.app,https://ucc-vote.firebaseapp.com';
 const GOOGLE_JWKS_URL =
   'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const FIRESTORE_SCOPE = 'https://www.googleapis.com/auth/datastore';
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+
+const UNVERIFIED_HALL_MESSAGE =
+  'Your hall affiliation could not be verified. Please contact the appropriate administrator.';
+
+interface CanonicalHall {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+}
+
+const OFFICIAL_UCC_HALLS: CanonicalHall[] = [
+  { id: 'hall-adehye', code: 'ADH', name: 'Adehye Hall', shortName: 'Adehye' },
+  { id: 'hall-atlantic', code: 'ATL', name: 'Atlantic Hall', shortName: 'ATL' },
+  { id: 'hall-casford', code: 'CHF', name: 'Casely Hayford Hall', shortName: 'Casford' },
+  { id: 'hall-nkrumah', code: 'KNH', name: 'Kwame Nkrumah Hall', shortName: 'KNH' },
+  { id: 'hall-oguaa', code: 'OGU', name: 'Oguaa Hall', shortName: 'Oguaa' },
+  { id: 'hall-valco', code: 'VLC', name: 'Valco Hall', shortName: 'Valco' },
+  { id: 'hall-src', code: 'SRH', name: 'SRC Hall', shortName: 'SRC Hall' },
+  { id: 'hall-superannuation', code: 'SUP', name: 'Superannuation Hall', shortName: 'Super Hall' },
+];
 
 interface CachedJwks {
   keysByKid: Map<string, JsonWebKey>;
@@ -46,31 +69,53 @@ export class HttpStatusError extends Error {
   }
 }
 
-function getCorsHeaders(request: Request, env: WorkerEnv): Record<string, string> {
-  const origin = request.headers.get('Origin') || '';
-  const configured = (env.ALLOWED_ORIGINS || '*').trim();
-  let allowOrigin = '*';
+function resolveCors(
+  request: Request,
+  env: WorkerEnv
+): { allowed: boolean; headers: Record<string, string> } {
+  const origin = (request.headers.get('Origin') || '').trim();
+  const configured = (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS).trim();
 
-  if (configured !== '*') {
-    const allowedList = configured
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (origin && allowedList.includes(origin)) {
-      allowOrigin = origin;
-    } else if (allowedList.length > 0) {
-      allowOrigin = allowedList[0];
-    }
-  } else if (origin) {
-    allowOrigin = origin;
-  }
-
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
+  const baseHeaders: Record<string, string> = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
+  };
+
+  if (!origin) {
+    return { allowed: true, headers: baseHeaders };
+  }
+
+  if (configured === '*') {
+    return {
+      allowed: true,
+      headers: {
+        ...baseHeaders,
+        'Access-Control-Allow-Origin': origin,
+      },
+    };
+  }
+
+  const allowedList = configured
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  const normalizedOrigin = origin.replace(/\/+$/, '');
+  if (allowedList.includes(normalizedOrigin)) {
+    return {
+      allowed: true,
+      headers: {
+        ...baseHeaders,
+        'Access-Control-Allow-Origin': origin,
+      },
+    };
+  }
+
+  return {
+    allowed: false,
+    headers: { Vary: 'Origin' },
   };
 }
 
@@ -139,6 +184,12 @@ function randomHex(byteLength: number): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 function parseServiceAccount(env: WorkerEnv): { clientEmail: string; privateKeyPem: string } {
   if (env.FIREBASE_SERVICE_ACCOUNT_JSON) {
     try {
@@ -152,7 +203,7 @@ function parseServiceAccount(env: WorkerEnv): { clientEmail: string; privateKeyP
       throw new HttpStatusError(
         500,
         'SERVER_MISCONFIGURED',
-        'Invalid FIREBASE_SERVICE_ACCOUNT_JSON secret configuration.'
+        'Voting service credentials are improperly configured.'
       );
     }
   }
@@ -259,7 +310,11 @@ export async function verifyFirebaseIdToken(
   }
 
   if (header.alg !== 'RS256' || !header.kid) {
-    throw new HttpStatusError(401, 'INVALID_TOKEN', 'Unsupported Firebase ID token signature header.');
+    throw new HttpStatusError(
+      401,
+      'INVALID_TOKEN',
+      'Unsupported Firebase ID token signature header.'
+    );
   }
 
   const key = await getVerificationKey(header.kid, fetchImpl);
@@ -273,7 +328,11 @@ export async function verifyFirebaseIdToken(
     signedBytes as BufferSource
   );
   if (!validSig) {
-    throw new HttpStatusError(401, 'INVALID_TOKEN', 'Firebase ID token signature verification failed.');
+    throw new HttpStatusError(
+      401,
+      'INVALID_TOKEN',
+      'Firebase ID token signature verification failed.'
+    );
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
@@ -289,11 +348,18 @@ export async function verifyFirebaseIdToken(
   if (payload.iss !== expectedIssuer) {
     throw new HttpStatusError(401, 'INVALID_TOKEN', 'Firebase ID token issuer mismatch.');
   }
-  if (!sub || sub.length > 128) {
+  if (!sub || sub.length > 128 || sub.includes('/') || sub === '.' || sub.includes('..')) {
     throw new HttpStatusError(401, 'INVALID_TOKEN', 'Firebase ID token missing valid subject UID.');
   }
+  if (typeof payload.user_id === 'string' && payload.user_id.trim() !== sub) {
+    throw new HttpStatusError(401, 'INVALID_TOKEN', 'Firebase ID token subject mismatch.');
+  }
   if (!Number.isFinite(exp) || exp <= nowSec) {
-    throw new HttpStatusError(401, 'TOKEN_EXPIRED', 'Your authentication session has expired. Sign in again.');
+    throw new HttpStatusError(
+      401,
+      'TOKEN_EXPIRED',
+      'Your authentication session has expired. Sign in again.'
+    );
   }
   if (!Number.isFinite(iat) || iat > nowSec + 300 || (authTime && authTime > nowSec + 300)) {
     throw new HttpStatusError(401, 'INVALID_TOKEN', 'Firebase ID token timestamp is invalid.');
@@ -324,10 +390,7 @@ async function getSigningKey(clientEmail: string, privateKeyPem: string): Promis
   return imported;
 }
 
-async function getFirestoreAccessToken(
-  env: WorkerEnv,
-  fetchImpl: FetchFn
-): Promise<string> {
+async function getFirestoreAccessToken(env: WorkerEnv, fetchImpl: FetchFn): Promise<string> {
   const { clientEmail, privateKeyPem } = parseServiceAccount(env);
   const now = Date.now();
   const cached = oauthTokenCache.get(clientEmail);
@@ -482,63 +545,207 @@ function decodeFirestoreDoc(doc: FirestoreRestDocument): Record<string, any> {
   return data;
 }
 
+function normHall(val?: unknown): string {
+  return String(val || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function matchesHallServer(studentHall?: unknown, targetHall?: unknown): boolean {
+  const s = normHall(studentHall);
+  const t = normHall(targetHall);
+  if (!s || !t) return false;
+  if (s === t) return true;
+
+  const sClean = s.replace(/\bhall\b/g, '').trim();
+  const tClean = t.replace(/\bhall\b/g, '').trim();
+  if (
+    sClean &&
+    tClean &&
+    sClean === tClean &&
+    sClean !== 'src' &&
+    sClean !== 'non-resident / off-campus'
+  ) {
+    return true;
+  }
+
+  const isAdehye = (v: string) =>
+    v.includes('adehye') || v === 'adh' || v === 'hall-adehye' || v === 'hall-ade';
+  if (isAdehye(s) && isAdehye(t)) return true;
+
+  const isAtlantic = (v: string) =>
+    v.includes('atlantic') || v === 'atl' || v === 'hall-atlantic' || v === 'hall-atl';
+  if (isAtlantic(s) && isAtlantic(t)) return true;
+
+  const isCasford = (v: string) =>
+    v.includes('casford') ||
+    v.includes('casely hayford') ||
+    v === 'chf' ||
+    v === 'hall-casford' ||
+    v === 'hall-cas';
+  if (isCasford(s) && isCasford(t)) return true;
+
+  const isNkrumah = (v: string) =>
+    v.includes('kwame nkrumah') || v === 'knh' || v === 'hall-knh' || v === 'hall-nkrumah';
+  if (isNkrumah(s) && isNkrumah(t)) return true;
+
+  const isOguaa = (v: string) =>
+    v.includes('oguaa') || v === 'ogu' || v === 'hall-oguaa' || v === 'hall-ogu';
+  if (isOguaa(s) && isOguaa(t)) return true;
+
+  const isValco = (v: string) =>
+    v.includes('valco') || v === 'vlc' || v === 'hall-valco' || v === 'hall-val';
+  if (isValco(s) && isValco(t)) return true;
+
+  const isSrcHall = (v: string) =>
+    v === 'src hall' || v === 'src hostel' || v === 'srh' || v === 'hall-src' || v === 'hall_src';
+  if (isSrcHall(s) && isSrcHall(t)) return true;
+
+  const isSuperHall = (v: string) =>
+    v.includes('superannuation') ||
+    v === 'super hall' ||
+    v === 'super' ||
+    v === 'sup' ||
+    v === 'hall-superannuation' ||
+    v === 'hall-super' ||
+    v === 'hall-sup';
+  if (isSuperHall(s) && isSuperHall(t)) return true;
+
+  return false;
+}
+
+function findOfficialHallServer(val?: unknown): CanonicalHall | undefined {
+  const q = normHall(val);
+  if (!q) return undefined;
+  return OFFICIAL_UCC_HALLS.find(
+    (h) =>
+      normHall(h.id) === q ||
+      normHall(h.code) === q ||
+      matchesHallServer(val, h.name) ||
+      matchesHallServer(val, h.shortName)
+  );
+}
+
+function isOfficialHallServer(val?: unknown): boolean {
+  const q = normHall(val);
+  if (!q || q === 'non-resident / off-campus' || q === 'non-resident' || q === 'off-campus') {
+    return false;
+  }
+  return Boolean(findOfficialHallServer(val));
+}
+
+function resolveElectionTargetHalls(election: Record<string, any>): string[] {
+  const criteriaHalls = Array.isArray(election.eligibilityCriteria?.halls)
+    ? election.eligibilityCriteria.halls.filter((h: any) => typeof h === 'string' && h.trim())
+    : [];
+  if (criteriaHalls.length > 0) return criteriaHalls;
+
+  if (typeof election.hallId === 'string' && election.hallId.trim()) {
+    const matched = findOfficialHallServer(election.hallId);
+    return [matched ? matched.name : election.hallId.trim()];
+  }
+  if (typeof election.subdomainLabel === 'string' && election.subdomainLabel.trim()) {
+    const matched = findOfficialHallServer(election.subdomainLabel);
+    if (matched) return [matched.name];
+  }
+  return [];
+}
+
 function evaluateEligibilityAgainstCriteria(
   student: Record<string, any>,
-  criteria: Record<string, any> = {},
-  electionCategory?: string
+  election: Record<string, any>,
+  eligRecord?: Record<string, any> | null,
+  authTokenEmailVerified?: boolean
 ): { eligible: boolean; reasons: string[] } {
   const reasons: string[] = [];
+  const criteria: Record<string, any> = election.eligibilityCriteria || {};
 
-  if (student.status === 'suspended') {
-    reasons.push('Student account is currently suspended.');
+  if (student.status === 'suspended' || student.status === 'unverified') {
+    reasons.push('Your student account is suspended or unverified.');
   }
-  if (student.status === 'unverified') {
-    reasons.push('Student account is unverified.');
+
+  const isEmailVerified = Boolean(student.emailVerified) || authTokenEmailVerified === true;
+  if (!isEmailVerified) {
+    reasons.push('Please verify your university email address before voting.');
   }
 
   const normalize = (val?: unknown) => String(val || '').trim().toLowerCase();
-
-  if (electionCategory === 'GRASAG' && normalize(student.level) !== 'postgraduate') {
-    reasons.push('GRASAG elections require Postgraduate enrolment.');
-  }
+  const resolvedFaculty = String(eligRecord?.faculty || student.faculty || '');
+  const resolvedDepartment = String(eligRecord?.department || student.department || '');
+  const resolvedLevel = String(eligRecord?.level || student.level || '');
+  const resolvedHall = String(eligRecord?.hall || student.hall || '');
 
   if (Array.isArray(criteria.faculties) && criteria.faculties.length > 0) {
-    const studFac = normalize(student.faculty);
-    const matches = criteria.faculties.some(
-      (f: string) => studFac.includes(normalize(f)) || normalize(f).includes(studFac)
-    );
-    if (!matches) reasons.push(`Restricted to faculties: ${criteria.faculties.join(', ')}.`);
+    const studFac = normalize(resolvedFaculty);
+    const matches =
+      Boolean(studFac) &&
+      criteria.faculties.some(
+        (f: string) =>
+          studFac === normalize(f) ||
+          studFac.includes(normalize(f)) ||
+          normalize(f).includes(studFac)
+      );
+    if (!matches) reasons.push(`Restricted to faculty: ${criteria.faculties.join(', ')}.`);
   }
 
   if (Array.isArray(criteria.departments) && criteria.departments.length > 0) {
-    const studDept = normalize(student.department);
-    const matches = criteria.departments.some(
-      (d: string) => studDept.includes(normalize(d)) || normalize(d).includes(studDept)
-    );
-    if (!matches) reasons.push(`Restricted to departments: ${criteria.departments.join(', ')}.`);
-  }
-
-  if (Array.isArray(criteria.halls) && criteria.halls.length > 0) {
-    const studHall = normalize(student.hall);
-    const matches = criteria.halls.some((h: string) => {
-      const target = normalize(h);
-      return (
-        studHall.includes(target) ||
-        target.includes(studHall) ||
-        (studHall.includes('casford') && target.includes('casely')) ||
-        (studHall.includes('casely') && target.includes('casford'))
+    const studDept = normalize(resolvedDepartment);
+    const matches =
+      Boolean(studDept) &&
+      criteria.departments.some(
+        (d: string) =>
+          studDept === normalize(d) ||
+          studDept.includes(normalize(d)) ||
+          normalize(d).includes(studDept)
       );
-    });
-    if (!matches) reasons.push(`Restricted to hall(s): ${criteria.halls.join(', ')}.`);
+    if (!matches) reasons.push(`Restricted to department: ${criteria.departments.join(', ')}.`);
   }
 
-  if (Array.isArray(criteria.levels) && criteria.levels.length > 0) {
-    const studLevel = normalize(student.level);
-    const matches = criteria.levels.some((l: string) => normalize(l) === studLevel);
-    if (!matches) reasons.push(`Restricted to academic level(s): ${criteria.levels.join(', ')}.`);
+  const isHallElection =
+    election.domainId === 'jcrc_hall' ||
+    election.category === 'JCR / Hall' ||
+    Boolean(election.hallId) ||
+    (Array.isArray(criteria.halls) && criteria.halls.length > 0);
+
+  if (isHallElection) {
+    const targetHalls = resolveElectionTargetHalls(election);
+    if (!isOfficialHallServer(resolvedHall)) {
+      reasons.push(UNVERIFIED_HALL_MESSAGE);
+    } else if (targetHalls.length > 0) {
+      const matches = targetHalls.some((h: string) => matchesHallServer(resolvedHall, h));
+      if (!matches) {
+        reasons.push(`Restricted to hall: ${targetHalls.join(', ')}.`);
+      }
+    }
+  }
+
+  if (
+    (election.category === 'GRASAG' || election.domainId === 'grasag') &&
+    normalize(resolvedLevel) !== 'postgraduate'
+  ) {
+    reasons.push('GRASAG elections require Postgraduate enrolment.');
+  } else if (Array.isArray(criteria.levels) && criteria.levels.length > 0) {
+    const studLevel = normalize(resolvedLevel);
+    const matches =
+      Boolean(studLevel) &&
+      criteria.levels.some((l: string) => normalize(String(l)) === studLevel);
+    if (!matches) reasons.push(`Restricted to level(s): ${criteria.levels.join(', ')}.`);
   }
 
   return { eligible: reasons.length === 0, reasons };
+}
+
+function isStudentOnApprovedVoterRoll(
+  student: Record<string, any>,
+  eligRecord: Record<string, any> | null | undefined
+): boolean {
+  if (eligRecord) {
+    return eligRecord.isEligible === true && eligRecord.status === 'eligible';
+  }
+  return (
+    student.isEligible === true &&
+    student.eligibilityStatus !== 'suspended' &&
+    student.eligibilityStatus !== 'pending_verification' &&
+    student.eligibilityStatus !== 'ineligible'
+  );
 }
 
 async function firestoreRequest<T>(
@@ -635,9 +842,7 @@ async function runEqualityQuery(
     fetchImpl
   );
 
-  return rows
-    .filter((r) => Boolean(r.document))
-    .map((r) => decodeFirestoreDoc(r.document!));
+  return rows.filter((r) => Boolean(r.document)).map((r) => decodeFirestoreDoc(r.document!));
 }
 
 export async function handleSubmitBallotRequest(
@@ -645,7 +850,20 @@ export async function handleSubmitBallotRequest(
   env: WorkerEnv,
   fetchImpl: FetchFn = fetch
 ): Promise<Response> {
-  const corsHeaders = getCorsHeaders(request, env);
+  const cors = resolveCors(request, env);
+  const corsHeaders = cors.headers;
+
+  if (!cors.allowed) {
+    return jsonResponse(
+      403,
+      {
+        success: false,
+        code: 'CORS_ORIGIN_FORBIDDEN',
+        error: 'Origin is not authorized to access the UCC VOTE ballot submission endpoint.',
+      },
+      corsHeaders
+    );
+  }
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -692,9 +910,16 @@ export async function handleSubmitBallotRequest(
 
     const electionId = String(body?.electionId || '').trim();
     const rawSelections = body?.selections as Record<string, unknown> | undefined;
+    const rawIdempotencyKey = body?.idempotencyKey;
+    const idempotencyKey =
+      typeof rawIdempotencyKey === 'string' ? rawIdempotencyKey.trim().slice(0, 128) : '';
 
     if (!electionId || !ID_PATTERN.test(electionId)) {
-      throw new HttpStatusError(400, 'INVALID_ARGUMENT', 'Valid electionId is required.');
+      throw new HttpStatusError(
+        400,
+        'INVALID_ARGUMENT',
+        'Valid electionId and selections map are required.'
+      );
     }
     if (!rawSelections || typeof rawSelections !== 'object' || Array.isArray(rawSelections)) {
       throw new HttpStatusError(
@@ -729,8 +954,11 @@ export async function handleSubmitBallotRequest(
       ),
     ]);
 
+    const sortedPositions = [...positions].sort(
+      (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)
+    );
     const positionMap = new Map<string, Record<string, any>>();
-    for (const pos of positions) {
+    for (const pos of sortedPositions) {
       positionMap.set(pos.id, pos);
     }
 
@@ -739,16 +967,30 @@ export async function handleSubmitBallotRequest(
     for (const cand of approvedCandidates) {
       candidateMap.set(cand.id, cand);
       const pid = String(cand.positionId || '');
-      approvedCountByPosition.set(pid, (approvedCountByPosition.get(pid) || 0) + 1);
+      if (pid) {
+        approvedCountByPosition.set(pid, (approvedCountByPosition.get(pid) || 0) + 1);
+      }
     }
 
     const sanitizedSelections: Record<string, string[]> = {};
     const selectedCandidateIds: string[] = [];
 
     for (const [posId, candIds] of Object.entries(rawSelections)) {
-      if (!Array.isArray(candIds) || candIds.length === 0) continue;
+      if (!Array.isArray(candIds)) {
+        throw new HttpStatusError(
+          400,
+          'INVALID_ARGUMENT',
+          `Selections for position ${posId} must be an array.`
+        );
+      }
+      if (candIds.length === 0) continue;
+
       if (!ID_PATTERN.test(posId)) {
-        throw new HttpStatusError(400, 'INVALID_ARGUMENT', `Invalid position identifier: ${posId}.`);
+        throw new HttpStatusError(
+          400,
+          'INVALID_ARGUMENT',
+          `Invalid position identifier: ${posId}.`
+        );
       }
       const pos = positionMap.get(posId);
       if (!pos) {
@@ -760,7 +1002,18 @@ export async function handleSubmitBallotRequest(
       }
 
       const maxSel = Number(pos.maxSelections) || 1;
-      const uniqueCands = Array.from(new Set(candIds.map((c) => String(c).trim()).filter(Boolean)));
+      const normalizedIds = candIds.map((cid) => {
+        if (typeof cid !== 'string' || !cid.trim() || !ID_PATTERN.test(cid.trim())) {
+          throw new HttpStatusError(
+            400,
+            'INVALID_ARGUMENT',
+            `Invalid candidate identifier in position ${posId}.`
+          );
+        }
+        return cid.trim();
+      });
+      const uniqueCands = Array.from(new Set(normalizedIds));
+
       if (uniqueCands.length > maxSel) {
         throw new HttpStatusError(
           400,
@@ -770,15 +1023,12 @@ export async function handleSubmitBallotRequest(
       }
 
       for (const cid of uniqueCands) {
-        if (!ID_PATTERN.test(cid)) {
-          throw new HttpStatusError(400, 'INVALID_ARGUMENT', `Invalid candidate identifier: ${cid}.`);
-        }
         const cand = candidateMap.get(cid);
         if (!cand || cand.positionId !== posId) {
           throw new HttpStatusError(
             400,
             'INVALID_ARGUMENT',
-            `Candidate ${cid} is not valid or not approved for position ${posId}.`
+            `Candidate ${cid} is not approved or valid for position ${pos.title || posId}.`
           );
         }
         selectedCandidateIds.push(cid);
@@ -787,21 +1037,18 @@ export async function handleSubmitBallotRequest(
       sanitizedSelections[posId] = uniqueCands;
     }
 
-    // Check required (non-skippable) positions that have approved candidates
-    for (const pos of positions) {
-      const hasApprovedCandidates = (approvedCountByPosition.get(pos.id) || 0) > 0;
-      if (
-        hasApprovedCandidates &&
-        pos.allowsSkip !== true &&
-        (!sanitizedSelections[pos.id] || sanitizedSelections[pos.id].length === 0)
-      ) {
-        throw new HttpStatusError(
-          400,
-          'INVALID_ARGUMENT',
-          `Selection required for ${pos.title || pos.id}.`
-        );
-      }
-    }
+    const nowIso = new Date().toISOString();
+    const confirmationRef = `UCC-${electionId.slice(0, 6).toUpperCase()}-${randomHex(3).toUpperCase()}`;
+    const receiptHash = await sha256Hex(`${electionId}:${confirmationRef}:${nowIso}:${randomHex(16)}`);
+
+    const positionsCompleted = sortedPositions.map((pos) => ({
+      id: pos.id,
+      title: String(pos.title || pos.id),
+      status:
+        (sanitizedSelections[pos.id]?.length || 0) > 0
+          ? ('VOTED' as const)
+          : ('ABSTAINED' as const),
+    }));
 
     const electionDocPath = `${docRoot}/elections/${electionId}`;
     const studentDocPath = `${docRoot}/students/${uid}`;
@@ -843,6 +1090,7 @@ export async function handleSubmitBallotRequest(
               studentDocPath,
               eligDocPath,
               authLockDocPath,
+              receiptDocPath,
               adminDocPath,
             ],
           },
@@ -867,30 +1115,63 @@ export async function handleSubmitBallotRequest(
 
         const election = foundByPath.get(electionDocPath);
         if (!election) {
-          throw new HttpStatusError(404, 'NOT_FOUND', 'Election does not exist.');
+          throw new HttpStatusError(404, 'NOT_FOUND', 'Election record does not exist.');
         }
+
+        // Idempotent retry support for exact same idempotencyKey before treating as duplicate vote
+        const authLockDoc = foundByPath.get(authLockDocPath);
+        if (authLockDoc) {
+          const existingReceipt = foundByPath.get(receiptDocPath);
+          if (
+            idempotencyKey &&
+            typeof authLockDoc.idempotencyKey === 'string' &&
+            authLockDoc.idempotencyKey === idempotencyKey &&
+            existingReceipt
+          ) {
+            await rollbackTransactionQuietly(baseUrl, accessToken, transaction, fetchImpl);
+            receiptPayload = {
+              ...existingReceipt,
+              id: existingReceipt.id || `${electionId}_${uid}`,
+            };
+            updatedTurnout = Number(election.turnoutPercentage) || 0;
+            break;
+          }
+          throw new HttpStatusError(
+            409,
+            'ALREADY_VOTED',
+            'You have already cast your ballot in this election.'
+          );
+        }
+
         if (election.status !== 'live') {
           throw new HttpStatusError(
             403,
             'ELECTION_NOT_LIVE',
-            'Voting is not currently open for this election.'
+            `Voting is not currently open for this election (status: ${String(election.status || 'unknown')}).`
           );
+        }
+
+        // Validate mandatory positions (with approved candidates) & non-empty ballot requirements
+        for (const pos of sortedPositions) {
+          const hasApprovedCandidates = (approvedCountByPosition.get(pos.id) || 0) > 0;
+          if (
+            hasApprovedCandidates &&
+            pos.allowsSkip !== true &&
+            (!sanitizedSelections[pos.id] || sanitizedSelections[pos.id].length === 0)
+          ) {
+            throw new HttpStatusError(
+              400,
+              'INVALID_ARGUMENT',
+              `A candidate selection is required for mandatory position: ${pos.title || pos.id}.`
+            );
+          }
         }
 
         if (selectedCandidateIds.length === 0 && election.allowsEmptyBallot !== true) {
           throw new HttpStatusError(
             400,
             'EMPTY_BALLOT_FORBIDDEN',
-            'Empty ballots are not permitted under the rules of this election.'
-          );
-        }
-
-        const authLockDoc = foundByPath.get(authLockDocPath);
-        if (authLockDoc) {
-          throw new HttpStatusError(
-            409,
-            'ALREADY_VOTED',
-            'You have already cast your ballot in this election.'
+            'Please select at least one candidate before submitting your ballot.'
           );
         }
 
@@ -899,35 +1180,49 @@ export async function handleSubmitBallotRequest(
           throw new HttpStatusError(
             403,
             'STUDENT_NOT_FOUND',
-            'Student voter profile not found.'
+            'Student voter profile not found. Complete your account activation first.'
           );
         }
 
         const eligRecord = foundByPath.get(eligDocPath) || null;
-        const isGlobalEligible = eligRecord
-          ? eligRecord.isEligible === true && eligRecord.status === 'eligible'
-          : student.isEligible === true && student.eligibilityStatus === 'eligible';
-
-        if (!isGlobalEligible) {
+        if (!isStudentOnApprovedVoterRoll(student, eligRecord)) {
           throw new HttpStatusError(
             403,
             'INELIGIBLE_VOTER',
-            'Account is not cleared on the official UCC voter eligibility roll.'
+            eligRecord?.reason ||
+              'Account is not cleared on the official UCC voter eligibility roll.'
           );
         }
 
         const criteriaEval = evaluateEligibilityAgainstCriteria(
           student,
-          (election.eligibilityCriteria as Record<string, any>) || {},
-          typeof election.category === 'string' ? election.category : undefined
+          election,
+          eligRecord,
+          verifiedToken.emailVerified === true
         );
         if (!criteriaEval.eligible) {
           throw new HttpStatusError(403, 'INELIGIBLE_VOTER', criteriaEval.reasons.join(' '));
         }
 
-        const nowIso = new Date().toISOString();
-        const receiptNumber = `UCC-${electionId.slice(0, 6).toUpperCase()}-${randomHex(3).toUpperCase()}`;
-        const cryptographicToken = randomHex(16);
+        // Validate selected candidates belong to the same hall when voting in a hall election
+        const electionTargetHalls = resolveElectionTargetHalls(election);
+        if (
+          (election.domainId === 'jcrc_hall' || election.category === 'JCR / Hall') &&
+          electionTargetHalls.length > 0
+        ) {
+          for (const cid of selectedCandidateIds) {
+            const cand = candidateMap.get(cid);
+            const candHallRef = cand?.hallId || cand?.hall;
+            if (candHallRef && !electionTargetHalls.some((h) => matchesHallServer(candHallRef, h))) {
+              throw new HttpStatusError(
+                400,
+                'INVALID_ARGUMENT',
+                `Candidate ${cand?.fullName || cid} is not affiliated with the target hall for this election.`
+              );
+            }
+          }
+        }
+
         const ballotId = crypto.randomUUID();
         const ballotDocPath = `${docRoot}/ballots/${ballotId}`;
 
@@ -939,19 +1234,26 @@ export async function handleSubmitBallotRequest(
             : 0;
         updatedTurnout = nextTurnout;
 
+        const receiptMessage =
+          'Your official ballot has been verified, anonymized, and permanently recorded.';
+
         const receiptDocFields = {
           uid,
+          confirmationRef,
+          receiptHash,
           electionId,
           electionTitle: String(election.title || ''),
+          electionCategory: String(election.category || 'Other'),
+          domainId: String(election.domainId || ''),
           electionCode: String(election.code || electionId),
-          receiptNumber,
-          cryptographicToken,
           positionsCount: Object.keys(sanitizedSelections).length,
+          positionsCompleted,
           submittedAt: nowIso,
+          message: receiptMessage,
         };
 
         const writes: Array<Record<string, unknown>> = [
-          // 1. Duplicate-vote authorisation lock (identity only, zero candidate selections)
+          // 1. Duplicate-vote authorisation lock (identity + idempotencyKey only, zero ballot choices)
           {
             update: {
               name: authLockDocPath,
@@ -959,6 +1261,7 @@ export async function handleSubmitBallotRequest(
                 uid,
                 electionId,
                 studentId: String(student.studentId || ''),
+                idempotencyKey,
               }),
             },
             updateTransforms: [
@@ -1006,9 +1309,28 @@ export async function handleSubmitBallotRequest(
             ],
             currentDocument: { exists: true },
           },
+          // 5. Mark election voted on student profile without overwriting unrelated fields
+          {
+            transform: {
+              document: studentDocPath,
+              fieldTransforms: [
+                {
+                  fieldPath: 'hasVotedElections',
+                  appendMissingElements: {
+                    values: [{ stringValue: electionId }],
+                  },
+                },
+                {
+                  fieldPath: 'updatedAt',
+                  setToServerValue: 'REQUEST_TIME',
+                },
+              ],
+            },
+            currentDocument: { exists: true },
+          },
         ];
 
-        // 5. Atomic candidate tally increment for each chosen candidate
+        // 6. Atomic candidate tally increment for each chosen candidate
         for (const cid of selectedCandidateIds) {
           writes.push({
             transform: {
@@ -1031,7 +1353,6 @@ export async function handleSubmitBallotRequest(
         receiptPayload = {
           ...receiptDocFields,
           id: `${electionId}_${uid}`,
-          studentId: String(student.studentId || ''),
         };
         break;
       } catch (err: any) {
@@ -1044,23 +1365,43 @@ export async function handleSubmitBallotRequest(
         const fStatus = String(err?.firestoreStatus || '');
         const msg = String(err?.message || '').toLowerCase();
 
-        // Precondition failure or ALREADY_EXISTS on voter_authorisations means duplicate/concurrent vote
+        // Precondition failure or ALREADY_EXISTS on voter_authorisations means duplicate/concurrent vote or concurrent idempotent retry
         if (
           fStatus === 'ALREADY_EXISTS' ||
           fStatus === 'FAILED_PRECONDITION' ||
           msg.includes('already exists') ||
           msg.includes('stored version')
         ) {
-          // Verify whether authLock was created concurrently by another request for this same uid
           const lockCheck = await firestoreRequest<
             Array<{ found?: FirestoreRestDocument }>
           >(
             `${baseUrl}:batchGet`,
             accessToken,
-            { documents: [authLockDocPath] },
+            { documents: [authLockDocPath, receiptDocPath, electionDocPath] },
             fetchImpl
           ).catch(() => []);
-          if (lockCheck.some((entry) => entry.found)) {
+
+          const foundLock = lockCheck.find((e) => e.found?.name === authLockDocPath)?.found;
+          if (foundLock) {
+            const lockData = decodeFirestoreDoc(foundLock);
+            const foundReceipt = lockCheck.find((e) => e.found?.name === receiptDocPath)?.found;
+            const foundElection = lockCheck.find((e) => e.found?.name === electionDocPath)?.found;
+            if (
+              idempotencyKey &&
+              typeof lockData.idempotencyKey === 'string' &&
+              lockData.idempotencyKey === idempotencyKey &&
+              foundReceipt
+            ) {
+              const decodedReceipt = decodeFirestoreDoc(foundReceipt);
+              receiptPayload = {
+                ...decodedReceipt,
+                id: decodedReceipt.id || `${electionId}_${uid}`,
+              };
+              updatedTurnout = foundElection
+                ? Number(decodeFirestoreDoc(foundElection).turnoutPercentage) || 0
+                : 0;
+              break;
+            }
             throw new HttpStatusError(
               409,
               'ALREADY_VOTED',
@@ -1088,7 +1429,7 @@ export async function handleSubmitBallotRequest(
         throw new HttpStatusError(
           500,
           'TRANSACTION_FAILED',
-          err?.message || 'Unable to record ballot transaction cleanly.'
+          'Unable to record ballot transaction cleanly. Please retry.'
         );
       }
     }
@@ -1129,7 +1470,7 @@ export async function handleSubmitBallotRequest(
       {
         success: false,
         code: 'INTERNAL_ERROR',
-        error: err?.message || 'Unexpected error while submitting ballot.',
+        error: 'An unexpected voting server error occurred. Please try again.',
       },
       corsHeaders
     );
