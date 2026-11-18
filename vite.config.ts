@@ -1,8 +1,27 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+function resolveSubmitBallotUrl(): string {
+  const dotEnvPath = path.resolve(import.meta.dirname, '.env');
+  const dotEnvLocalPath = path.resolve(import.meta.dirname, '.env.local');
+  const fromDotEnv = fs.existsSync(dotEnvPath)
+    ? dotenv.parse(fs.readFileSync(dotEnvPath, 'utf8')).VITE_SUBMIT_BALLOT_URL
+    : '';
+  const fromDotEnvLocal = fs.existsSync(dotEnvLocalPath)
+    ? dotenv.parse(fs.readFileSync(dotEnvLocalPath, 'utf8')).VITE_SUBMIT_BALLOT_URL
+    : '';
+  return (
+    fromDotEnvLocal ||
+    fromDotEnv ||
+    process.env.VITE_SUBMIT_BALLOT_URL ||
+    'https://ucc-vote-submit-ballot.ucc-vote.workers.dev'
+  ).trim();
+}
 
 const hmrEnabled = process.env.ENABLE_HMR === 'true' && process.env.DISABLE_HMR !== 'true';
 
@@ -25,7 +44,11 @@ function disableHmrClientPlugin(): Plugin {
 }
 
 export default defineConfig(() => {
+  const submitBallotUrl = resolveSubmitBallotUrl();
   return {
+    define: {
+      'import.meta.env.VITE_SUBMIT_BALLOT_URL': JSON.stringify(submitBallotUrl),
+    },
     plugins: [
       react(),
       tailwindcss(),
