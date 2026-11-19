@@ -58,10 +58,48 @@
       "documentId": "{positionId}",
       "description": "Contested portfolio linked via electionId, domainId, and optional hallId / facultyId / departmentId."
     },
+    "ContestantProfile": {
+      "collection": "contestants",
+      "documentId": "{contestantId}",
+      "description": "Permanent reusable UCC contestant profile shared across elections (admin-readable only due to contact PII).",
+      "fields": {
+        "id": "string",
+        "fullName": "string",
+        "studentId": "string (normalized UCC student ID)",
+        "nickname": "string (optional)",
+        "email": "string (optional, admin-protected PII)",
+        "phone": "string (optional, admin-protected PII)",
+        "department": "string",
+        "faculty": "string",
+        "programme": "string",
+        "level": "string",
+        "hall": "string",
+        "photoUrl": "string (default Firebase Storage portrait URL)",
+        "photoStoragePath": "string",
+        "biography": "string",
+        "leadershipExperience": "string[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "CandidateAssignment": {
+      "collection": "candidate_assignments",
+      "documentId": "{assignmentKey}",
+      "description": "Transactional uniqueness index enforcing at most one candidate entry per (electionId, positionId, contestant/studentId).",
+      "fields": {
+        "electionId": "string",
+        "positionId": "string",
+        "contestantId": "string",
+        "candidateId": "string",
+        "studentIdNormalized": "string",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
     "Candidate": {
       "collection": "candidates",
       "documentId": "{candidateId}",
-      "description": "Aspirant nomination, vetting status, Firebase Storage photoUrl, manifesto, and tallies."
+      "description": "Election-specific candidate participation record linked via contestantId to ContestantProfile, holding positionId, manifesto, campaignStatement, electionPhotoUrl, vetting status, and tallies."
     },
     "VoterAuthorisation": {
       "collection": "voter_authorisations",

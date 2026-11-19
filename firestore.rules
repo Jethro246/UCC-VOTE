@@ -36,6 +36,36 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isValidContestantData(data) {
+      return data.keys().hasAll(['fullName', 'department', 'faculty', 'level', 'hall', 'updatedAt'])
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150
+        && data.department is string && data.department.size() <= 150
+        && data.faculty is string && data.faculty.size() <= 150
+        && data.level is string && data.level.size() <= 64
+        && data.hall is string && data.hall.size() <= 120
+        && (!('studentId' in data) || (data.studentId is string && data.studentId.size() <= 64))
+        && (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 100))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 150))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
+        && (!('programme' in data) || (data.programme is string && data.programme.size() <= 160))
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048))
+        && (!('photoStoragePath' in data) || (data.photoStoragePath is string && data.photoStoragePath.size() <= 512))
+        && (!('biography' in data) || (data.biography is string && data.biography.size() <= 10000))
+        && (!('leadershipExperience' in data) || data.leadershipExperience is list)
+        && data.updatedAt is timestamp;
+    }
+
+    function positionBelongsToElection(positionId, electionId) {
+      return positionId is string && positionId != ''
+        && electionId is string && electionId != ''
+        && existsAfter(/databases/$(database)/documents/positions/$(positionId))
+        && getAfter(/databases/$(database)/documents/positions/$(positionId)).data.electionId == electionId;
+    }
+
     // Student profiles: users can read/create own pending profile and update non-privileged fields.
     // Eligibility, account status, and role fields cannot be set or modified by ordinary users.
     match /students/{uid} {
@@ -96,25 +126,70 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Candidate Nominations
+    // Permanent reusable contestant profiles (contains contact PII -> strictly admin-only)
+    match /contestants/{contestantId} {
+      allow get: if isValidId(contestantId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(contestantId) && isAdmin()
+        && isValidContestantData(request.resource.data)
+        && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
+      allow update: if isValidId(contestantId) && isAdmin()
+        && isValidContestantData(request.resource.data)
+        && (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isValidId(contestantId) && isAdmin();
+    }
+
+    // Assignment uniqueness index preventing duplicate (electionId, positionId, contestant) entries
+    match /candidate_assignments/{assignmentId} {
+      allow get: if isValidId(assignmentId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isValidId(assignmentId) && isAdmin()
+        && request.resource.data.candidateId is string
+        && positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId);
+      allow delete: if isValidId(assignmentId) && isAdmin();
+    }
+
+    // Candidate Nominations & Election-Specific Participation Records
     match /candidates/{candidateId} {
       allow read: if true;
-      allow create: if isSignedIn()
-        && request.resource.data.submittedByUid == request.auth.uid
-        && request.resource.data.applicationStatus in ['Draft', 'Submitted'];
-      allow update: if isAdmin() || (
-        isSignedIn() &&
-        resource.data.submittedByUid == request.auth.uid &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'applicationStatus',
-          'eligibilityVerified',
-          'reviewedBy',
-          'reviewedAt',
-          'votesReceived',
-          'rejectionReason'
-        ])
+      allow create: if isValidId(candidateId) && (
+        (
+          isAdmin()
+          && (!('positionId' in request.resource.data) || request.resource.data.positionId == '' || positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId))
+        )
+        ||
+        (
+          isSignedIn()
+          && request.resource.data.submittedByUid == request.auth.uid
+          && request.resource.data.applicationStatus in ['Draft', 'Submitted']
+          && !('votesReceived' in request.resource.data)
+        )
       );
-      allow delete: if isAdmin();
+      allow update: if isValidId(candidateId) && (
+        (
+          isAdmin()
+          && (!('positionId' in request.resource.data) || request.resource.data.positionId == '' || positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId))
+        )
+        ||
+        (
+          isSignedIn() &&
+          resource.data.submittedByUid == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'applicationStatus',
+            'eligibilityVerified',
+            'reviewedBy',
+            'reviewedAt',
+            'votesReceived',
+            'rejectionReason',
+            'contestantId',
+            'electionId',
+            'positionId',
+            'submittedByUid'
+          ])
+        )
+      );
+      allow delete: if isValidId(candidateId) && isAdmin()
+        && resource.data.get('votesReceived', 0) == 0;
     }
 
     // Certified / Published Election Results

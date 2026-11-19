@@ -47,8 +47,11 @@ import { PositionManagerModal } from '../../components/admin/PositionManagerModa
 import { EligibilityTesterModal } from '../../components/admin/EligibilityTesterModal';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
 import { CandidateReviewModal } from '../../components/admin/CandidateReviewModal';
+import { ElectionCandidatesModal } from '../../components/admin/ElectionCandidatesModal';
+import { ContestantSelectorModal } from '../../components/admin/ContestantSelectorModal';
 import { AdminResultsPanel } from '../../components/admin/AdminResultsPanel';
 import { uploadHallLogo } from '../../services/firebaseStorageService';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import {
   computeHallMetrics,
   findMatchingHallUnit,
@@ -243,6 +246,7 @@ const AdminDashboardContent: React.FC = () => {
   const [selectedElectionForEdit, setSelectedElectionForEdit] = useState<Election | null>(null);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
+  const [selectedElectionForCandidates, setSelectedElectionForCandidates] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
   const [selectedHallFilterId, setSelectedHallFilterId] = useState<string>('all');
   const [syncingHalls, setSyncingHalls] = useState(false);
@@ -253,6 +257,9 @@ const AdminDashboardContent: React.FC = () => {
   const [selectedCandidateForReview, setSelectedCandidateForReview] = useState<Candidate | null>(null);
   const [selectedCandidateForEdit, setSelectedCandidateForEdit] = useState<Candidate | null>(null);
   const [showCandidateRegisterModal, setShowCandidateRegisterModal] = useState(false);
+  const [showExistingContestantModal, setShowExistingContestantModal] = useState(false);
+  const [targetElectionForExistingContestant, setTargetElectionForExistingContestant] =
+    useState<Election | null>(null);
   const [candidateDefaultElectionId, setCandidateDefaultElectionId] = useState<string | undefined>(undefined);
   const [candidateFilterStatus, setCandidateFilterStatus] = useState<string>('all');
   const [candidateFilterElection, setCandidateFilterElection] = useState<string>('all');
@@ -977,14 +984,10 @@ const AdminDashboardContent: React.FC = () => {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCandidateDefaultElectionId(primaryElection.id);
-                                  setSelectedCandidateForEdit(null);
-                                  setShowCandidateRegisterModal(true);
-                                }}
-                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                                onClick={() => setSelectedElectionForCandidates(primaryElection)}
+                                className="px-2 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#2563EB] font-bold cursor-pointer whitespace-nowrap"
                               >
-                                Add Candidate
+                                Candidates
                               </button>
                               <button
                                 type="button"
@@ -1156,6 +1159,13 @@ const AdminDashboardContent: React.FC = () => {
                               <span>Edit</span>
                             </button>
                             <button
+                              onClick={() => setSelectedElectionForCandidates(el)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <Users className="w-3 h-3" />
+                              <span>Candidates</span>
+                            </button>
+                            <button
                               onClick={() => setSelectedElectionForStatus(el)}
                               className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
                             >
@@ -1228,7 +1238,7 @@ const AdminDashboardContent: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     onClick={async () => {
                       await refreshCandidates();
@@ -1238,6 +1248,35 @@ const AdminDashboardContent: React.FC = () => {
                     title="Refresh Candidate Applications"
                   >
                     <RefreshCw className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetEl =
+                        (candidateFilterElection !== 'all'
+                          ? scopedElections.find((e) => e.id === candidateFilterElection)
+                          : undefined) ||
+                        scopedElections.find(
+                          (e) =>
+                            e.status === 'draft' ||
+                            e.status === 'scheduled' ||
+                            e.status === 'upcoming' ||
+                            e.status === 'live'
+                        ) ||
+                        scopedElections[0] ||
+                        null;
+                      if (!targetEl) {
+                        showSuccessToast('Create an election first before adding existing contestants.');
+                        return;
+                      }
+                      setTargetElectionForExistingContestant(targetEl);
+                      setShowExistingContestantModal(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Add Existing Contestant</span>
                   </button>
 
                   <button
@@ -1391,7 +1430,7 @@ const AdminDashboardContent: React.FC = () => {
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-3">
                                 <CandidateAvatar
-                                  src={cand.photoUrl}
+                                  src={resolveCandidatePhotoUrl(cand)}
                                   alt={cand.fullName}
                                   className="w-11 h-11 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                                 />
@@ -2300,9 +2339,21 @@ const AdminDashboardContent: React.FC = () => {
           setCreateDefaultDomainId(undefined);
           setCreateDefaultHallId(undefined);
         }}
-        onSuccess={async (newElection) => {
-          showSuccessToast(`Election "${newElection.title}" created successfully.`);
-          await refreshElections();
+        onSuccess={async (newElection, meta) => {
+          const addedCount = meta?.createdCandidatesCount || 0;
+          const warnCount = meta?.candidateWarnings?.length || 0;
+          if (warnCount > 0) {
+            showSuccessToast(
+              `Election "${newElection.title}" created (${addedCount} candidate(s) added; ${warnCount} skipped: ${meta?.candidateWarnings?.[0]}).`
+            );
+          } else if (addedCount > 0) {
+            showSuccessToast(
+              `Election "${newElection.title}" created with ${addedCount} candidate(s) assigned.`
+            );
+          } else {
+            showSuccessToast(`Election "${newElection.title}" created successfully.`);
+          }
+          await Promise.all([refreshElections(), refreshCandidates()]);
         }}
       />
 
@@ -2334,6 +2385,36 @@ const AdminDashboardContent: React.FC = () => {
           await refreshElections();
         }}
       />
+
+      <ElectionCandidatesModal
+        isOpen={!!selectedElectionForCandidates}
+        election={selectedElectionForCandidates}
+        onClose={() => setSelectedElectionForCandidates(null)}
+        onSuccessToast={showSuccessToast}
+      />
+
+      {targetElectionForExistingContestant && (
+        <ContestantSelectorModal
+          isOpen={showExistingContestantModal}
+          mode="live"
+          election={targetElectionForExistingContestant}
+          electionTitle={targetElectionForExistingContestant.title}
+          electionCategory={targetElectionForExistingContestant.category}
+          livePositions={positionsByElection[targetElectionForExistingContestant.id] || []}
+          existingCandidates={candidates.filter(
+            (c) => c.electionId === targetElectionForExistingContestant.id
+          )}
+          initialTab="existing"
+          onClose={() => {
+            setShowExistingContestantModal(false);
+            setTargetElectionForExistingContestant(null);
+          }}
+          onLiveCandidatesAdded={async (_added, msg) => {
+            await Promise.all([refreshCandidates(), refreshElections()]);
+            showSuccessToast(msg);
+          }}
+        />
+      )}
 
       <EligibilityTesterModal
         isOpen={!!selectedElectionForEligibility}

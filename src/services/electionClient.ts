@@ -590,11 +590,12 @@ class FirebaseElectionClient {
       departmentId: inferredDepartmentId,
       submittedByUid: user.uid,
       applicationStatus: status,
-      photoUrl: payload.photoUrl || '',
+      photoUrl: payload.photoUrl || payload.electionPhotoUrl || '',
       submittedAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     };
+    delete rawDoc.phone;
 
     const docPayload: Record<string, any> = {};
     for (const [k, v] of Object.entries(rawDoc)) {
@@ -630,6 +631,7 @@ class FirebaseElectionClient {
         updatedAt: serverTimestamp(),
       };
       for (const [k, v] of Object.entries(updates)) {
+        if (k === 'phone' || k === 'resubmit') continue;
         if (v !== undefined) payload[k] = v;
       }
       if (!payload.hallId && typeof payload.hall === 'string' && isOfficialHallAffiliation(payload.hall, UCC_HALLS)) {
@@ -645,6 +647,7 @@ class FirebaseElectionClient {
         if (hist) {
           const histClean: Record<string, any> = {};
           for (const [k, v] of Object.entries({ ...hist, ...payload })) {
+            if (k === 'phone') continue;
             if (v !== undefined) histClean[k] = v;
           }
           await setDoc(doc(db, 'candidates', id), histClean);

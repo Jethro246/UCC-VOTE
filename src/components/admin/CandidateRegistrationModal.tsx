@@ -29,6 +29,11 @@ import {
   matchesHallAffiliation,
   resolveElectionHallUnit,
 } from '../../utils/hallUtils';
+import {
+  evaluateElectionCandidateActionAllowed,
+  normalizeStudentId,
+  resolveCandidatePhotoUrl,
+} from '../../utils/contestantUtils';
 import { categoryToDomainId } from '../../data/uccStructure';
 
 interface CandidateRegistrationModalProps {
@@ -49,11 +54,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const {
     elections,
     positionsByElection,
+    contestants,
     halls,
     faculties,
     admin,
     registerCandidateAction,
     updateCandidateAction,
+    updateElectionCandidateAction,
     student,
   } = useApp();
 
@@ -73,6 +80,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [selectedElectionId, setSelectedElectionId] = useState('');
   const [selectedPositionId, setSelectedPositionId] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [electionPhotoUrl, setElectionPhotoUrl] = useState('');
   const [photoStoragePath, setPhotoStoragePath] = useState('');
   const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -82,11 +90,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
   const [lastSelectedFile, setLastSelectedFile] = useState<File | null>(null);
   const [uploadSessionKey, setUploadSessionKey] = useState('');
   const [biography, setBiography] = useState('');
+  const [campaignStatement, setCampaignStatement] = useState('');
   const [manifestoSummary, setManifestoSummary] = useState('');
   const [fullManifestoText, setFullManifestoText] = useState('');
   const [keyPromisesText, setKeyPromisesText] = useState('');
   const [leadershipExpText, setLeadershipExpText] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [confirmPermanentSync, setConfirmPermanentSync] = useState(false);
   const [historicalRole, setHistoricalRole] = useState<
     '' | 'Winner' | 'Contestant' | 'Elected' | 'Elected Unopposed'
   >('');
@@ -150,10 +160,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setSelectedElectionId(candidateToEdit.electionId);
       setSelectedPositionId(candidateToEdit.positionId);
       setPhotoUrl(candidateToEdit.photoUrl || '');
+      setElectionPhotoUrl(candidateToEdit.electionPhotoUrl || '');
       setPhotoStoragePath(candidateToEdit.photoStoragePath || '');
-      setUploadStatus(candidateToEdit.photoUrl ? 'success' : 'idle');
-      setUploadProgress(candidateToEdit.photoUrl ? 100 : null);
+      const resolvedUrl = resolveCandidatePhotoUrl(candidateToEdit);
+      setUploadStatus(resolvedUrl ? 'success' : 'idle');
+      setUploadProgress(resolvedUrl ? 100 : null);
       setBiography(candidateToEdit.biography || '');
+      setCampaignStatement(candidateToEdit.campaignStatement || '');
       setManifestoSummary(candidateToEdit.manifestoSummary);
       setFullManifestoText(candidateToEdit.fullManifesto.join('\n'));
       setKeyPromisesText(candidateToEdit.keyPromises.join('\n'));
@@ -161,6 +174,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setVideoUrl(candidateToEdit.videoUrl || '');
       setHistoricalRole(candidateToEdit.historicalRole || '');
       setHistoricalOutcomeNote(candidateToEdit.historicalOutcomeNote || '');
+      setConfirmPermanentSync(false);
     } else {
       const initialElectionId = defaultElectionId || (selectableElections[0]?.id || elections[0]?.id || '');
       const initialElectionObj = elections.find((e) => e.id === initialElectionId);
@@ -189,6 +203,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       }
       setNickname('');
       setBiography('');
+      setCampaignStatement('');
       setManifestoSummary('');
       setFullManifestoText('');
       setKeyPromisesText('');
@@ -197,7 +212,9 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       setHistoricalRole('');
       setHistoricalOutcomeNote('');
       setPhotoUrl('');
+      setElectionPhotoUrl('');
       setPhotoStoragePath('');
+      setConfirmPermanentSync(false);
       setUploadStatus('idle');
       setUploadProgress(null);
     }
@@ -363,6 +380,49 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       return;
     }
 
+    const matchedExistingContestant =
+      !candidateToEdit && admin && normalizeStudentId(studentId)
+        ? contestants.find(
+            (c) => normalizeStudentId(c.studentId) === normalizeStudentId(studentId)
+          )
+        : undefined;
+
+    if (matchedExistingContestant) {
+      setErrorMsg(
+        `Student ID ${normalizeStudentId(studentId)} already belongs to permanent contestant "${matchedExistingContestant.fullName}". Use "Add Existing Contestant" to add them without creating a duplicate profile.`
+      );
+      return;
+    }
+
+    const permanentChangedWhenEditing =
+      Boolean(candidateToEdit) &&
+      (fullName.trim() !== (candidateToEdit?.fullName || '').trim() ||
+        normalizeStudentId(studentId) !== normalizeStudentId(candidateToEdit?.studentId) ||
+        department.trim() !== (candidateToEdit?.department || '').trim() ||
+        faculty.trim() !== (candidateToEdit?.faculty || '').trim() ||
+        programme.trim() !== (candidateToEdit?.programme || '').trim() ||
+        level !== (candidateToEdit?.level || '') ||
+        hall !== (candidateToEdit?.hall || ''));
+
+    if (admin && candidateToEdit?.contestantId && permanentChangedWhenEditing && !confirmPermanentSync) {
+      setErrorMsg(
+        'Permanent contestant identity fields were modified. Tick the permanent profile confirmation checkbox below before saving.'
+      );
+      return;
+    }
+
+    if (admin && candidateToEdit && selectedPositionId !== candidateToEdit.positionId) {
+      const posGuard = evaluateElectionCandidateActionAllowed(
+        selectedElection,
+        'change_position',
+        candidateToEdit
+      );
+      if (!posGuard.allowed) {
+        setErrorMsg(posGuard.reason || 'Position reassignment is blocked for this election.');
+        return;
+      }
+    }
+
     const matchedCandidateHall = findMatchingHallUnit(hall, halls);
 
     setIsSubmitting(true);
@@ -399,8 +459,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
       facultyId: selectedElection?.facultyId,
       departmentId: selectedElection?.departmentId,
       photoUrl: cleanPhotoUrl,
+      electionPhotoUrl: electionPhotoUrl.trim() || undefined,
       photoStoragePath: cleanPhotoUrl && photoStoragePath ? photoStoragePath : undefined,
       biography: biography.trim(),
+      campaignStatement: campaignStatement.trim() || undefined,
       manifestoSummary: manifestoSummary.trim(),
       fullManifesto,
       keyPromises,
@@ -422,10 +484,38 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
     try {
       if (candidateToEdit) {
-        const res = await updateCandidateAction(candidateToEdit.id, {
-          ...payload,
-          resubmit: !isDraft && (candidateToEdit.applicationStatus === 'Draft' || candidateToEdit.applicationStatus === 'Rejected')
-        });
+        const res = admin && candidateToEdit.contestantId
+          ? await updateElectionCandidateAction(candidateToEdit.id, {
+              positionId: selectedPositionId,
+              campaignStatement: campaignStatement.trim(),
+              manifestoSummary: manifestoSummary.trim(),
+              fullManifesto,
+              keyPromises,
+              electionPhotoUrl: electionPhotoUrl.trim(),
+              videoUrl: videoUrl.trim() || undefined,
+              confirmPermanentUpdate: permanentChangedWhenEditing && confirmPermanentSync,
+              permanentProfileUpdates:
+                permanentChangedWhenEditing && confirmPermanentSync
+                  ? {
+                      fullName: fullName.trim(),
+                      studentId: studentId.trim().toUpperCase(),
+                      nickname: nickname.trim() || undefined,
+                      email: email.trim() || undefined,
+                      department: department.trim(),
+                      faculty: faculty.trim(),
+                      programme: programme.trim(),
+                      level,
+                      hall,
+                      photoUrl: cleanPhotoUrl,
+                      biography: biography.trim(),
+                      leadershipExperience,
+                    }
+                  : undefined,
+            })
+          : await updateCandidateAction(candidateToEdit.id, {
+              ...payload,
+              resubmit: !isDraft && (candidateToEdit.applicationStatus === 'Draft' || candidateToEdit.applicationStatus === 'Rejected')
+            });
         if (res.success) {
           setSuccessMsg('Candidate details updated successfully.');
           setTimeout(() => {
@@ -746,7 +836,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="shrink-0 relative">
                 <CandidateAvatar
-                  src={localPreviewUrl || photoUrl}
+                  src={localPreviewUrl || electionPhotoUrl || photoUrl}
                   alt={fullName || 'Candidate preview'}
                   className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm"
                 />
@@ -922,6 +1012,19 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Campaign Statement / Tagline
+                </label>
+                <input
+                  type="text"
+                  value={campaignStatement}
+                  onChange={(e) => setCampaignStatement(e.target.value)}
+                  placeholder="Optional concise election tagline or vision statement"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Manifesto Elevator Summary <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -975,6 +1078,31 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             </div>
           </div>
         </div>
+
+        {/* Permanent profile confirmation if editing linked contestant */}
+        {admin &&
+          candidateToEdit?.contestantId &&
+          (fullName.trim() !== (candidateToEdit.fullName || '').trim() ||
+            normalizeStudentId(studentId) !== normalizeStudentId(candidateToEdit.studentId) ||
+            department.trim() !== (candidateToEdit.department || '').trim() ||
+            faculty.trim() !== (candidateToEdit.faculty || '').trim() ||
+            programme.trim() !== (candidateToEdit.programme || '').trim() ||
+            level !== (candidateToEdit.level || '') ||
+            hall !== (candidateToEdit.hall || '')) && (
+            <div className="mx-6 mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950">
+              <label className="flex items-center gap-2 font-bold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmPermanentSync}
+                  onChange={(e) => setConfirmPermanentSync(e.target.checked)}
+                  className="rounded text-[#123B70]"
+                />
+                <span>
+                  I confirm updating this contestant&apos;s shared permanent profile across UCC VOTE
+                </span>
+              </label>
+            </div>
+          )}
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">

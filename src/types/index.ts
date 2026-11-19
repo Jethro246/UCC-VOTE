@@ -165,8 +165,29 @@ export type CandidateApplicationStatus =
   | 'Rejected'
   | 'Withdrawn';
 
+export interface ContestantProfile {
+  id: string;
+  fullName: string;
+  studentId: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  department: string;
+  faculty: string;
+  programme?: string;
+  level: string;
+  hall: string;
+  photoUrl: string;
+  photoStoragePath?: string;
+  biography?: string;
+  leadershipExperience: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Candidate {
   id: string;
+  contestantId?: string;
   electionId: string;
   positionId: string;
   domainId?: DomainId;
@@ -177,14 +198,17 @@ export interface Candidate {
   studentId: string;
   nickname?: string;
   email?: string;
+  phone?: string;
   department: string;
   faculty: string;
   programme?: string;
   level: string;
   hall: string;
   photoUrl: string;
+  electionPhotoUrl?: string;
   photoStoragePath?: string;
   biography?: string;
+  campaignStatement?: string;
   manifestoSummary: string;
   fullManifesto: string[];
   keyPromises: string[];
@@ -196,6 +220,8 @@ export interface Candidate {
   submittedAt?: string;
   reviewedAt?: string;
   reviewedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
   eligibilityVerified?: boolean;
   eligibilityDetails?: {
     isEnrolled: boolean;

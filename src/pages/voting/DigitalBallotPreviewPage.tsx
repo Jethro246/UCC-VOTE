@@ -5,6 +5,7 @@ import { EligibilityResult } from '../../services/interfaces';
 import { Candidate, Election, Position, VoteConfirmationReceipt } from '../../types';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import {
   Vote,
@@ -786,7 +787,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         {selectedCandidates.map((cand) => (
                           <div key={cand.id} className="flex items-center gap-3">
                             <CandidateAvatar
-                              src={cand.photoUrl}
+                              src={resolveCandidatePhotoUrl(cand)}
                               alt={cand.fullName}
                               className="w-10 h-10 rounded-lg object-cover border border-slate-300 shrink-0"
                             />
@@ -1126,7 +1127,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex items-start gap-4">
                         <CandidateAvatar
-                          src={cand.photoUrl}
+                          src={resolveCandidatePhotoUrl(cand)}
                           alt={cand.fullName}
                           className="w-16 h-16 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                         />
@@ -1156,9 +1157,9 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Candidate Biography */}
+                      {/* Candidate Campaign Statement / Biography */}
                       <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-                        {cand.biography || cand.manifestoSummary}
+                        {cand.campaignStatement || cand.biography || cand.manifestoSummary}
                       </p>
                     </div>
 
@@ -1260,7 +1261,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <CandidateAvatar
-                  src={manifestoCandidate.photoUrl}
+                  src={resolveCandidatePhotoUrl(manifestoCandidate)}
                   alt={manifestoCandidate.fullName}
                   className="w-14 h-14 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                 />

@@ -38,12 +38,12 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 pt-safe">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4 sm:gap-6 h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 sm:gap-6 h-16">
           {/* Zone 1: Official UCC Crest & Brand Wordmark */}
           <button 
             onClick={() => handleNav('landing')} 
-            className="text-left shrink-0 cursor-pointer focus:outline-none min-w-0"
+            className="text-left min-w-0 shrink cursor-pointer focus:outline-none"
           >
             <span className="inline-flex sm:hidden">
               <Logo variant="compact" />
@@ -114,15 +114,15 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Zone 3: Install App + Primary Action */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
             <div className="hidden sm:block">
               <PWAInstallButton variant="header" />
             </div>
             {userRole === 'student' && student ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 sm:gap-3">
                 <button
                   onClick={() => handleNav('notifications')}
-                  className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="relative p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                   title="Notifications"
                 >
                   <Bell className="w-4 h-4" />
@@ -133,7 +133,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   onClick={() => handleNav('student_dashboard')}
-                  className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                  className="flex items-center gap-2.5 p-1 sm:pl-2 sm:pr-3 sm:py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer text-left"
                 >
                   <CandidateAvatar
                     src={student.avatarUrl || student.photoUrl}

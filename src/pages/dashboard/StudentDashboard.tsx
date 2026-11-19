@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
@@ -65,7 +65,51 @@ export const StudentDashboard: React.FC = () => {
   const [activeSectionTab, setActiveSectionTab] = useState<'available' | 'active' | 'upcoming' | 'completed'>('available');
   const [errorMsg, setErrorMsg] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [accountMenuAlign, setAccountMenuAlign] = useState<'left' | 'right'>('right');
   const [showCandidateAppModal, setShowCandidateAppModal] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const updateAccountMenuAlign = () => {
+    if (typeof window === 'undefined' || !accountButtonRef.current) return;
+    if (window.innerWidth >= 768) {
+      setAccountMenuAlign('right');
+      return;
+    }
+    const rect = accountButtonRef.current.getBoundingClientRect();
+    const menuWidth = 200;
+    const spaceOnRight = window.innerWidth - rect.left;
+    setAccountMenuAlign(spaceOnRight >= menuWidth ? 'left' : 'right');
+  };
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+
+    updateAccountMenuAlign();
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (accountMenuRef.current && target && !accountMenuRef.current.contains(target)) {
+        setShowAccountMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowAccountMenu(false);
+      }
+    };
+
+    window.addEventListener('resize', updateAccountMenuAlign);
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('resize', updateAccountMenuAlign);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showAccountMenu]);
 
   if (!sessionChecked || (userRole === 'student' && student && isLoadingData)) {
     return (
@@ -293,11 +337,11 @@ export const StudentDashboard: React.FC = () => {
       )}
 
       {/* DASHBOARD HEADER & WELCOME HERO */}
-      <div className="bg-gradient-to-r from-[#0B1F3A] via-[#123B70] to-[#1e4e8c] rounded-2xl text-white p-6 sm:p-8 shadow-lg relative overflow-hidden">
+      <div className={`bg-gradient-to-r from-[#0B1F3A] via-[#123B70] to-[#1e4e8c] rounded-2xl text-white p-6 sm:p-8 shadow-lg relative ${showAccountMenu ? 'z-30' : ''}`}>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           
           {/* Left: Verified Name, Photo & Affiliation */}
-          <div className="flex items-start sm:items-center gap-4">
+          <div className="flex items-start sm:items-center gap-4 min-w-0">
             <div className="relative shrink-0">
               <CandidateAvatar
                 src={currentStudent.avatarUrl}
@@ -372,37 +416,57 @@ export const StudentDashboard: React.FC = () => {
             )}
 
             {/* Account Settings Menu */}
-            <div className="relative">
+            <div className="relative" ref={accountMenuRef}>
               <button
-                onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                ref={accountButtonRef}
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={showAccountMenu}
+                onClick={() => {
+                  if (!showAccountMenu) {
+                    updateAccountMenuAlign();
+                  }
+                  setShowAccountMenu((prev) => !prev);
+                }}
+                className="px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer touch-manipulation"
               >
                 <UserCircle className="w-4 h-4" />
                 <span>Account</span>
               </button>
 
               {showAccountMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs font-medium">
+                <div
+                  role="menu"
+                  className={`absolute ${
+                    accountMenuAlign === 'left' ? 'left-0' : 'right-0'
+                  } md:left-auto md:right-0 mt-2 w-48 max-w-[calc(100vw-2rem)] bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs font-medium`}
+                >
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => { setShowAccountMenu(false); navigateTo('student_profile'); }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2 cursor-pointer"
                   >
-                    <UserCheck className="w-3.5 h-3.5 text-[#123B70]" />
+                    <UserCheck className="w-3.5 h-3.5 text-[#123B70] shrink-0" />
                     <span>My Student Profile</span>
                   </button>
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => { setShowAccountMenu(false); navigateTo('help_support'); }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2 cursor-pointer"
                   >
-                    <HelpCircle className="w-3.5 h-3.5 text-[#123B70]" />
+                    <HelpCircle className="w-3.5 h-3.5 text-[#123B70] shrink-0" />
                     <span>Support & Complaints</span>
                   </button>
                   <div className="my-1 border-t border-slate-100" />
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => { setShowAccountMenu(false); logout(); }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 font-semibold"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-red-50 active:bg-red-100 text-red-600 flex items-center gap-2 font-semibold cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
+                    <LogOut className="w-3.5 h-3.5 shrink-0" />
                     <span>Sign Out</span>
                   </button>
                 </div>

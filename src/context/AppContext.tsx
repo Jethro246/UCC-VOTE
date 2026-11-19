@@ -13,6 +13,7 @@ import {
   ElectionStatus,
   Position,
   Candidate,
+  ContestantProfile,
   NotificationItem,
   AnnouncementItem,
   CalendarEvent,
@@ -47,6 +48,10 @@ import { votingService } from '../services/votingService';
 import { adminService } from '../services/adminService';
 import { DomainWithStats } from '../services/interfaces';
 import {
+  ContestantDirectoryEntry,
+  mergeContestantDirectory,
+} from '../utils/contestantUtils';
+import {
   isIncomingEmailSignInLink,
   completeEmailSignInLink,
   completeGoogleRedirectResult,
@@ -55,6 +60,7 @@ import {
   subscribeElections,
   subscribePositions,
   subscribeCandidates,
+  subscribeContestants,
   subscribeAnnouncements,
   subscribeCalendarEvents,
   subscribeNotifications,
@@ -180,6 +186,7 @@ interface AppContextType {
   departments: DepartmentUnit[];
   positionsByElection: Record<string, Position[]>;
   candidates: Candidate[];
+  contestants: ContestantDirectoryEntry[];
   myCandidateApplication: Candidate | null;
   notifications: NotificationItem[];
   announcements: AnnouncementItem[];
@@ -216,7 +223,15 @@ interface AppContextType {
   refreshDomains: () => Promise<void>;
   refreshElections: () => Promise<void>;
   refreshCandidates: () => Promise<void>;
-  createElectionAction: (payload: any) => Promise<{ success: boolean; election?: Election; error?: string }>;
+  createElectionAction: (
+    payload: any
+  ) => Promise<{
+    success: boolean;
+    election?: Election;
+    createdCandidatesCount?: number;
+    candidateWarnings?: string[];
+    error?: string;
+  }>;
   updateElectionStatusAction: (
     id: string,
     newStatus: ElectionStatus,
@@ -229,6 +244,42 @@ interface AppContextType {
     id: string,
     updates: any
   ) => Promise<{ success: boolean; candidate?: Candidate; error?: string; message?: string }>;
+  createContestantAction: (
+    payload: any
+  ) => Promise<{
+    success: boolean;
+    contestant?: ContestantProfile;
+    duplicateContestant?: ContestantProfile;
+    error?: string;
+  }>;
+  updateContestantPermanentProfileAction: (
+    contestantId: string,
+    updates: Partial<ContestantProfile>,
+    reason?: string
+  ) => Promise<{
+    success: boolean;
+    contestant?: ContestantProfile;
+    syncedCandidateCount?: number;
+    error?: string;
+  }>;
+  assignContestantToElectionAction: (
+    payload: any
+  ) => Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    contestantId?: string;
+    duplicateContestant?: ContestantProfile;
+    message?: string;
+    error?: string;
+  }>;
+  updateElectionCandidateAction: (
+    candidateId: string,
+    payload: any
+  ) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
+  removeCandidateFromElectionAction: (
+    candidateId: string,
+    reason?: string
+  ) => Promise<{ success: boolean; message?: string; error?: string }>;
   approveCandidateAction: (
     id: string
   ) => Promise<{ success: boolean; candidate?: Candidate; message?: string; error?: string }>;
@@ -324,6 +375,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [departments, setDepartments] = useState<DepartmentUnit[]>(UCC_DEPARTMENTS);
   const [rawPositionsByElection, setRawPositionsByElection] = useState<Record<string, Position[]>>({});
   const [rawCandidates, setRawCandidates] = useState<Candidate[]>([]);
+  const [rawContestants, setRawContestants] = useState<ContestantProfile[]>([]);
 
   const elections = useMemo(() => mergeHistoricalElections(rawElections), [rawElections]);
   const positionsByElection = useMemo(
@@ -331,6 +383,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [rawPositionsByElection]
   );
   const candidates = useMemo(() => mergeHistoricalCandidates(rawCandidates), [rawCandidates]);
+  const contestants = useMemo(
+    () => mergeContestantDirectory(rawContestants, candidates, elections, positionsByElection),
+    [rawContestants, candidates, elections, positionsByElection]
+  );
   const [rawNotifications, setRawNotifications] = useState<NotificationItem[]>([]);
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -706,6 +762,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setVoteConfirmations([]);
         setAllStudents([]);
         setEligibilityRecords([]);
+        setRawContestants([]);
         setAuditLogs([]);
         setNeedsProfileCompletion(false);
         setSessionChecked(true);
@@ -777,6 +834,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }),
             subscribeAllStudents(true, setAllStudents),
             subscribeAllEligibilityRecords(true, setEligibilityRecords),
+            subscribeContestants(true, setRawContestants),
             subscribeComplaints(user.uid, true, setComplaints),
             subscribeAuditLogs(true, setAuditLogs),
             subscribeNotifications(user.uid, setRawNotifications),
@@ -999,7 +1057,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await adminService.createElection(payload);
       if (res.success && res.election) {
-        return { success: true, election: res.election };
+        return {
+          success: true,
+          election: res.election,
+          createdCandidatesCount: res.createdCandidatesCount,
+          candidateWarnings: res.candidateWarnings,
+        };
       }
       return { success: false, error: res.error || 'Failed to create election.' };
     } catch (err: any) {
@@ -1045,6 +1108,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Failed to update candidate.' };
+    }
+  };
+
+  const createContestantAction = async (payload: any) => {
+    try {
+      return await adminService.createContestantProfile(payload);
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to create contestant profile.' };
+    }
+  };
+
+  const updateContestantPermanentProfileAction = async (
+    contestantId: string,
+    updates: Partial<ContestantProfile>,
+    reason?: string
+  ) => {
+    try {
+      return await adminService.updateContestantPermanentProfile(contestantId, updates, reason);
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to update permanent contestant profile.' };
+    }
+  };
+
+  const assignContestantToElectionAction = async (payload: any) => {
+    try {
+      return await adminService.assignContestantToElection(payload);
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to assign contestant to election.' };
+    }
+  };
+
+  const updateElectionCandidateAction = async (candidateId: string, payload: any) => {
+    try {
+      return await adminService.updateElectionCandidateParticipation(candidateId, payload);
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to update election candidate.' };
+    }
+  };
+
+  const removeCandidateFromElectionAction = async (candidateId: string, reason?: string) => {
+    try {
+      return await adminService.removeCandidateFromElection(candidateId, reason);
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to remove candidate from election.' };
     }
   };
 
@@ -1249,6 +1356,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         departments,
         positionsByElection,
         candidates,
+        contestants,
         myCandidateApplication,
         notifications,
         announcements,
@@ -1285,6 +1393,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateElectionStatusAction,
         registerCandidateAction,
         updateCandidateAction,
+        createContestantAction,
+        updateContestantPermanentProfileAction,
+        assignContestantToElectionAction,
+        updateElectionCandidateAction,
+        removeCandidateFromElectionAction,
         approveCandidateAction,
         rejectCandidateAction,
         requestCandidateCorrectionsAction,

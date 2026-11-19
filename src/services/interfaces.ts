@@ -33,6 +33,39 @@ export interface DomainWithStats extends DomainRegistryItem {
   };
 }
 
+export interface ElectionCandidateAssignmentDraft {
+  contestantId?: string;
+  isNewContestant?: boolean;
+  // Permanent profile fields
+  fullName: string;
+  studentId: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  department: string;
+  faculty: string;
+  programme?: string;
+  level: string;
+  hall: string;
+  photoUrl: string;
+  photoStoragePath?: string;
+  biography?: string;
+  leadershipExperience: string[];
+  updatePermanentProfile?: boolean;
+  permanentProfileFieldsChanged?: string[];
+  // Election-specific fields
+  positionIndex?: number;
+  positionId?: string;
+  positionTitle?: string;
+  electionPhotoUrl?: string;
+  campaignStatement?: string;
+  manifestoSummary: string;
+  fullManifesto: string[];
+  keyPromises: string[];
+  videoUrl?: string;
+  applicationStatus?: 'Draft' | 'Submitted' | 'Under review' | 'Approved';
+}
+
 export interface CreateElectionPayload {
   title: string;
   code?: string;
@@ -65,5 +98,6 @@ export interface CreateElectionPayload {
     candidateEligibilityRules?: string;
     votingRules?: string;
   }[];
+  candidateAssignments?: ElectionCandidateAssignmentDraft[];
   guidelinesUrl?: string;
 }

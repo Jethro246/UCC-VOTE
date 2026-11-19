@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Candidate, Position } from '../../types';
 import { CandidateAvatar } from '../common/CandidateAvatar';
+import {
+  evaluateElectionCandidateActionAllowed,
+  resolveCandidatePhotoUrl,
+} from '../../utils/contestantUtils';
 import { 
   X, 
   ShieldCheck, 
@@ -147,6 +151,19 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
   const handleReassignPosition = async () => {
     if (!selectedPositionId || selectedPositionId === candidate.positionId) return;
+    const electionObj = elections.find((e) => e.id === candidate.electionId);
+    const guard = evaluateElectionCandidateActionAllowed(
+      electionObj,
+      'change_position',
+      candidate
+    );
+    if (!guard.allowed) {
+      setFeedbackMsg({
+        text: guard.reason || 'Portfolio reassignment is blocked for this election.',
+        type: 'error',
+      });
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await assignCandidatePositionAction(candidate.id, candidate.electionId, selectedPositionId);
@@ -223,7 +240,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
         <div className="bg-slate-50 border-b border-slate-200 p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-4">
             <CandidateAvatar
-              src={candidate.photoUrl}
+              src={resolveCandidatePhotoUrl(candidate)}
               alt={candidate.fullName}
               className="w-14 h-14 rounded-xl object-cover border border-slate-300 shadow-xs shrink-0"
             />
@@ -420,6 +437,11 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                   <FileText className="w-3.5 h-3.5 text-[#123B70]" />
                   <span>Manifesto Pillar Summary</span>
                 </h4>
+                {candidate.campaignStatement && (
+                  <p className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl">
+                    Campaign Statement: {candidate.campaignStatement}
+                  </p>
+                )}
                 <div className="p-3.5 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 text-xs font-medium text-[#123B70]">
                   "{candidate.manifestoSummary}"
                 </div>

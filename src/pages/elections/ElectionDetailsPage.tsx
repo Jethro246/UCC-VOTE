@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { electionClient } from '../../services/electionClient';
 import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import { Position } from '../../types';
 import {
   UNVERIFIED_HALL_MESSAGE,
@@ -367,7 +368,7 @@ export const ElectionDetailsPage: React.FC = () => {
                             className="p-3 bg-white rounded-xl border border-slate-200 hover:border-[#123B70]/40 transition-all cursor-pointer flex items-center gap-3 group"
                           >
                             <CandidateAvatar
-                              src={cand.photoUrl}
+                              src={resolveCandidatePhotoUrl(cand)}
                               alt={cand.fullName}
                               className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform text-xs"
                             />

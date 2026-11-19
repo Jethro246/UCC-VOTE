@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Candidate } from '../../types';
 import { CandidateAvatar } from '../common/CandidateAvatar';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import {
   X,
   Scale,
@@ -297,7 +298,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             <div className="p-5 rounded-2xl border-2 border-[#123B70]/30 bg-white shadow-xs space-y-3">
               <div className="flex items-center gap-4">
                 <CandidateAvatar
-                  src={candidate1?.photoUrl}
+                  src={resolveCandidatePhotoUrl(candidate1)}
                   alt={candidate1?.fullName || 'Candidate A'}
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm shrink-0"
                 />
@@ -336,7 +337,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
             <div className="p-5 rounded-2xl border-2 border-[#C62828]/30 bg-white shadow-xs space-y-3">
               <div className="flex items-center gap-4">
                 <CandidateAvatar
-                  src={candidate2?.photoUrl}
+                  src={resolveCandidatePhotoUrl(candidate2)}
                   alt={candidate2?.fullName || 'Candidate B'}
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-[#C62828] shadow-sm shrink-0"
                 />

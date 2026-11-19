@@ -25,6 +25,7 @@ import {
   CalendarEvent,
   Candidate,
   ComplaintTicket,
+  ContestantProfile,
   DepartmentUnit,
   DomainId,
   DomainRegistryItem,
@@ -126,6 +127,28 @@ export function subscribeCandidates(
     q,
     (snap) => {
       const items = snap.docs.map((d) => serializeDocData<Candidate>(d.id, d.data()));
+      onData(items);
+    },
+    (err) => {
+      onError?.(err);
+    }
+  );
+}
+
+export function subscribeContestants(
+  isAdminUser: boolean,
+  onData: (contestants: ContestantProfile[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!isAdminUser) {
+    onData([]);
+    return () => {};
+  }
+  const q = query(collection(db, 'contestants'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => serializeDocData<ContestantProfile>(d.id, d.data()));
       onData(items);
     },
     (err) => {

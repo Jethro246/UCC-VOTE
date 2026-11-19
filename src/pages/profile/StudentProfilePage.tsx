@@ -293,10 +293,11 @@ export const StudentProfilePage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 border-b border-slate-200 pb-2">
         <button
+          type="button"
           onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'profile'
               ? 'bg-[#123B70] text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -305,8 +306,9 @@ export const StudentProfilePage: React.FC = () => {
           Profile & Permitted Details
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab('security')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'security'
               ? 'bg-[#123B70] text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -315,8 +317,9 @@ export const StudentProfilePage: React.FC = () => {
           Security & Passkey
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'history'
               ? 'bg-[#123B70] text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -332,14 +335,14 @@ export const StudentProfilePage: React.FC = () => {
 
           {!currentStudent.studentId && (
             <div className="bg-white rounded-2xl border-2 border-[#123B70]/25 p-6 sm:p-8 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#123B70]" />
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldCheck className="w-4 h-4 text-[#123B70] shrink-0" />
                   <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                     Link Your UCC Student Identification
                   </h2>
                 </div>
-                <span className="text-[10px] font-bold text-[#123B70] bg-blue-100 px-2.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-[#123B70] bg-blue-100 px-2.5 py-0.5 rounded-full shrink-0">
                   ONE-TIME SUBMISSION
                 </span>
               </div>
@@ -515,14 +518,14 @@ export const StudentProfilePage: React.FC = () => {
 
           {/* Institutional Immutable Attributes Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#123B70]" />
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <Lock className="w-4 h-4 text-[#123B70] shrink-0" />
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                   Authoritative Institutional Identity (Locked)
                 </h2>
               </div>
-              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full shrink-0">
                 DAA SYNCHRONIZED
               </span>
             </div>
@@ -533,29 +536,29 @@ export const StudentProfilePage: React.FC = () => {
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Faculty:</span>
-                <span className="font-bold text-slate-800">{currentStudent.faculty || 'Not yet submitted'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Faculty:</span>
+                <span className="font-bold text-slate-800 text-right break-words min-w-0">{currentStudent.faculty || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Department:</span>
-                <span className="font-bold text-slate-800">{currentStudent.department || 'Not yet submitted'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Department:</span>
+                <span className="font-bold text-slate-800 text-right break-words min-w-0">{currentStudent.department || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Programme:</span>
-                <span className="font-bold text-slate-800">{currentStudent.programme || 'Not yet submitted'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Programme:</span>
+                <span className="font-bold text-slate-800 text-right break-words min-w-0">{currentStudent.programme || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Level:</span>
-                <span className="font-bold text-slate-800">Level {currentStudent.level || '100'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Level:</span>
+                <span className="font-bold text-slate-800 text-right">Level {currentStudent.level || '100'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Hall of Residence:</span>
-                <span className="font-bold text-slate-800">{currentStudent.hall || 'Not yet submitted'}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Hall of Residence:</span>
+                <span className="font-bold text-slate-800 text-right break-words min-w-0">{currentStudent.hall || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <span className="text-slate-500">Account Email:</span>
-                <span className="font-bold text-slate-800 font-mono">{currentStudent.email}</span>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Account Email:</span>
+                <span className="font-bold text-slate-800 font-mono text-right break-all min-w-0">{currentStudent.email}</span>
               </div>
             </div>
 
@@ -579,14 +582,14 @@ export const StudentProfilePage: React.FC = () => {
 
           {/* Permitted Editable Details Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-[#123B70]" />
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <Phone className="w-4 h-4 text-[#123B70] shrink-0" />
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                   Permitted Contact & Notification Settings
                 </h2>
               </div>
-              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
                 STUDENT EDITABLE
               </span>
             </div>
@@ -685,14 +688,14 @@ export const StudentProfilePage: React.FC = () => {
       {/* TAB 2: SECURITY & PASSKEY */}
       {activeTab === 'security' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-[#123B70]" />
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <Lock className="w-4 h-4 text-[#123B70] shrink-0" />
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                 Update Portal Password
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">FIREBASE AUTHENTICATION</span>
+            <span className="text-[10px] font-mono text-slate-500 shrink-0">FIREBASE AUTHENTICATION</span>
           </div>
 
           {pwdMsg && (
@@ -766,10 +769,10 @@ export const StudentProfilePage: React.FC = () => {
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
               Current Firebase Authentication Session
             </h3>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-              <div className="flex justify-between">
-                <span>Authentication Provider:</span>
-                <span className="font-semibold text-slate-800">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
+              <div className="flex items-start justify-between gap-3">
+                <span className="shrink-0">Authentication Provider:</span>
+                <span className="font-semibold text-slate-800 text-right min-w-0 break-words">
                   {currentStudent.authProvider === 'google'
                     ? 'Google Sign-In (Firebase Authentication — ucc-vote)'
                     : currentStudent.authProvider === 'password'
@@ -777,15 +780,15 @@ export const StudentProfilePage: React.FC = () => {
                     : 'Email Link (Firebase Authentication — ucc-vote)'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Email Verification:</span>
-                <span className="font-mono text-emerald-700 font-semibold">
+              <div className="flex items-center justify-between gap-3">
+                <span className="shrink-0">Email Verification:</span>
+                <span className="font-mono text-emerald-700 font-semibold text-right">
                   {currentStudent.emailVerified ? 'Verified' : 'Pending'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Voter Roll Eligibility:</span>
-                <span className={`font-bold uppercase ${currentStudent.isEligible ? 'text-emerald-700' : 'text-amber-700'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="shrink-0">Voter Roll Eligibility:</span>
+                <span className={`font-bold uppercase text-right ${currentStudent.isEligible ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {currentStudent.isEligible ? 'Eligible' : 'Pending Verification'}
                 </span>
               </div>

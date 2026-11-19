@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import {
   Search,
   Users,
@@ -528,7 +529,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                         <div className="p-5 flex items-start gap-4">
                           <div className="relative shrink-0">
                             <CandidateAvatar
-                              src={cand.photoUrl}
+                              src={resolveCandidatePhotoUrl(cand)}
                               alt={cand.fullName}
                               className="w-20 h-20 rounded-2xl object-cover object-center border-2 border-slate-200 shrink-0"
                             />
@@ -602,8 +603,8 @@ export const CandidateDirectoryPage: React.FC = () => {
                             Policy Vision
                           </span>
                           <p className="text-xs text-slate-600 line-clamp-2 italic leading-relaxed">
-                            {cand.manifestoSummary
-                              ? `"${cand.manifestoSummary}"`
+                            {cand.campaignStatement || cand.manifestoSummary
+                              ? `"${cand.campaignStatement || cand.manifestoSummary}"`
                               : cand.isHistoricalRecord
                               ? 'Manifesto not yet provided (Historical 2026 Record)'
                               : 'Manifesto summary not provided.'}

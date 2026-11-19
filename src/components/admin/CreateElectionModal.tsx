@@ -9,18 +9,28 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
-  Edit3
+  Edit3,
+  UserPlus,
 } from 'lucide-react';
 import { DomainId, ElectionCategory } from '../../types';
-import { CreateElectionPayload } from '../../services/interfaces';
+import {
+  CreateElectionPayload,
+  ElectionCandidateAssignmentDraft,
+} from '../../services/interfaces';
 import { adminService } from '../../services/adminService';
 import { uploadElectionDocument } from '../../services/firebaseStorageService';
 import { useApp } from '../../context/AppContext';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
+import { CandidateAvatar } from '../common/CandidateAvatar';
+import { ContestantSelectorModal } from './ContestantSelectorModal';
 
 interface CreateElectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newElection: any) => void;
+  onSuccess: (
+    newElection: any,
+    meta?: { createdCandidatesCount?: number; candidateWarnings?: string[] }
+  ) => void;
   defaultDomainId?: DomainId;
   defaultHallId?: string;
 }
@@ -132,7 +142,15 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   defaultDomainId,
   defaultHallId,
 }) => {
-  const { domains, halls, faculties, departments, admin, refreshDomains } = useApp();
+  const {
+    domains,
+    halls,
+    faculties,
+    departments,
+    admin,
+    refreshDomains,
+    refreshCandidates,
+  } = useApp();
 
   const allowedDomains = admin?.managedDomainIds?.length
     ? domains.filter((d) => admin.managedDomainIds!.includes(d.id))
@@ -143,7 +161,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
       ? defaultDomainId
       : allowedDomains[0]?.id) || 'src';
 
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -192,6 +210,14 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
   const [newPosMax, setNewPosMax] = useState(1);
   const [newPosSkip, setNewPosSkip] = useState(false);
 
+  // Step 5: Staged Contestants / Candidates
+  const [candidateAssignments, setCandidateAssignments] = useState<
+    ElectionCandidateAssignmentDraft[]
+  >([]);
+  const [selectorModalOpen, setSelectorModalOpen] = useState(false);
+  const [selectorInitialTab, setSelectorInitialTab] = useState<'existing' | 'new'>('existing');
+  const [editingDraftIdx, setEditingDraftIdx] = useState<number | null>(null);
+
   const applyDomainDefaults = (targetDomainId: DomainId, overrideHallId?: string) => {
     setDomainId(targetDomainId);
     const domainObj = domains.find((d) => d.id === targetDomainId);
@@ -201,6 +227,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
     setPositions(getStarterPositionsForDomain(targetDomainId));
     setEditingIdx(null);
+    setCandidateAssignments([]);
 
     if (targetDomainId === 'grasag') {
       setSelectedLevels(['Postgraduate']);
@@ -292,6 +319,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     if (isOpen) {
       setActiveStep(1);
       setErrorMsg('');
+      setCandidateAssignments([]);
+      setSelectorModalOpen(false);
+      setEditingDraftIdx(null);
       applyDomainDefaults(initialDomain, defaultHallId);
     }
   }, [isOpen, defaultDomainId, defaultHallId]);
@@ -377,10 +407,24 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setPositions((prev) =>
       prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p))
     );
+    if (field === 'title') {
+      setCandidateAssignments((prev) =>
+        prev.map((d) => (d.positionIndex === idx ? { ...d, positionTitle: String(value) } : d))
+      );
+    }
   };
 
   const handleRemovePosition = (idx: number) => {
     setPositions((prev) => prev.filter((_, i) => i !== idx));
+    setCandidateAssignments((prev) =>
+      prev
+        .filter((d) => d.positionIndex !== idx)
+        .map((d) =>
+          typeof d.positionIndex === 'number' && d.positionIndex > idx
+            ? { ...d, positionIndex: d.positionIndex - 1 }
+            : d
+        )
+    );
     if (editingIdx === idx) setEditingIdx(null);
   };
 
@@ -458,6 +502,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         halls: selectedHalls
       },
       positions,
+      candidateAssignments,
       ...(guidelinesUrl ? { guidelinesUrl } : {})
     } as CreateElectionPayload;
 
@@ -465,8 +510,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
     setSubmitting(false);
 
     if (res.success && res.election) {
-      await refreshDomains();
-      onSuccess(res.election);
+      await Promise.all([refreshDomains(), refreshCandidates()]);
+      onSuccess(res.election, {
+        createdCandidatesCount: res.createdCandidatesCount,
+        candidateWarnings: res.candidateWarnings,
+      });
       onClose();
     } else {
       setErrorMsg(res.error || 'Failed to create election.');
@@ -500,18 +548,25 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         </div>
 
         {/* Step Indicator */}
-        <div className="grid grid-cols-4 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
           {[
             { step: 1, label: '1. Domain & Info' },
             { step: 2, label: '2. Schedule' },
             { step: 3, label: '3. Eligibility' },
-            { step: 4, label: '4. Portfolios' }
+            { step: 4, label: '4. Portfolios' },
+            {
+              step: 5,
+              label:
+                candidateAssignments.length > 0
+                  ? `5. Candidates (${candidateAssignments.length})`
+                  : '5. Candidates',
+            },
           ].map((item) => (
             <button
               key={item.step}
               type="button"
               onClick={() => setActiveStep(item.step as any)}
-              className={`py-2 px-3 rounded-xl font-bold text-center transition-colors cursor-pointer whitespace-nowrap ${
+              className={`py-2 px-2.5 rounded-xl font-bold text-center transition-colors cursor-pointer whitespace-nowrap ${
                 activeStep === item.step
                   ? 'bg-[#123B70] text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1146,6 +1201,140 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
             </div>
           )}
 
+          {/* STEP 5: Candidate Management */}
+          {activeStep === 5 && (
+            <div className="space-y-4 text-xs">
+              <div className="p-4 rounded-2xl bg-[#F5F7FB] border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-extrabold text-[#102A43] text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#2563EB]" />
+                    <span>Assign Contestants to Election Positions</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Select contestants already registered in UCC VOTE or register new contestants,
+                    assign them strictly to positions in this election, and review/edit details.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={positions.length === 0}
+                    onClick={() => {
+                      setEditingDraftIdx(null);
+                      setSelectorInitialTab('existing');
+                      setSelectorModalOpen(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Add Existing Contestant</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={positions.length === 0}
+                    onClick={() => {
+                      setEditingDraftIdx(null);
+                      setSelectorInitialTab('new');
+                      setSelectorModalOpen(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#102A43] hover:bg-[#0B1F3A] text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Register New Contestant</span>
+                  </button>
+                </div>
+              </div>
+
+              {positions.length === 0 ? (
+                <div className="p-6 text-center rounded-2xl bg-amber-50 border border-amber-200 text-amber-900">
+                  Add at least one contested position in Step 4 before assigning candidates.
+                </div>
+              ) : candidateAssignments.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl bg-white border border-dashed border-slate-300 space-y-2">
+                  <Users className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="font-bold text-slate-700">
+                    No candidates staged yet for this election
+                  </p>
+                  <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                    You can add existing contestants or register new ones now using the buttons
+                    above, or provision the election first and manage candidates afterward.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {candidateAssignments.map((draft, dIdx) => {
+                    const posTitle =
+                      (typeof draft.positionIndex === 'number'
+                        ? positions[draft.positionIndex]?.title
+                        : undefined) ||
+                      draft.positionTitle ||
+                      'Unassigned Position';
+
+                    return (
+                      <div
+                        key={`${draft.contestantId || draft.studentId || draft.fullName}_${dIdx}`}
+                        className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <CandidateAvatar
+                            src={resolveCandidatePhotoUrl(draft)}
+                            alt={draft.fullName}
+                            className="w-12 h-12 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-slate-900">{draft.fullName}</span>
+                              <span className="font-mono text-[10px] text-slate-500 tabular-nums">
+                                {draft.studentId}
+                              </span>
+                              <span className="text-[10px] font-bold text-[#2563EB] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                                {posTitle}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 truncate">
+                              {draft.department}
+                              {draft.programme ? ` — ${draft.programme}` : ''} · {draft.hall}
+                            </div>
+                            {(draft.campaignStatement || draft.manifestoSummary) && (
+                              <div className="text-[11px] text-slate-500 truncate max-w-lg">
+                                &ldquo;{draft.campaignStatement || draft.manifestoSummary}&rdquo;
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDraftIdx(dIdx);
+                              setSelectorModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold cursor-pointer"
+                          >
+                            Edit Information / Position
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCandidateAssignments((prev) =>
+                                prev.filter((_, idx) => idx !== dIdx)
+                              )
+                            }
+                            className="px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-[#E45757] font-bold cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Modal Footer */}
           <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
             <button
@@ -1160,7 +1349,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
             </button>
 
             <div className="flex gap-2">
-              {activeStep < 4 ? (
+              {activeStep < 5 ? (
                 <button
                   type="button"
                   onClick={() => setActiveStep((prev) => (prev + 1) as any)}
@@ -1174,7 +1363,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   disabled={submitting}
                   className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white font-bold hover:bg-red-800 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {submitting ? 'Provisioning Election...' : 'Provision & Save Election'}
+                  {submitting
+                    ? 'Provisioning Election...'
+                    : candidateAssignments.length > 0
+                    ? `Provision Election & Add ${candidateAssignments.length} Candidate${
+                        candidateAssignments.length === 1 ? '' : 's'
+                      }`
+                    : 'Provision & Save Election'}
                 </button>
               )}
             </div>
@@ -1182,6 +1377,39 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         </form>
 
       </div>
+
+      <ContestantSelectorModal
+        isOpen={selectorModalOpen}
+        mode="draft"
+        electionTitle={title.trim() || `${category} New Election`}
+        electionCategory={category}
+        draftPositions={positions.map((p, index) => ({
+          index,
+          title: p.title,
+          description: p.description,
+          maxSelections: p.maxSelections,
+          allowsSkip: p.allowsSkip,
+        }))}
+        existingDrafts={candidateAssignments}
+        initialTab={selectorInitialTab}
+        initialEditDraft={
+          editingDraftIdx !== null ? candidateAssignments[editingDraftIdx] || null : null
+        }
+        onClose={() => {
+          setSelectorModalOpen(false);
+          setEditingDraftIdx(null);
+        }}
+        onStageDrafts={(drafts) => {
+          if (editingDraftIdx !== null) {
+            setCandidateAssignments((prev) =>
+              prev.map((item, idx) => (idx === editingDraftIdx ? drafts[0] : item))
+            );
+          } else {
+            setCandidateAssignments((prev) => [...prev, ...drafts]);
+          }
+          setEditingDraftIdx(null);
+        }}
+      />
     </div>
   );
 };

@@ -6,12 +6,14 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   where,
   orderBy,
   limit,
   serverTimestamp,
   arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -38,6 +40,7 @@ import {
   BallotAccountingSummary,
   Candidate,
   CandidateResultRow,
+  ContestantProfile,
   DomainId,
   DomainRegistryItem,
   Election,
@@ -51,6 +54,14 @@ import {
 } from '../types';
 import { CreateElectionPayload } from './interfaces';
 import { convertTimestamp, writeAuditLog } from './firebaseDbService';
+import {
+  buildAssignmentUniquenessKey,
+  buildContestantId,
+  evaluateElectionCandidateActionAllowed,
+  findDuplicateAssignment,
+  normalizeStudentId,
+} from '../utils/contestantUtils';
+import { findMatchingHallUnit, isOfficialHallAffiliation } from '../utils/hallUtils';
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
   const clean: Record<string, any> = {};
@@ -385,6 +396,8 @@ class FirebaseAdminService {
     success: boolean;
     election?: Election;
     positions?: Position[];
+    createdCandidatesCount?: number;
+    candidateWarnings?: string[];
     message?: string;
     error?: string;
   }> {
@@ -459,11 +472,82 @@ class FirebaseAdminService {
         createdPositions.push(posDoc);
       }
 
+      let createdCandidatesCount = 0;
+      const candidateWarnings: string[] = [];
+
+      if (Array.isArray(payload.candidateAssignments) && payload.candidateAssignments.length > 0) {
+        for (const assignment of payload.candidateAssignments) {
+          let targetPos: Position | undefined =
+            typeof assignment.positionIndex === 'number'
+              ? createdPositions[assignment.positionIndex]
+              : undefined;
+          if (!targetPos && assignment.positionTitle) {
+            targetPos = createdPositions.find(
+              (p) => p.title.toLowerCase() === assignment.positionTitle!.trim().toLowerCase()
+            );
+          }
+          if (!targetPos) {
+            candidateWarnings.push(
+              `Skipped "${assignment.fullName}": selected position does not belong to this election.`
+            );
+            continue;
+          }
+
+          const profileSnapshot: Partial<ContestantProfile> = stripUndefined({
+            fullName: assignment.fullName,
+            studentId: assignment.studentId,
+            nickname: assignment.nickname,
+            email: assignment.email,
+            phone: assignment.phone,
+            department: assignment.department,
+            faculty: assignment.faculty,
+            programme: assignment.programme,
+            level: assignment.level,
+            hall: assignment.hall,
+            photoUrl: assignment.photoUrl,
+            photoStoragePath: assignment.photoStoragePath,
+            biography: assignment.biography,
+            leadershipExperience: assignment.leadershipExperience,
+          });
+
+          const res = await this.assignContestantToElection({
+            electionId,
+            positionId: targetPos.id,
+            contestantId: assignment.contestantId,
+            mode: assignment.isNewContestant || !assignment.contestantId ? 'new' : 'existing',
+            updatePermanentProfile: Boolean(assignment.updatePermanentProfile),
+            permanentProfileUpdates: assignment.updatePermanentProfile
+              ? profileSnapshot
+              : undefined,
+            profileSnapshot,
+            electionParticipation: {
+              manifestoSummary: assignment.manifestoSummary,
+              fullManifesto: assignment.fullManifesto,
+              keyPromises: assignment.keyPromises,
+              campaignStatement: assignment.campaignStatement,
+              electionPhotoUrl: assignment.electionPhotoUrl,
+              videoUrl: assignment.videoUrl,
+              applicationStatus: assignment.applicationStatus || 'Approved',
+            },
+          });
+          if (res.success) {
+            createdCandidatesCount++;
+          } else {
+            candidateWarnings.push(
+              `${assignment.fullName}: ${res.error || 'Could not assign contestant.'}`
+            );
+          }
+        }
+      }
+
       const actor = await getCurrentAdminContext();
       await writeAuditLog({
         adminName: actor.name,
         adminRole: actor.role,
-        action: 'Created Election',
+        action:
+          createdCandidatesCount > 0
+            ? `Created Election with ${createdCandidatesCount} Initial Candidate(s)`
+            : 'Created Election',
         target: `${electionData.title} (${electionData.code})`,
       });
 
@@ -471,7 +555,12 @@ class FirebaseAdminService {
         success: true,
         election: electionData,
         positions: createdPositions,
-        message: 'Election saved to Cloud Firestore.',
+        createdCandidatesCount,
+        candidateWarnings: candidateWarnings.length > 0 ? candidateWarnings : undefined,
+        message:
+          createdCandidatesCount > 0
+            ? `Election saved to Cloud Firestore with ${createdCandidatesCount} candidate(s) assigned.`
+            : 'Election saved to Cloud Firestore.',
       };
     } catch (err: any) {
       handleFirestoreError(err, OperationType.CREATE, `elections/${electionId}`);
@@ -821,17 +910,944 @@ class FirebaseAdminService {
       await ensureHistoricalCandidateInFirestore(id);
       await ensureHistoricalElectionInFirestore(electionId);
       await ensureHistoricalPositionInFirestore(positionId);
-      await updateDoc(doc(db, 'candidates', id), {
+      const [cSnap, eSnap, pSnap] = await Promise.all([
+        getDoc(doc(db, 'candidates', id)),
+        getDoc(doc(db, 'elections', electionId)),
+        getDoc(doc(db, 'positions', positionId)),
+      ]);
+      if (!cSnap.exists()) return { success: false, error: 'Candidate record not found.' };
+      if (!eSnap.exists()) return { success: false, error: 'Election record not found.' };
+      if (!pSnap.exists()) return { success: false, error: 'Target position not found.' };
+
+      const cand = mapDoc<Candidate>(cSnap.id, cSnap.data());
+      const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      const targetPos = mapDoc<Position>(pSnap.id, pSnap.data());
+
+      if (targetPos.electionId !== electionId) {
+        return {
+          success: false,
+          error: 'Selected position does not belong to this election.',
+        };
+      }
+
+      const guard = evaluateElectionCandidateActionAllowed(election, 'change_position', cand);
+      if (!guard.allowed) {
+        return { success: false, error: guard.reason || 'Position change blocked.' };
+      }
+
+      const existingSamePosSnap = await getDocs(
+        query(
+          collection(db, 'candidates'),
+          where('electionId', '==', electionId),
+          where('positionId', '==', positionId)
+        )
+      );
+      const existingSamePos = existingSamePosSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()));
+      const duplicate = findDuplicateAssignment(existingSamePos, {
+        electionId,
+        positionId,
+        contestantId: cand.contestantId,
+        studentId: cand.studentId,
+        ignoreCandidateId: id,
+      });
+      if (duplicate) {
+        return {
+          success: false,
+          error: `${cand.fullName} is already assigned to ${targetPos.title} in ${election.title}.`,
+        };
+      }
+
+      const batch = writeBatch(db);
+      const prevPosId = cand.positionId;
+      const keySegment = normalizeStudentId(cand.studentId) || cand.contestantId || id;
+      if (prevPosId && prevPosId !== positionId) {
+        const oldLockKey = buildAssignmentUniquenessKey(electionId, prevPosId, keySegment);
+        batch.delete(doc(db, 'candidate_assignments', oldLockKey));
+        batch.update(doc(db, 'positions', prevPosId), {
+          candidateIds: arrayRemove(id),
+        });
+      }
+
+      const newLockKey = buildAssignmentUniquenessKey(electionId, positionId, keySegment);
+      batch.set(
+        doc(db, 'candidate_assignments', newLockKey),
+        stripUndefined({
+          electionId,
+          positionId,
+          contestantId: cand.contestantId || buildContestantId(cand.studentId, cand.fullName),
+          candidateId: id,
+          studentIdNormalized: normalizeStudentId(cand.studentId),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+      batch.update(doc(db, 'candidates', id), {
         electionId,
         positionId,
         updatedAt: serverTimestamp(),
       });
-      await updateDoc(doc(db, 'positions', positionId), {
+      batch.update(doc(db, 'positions', positionId), {
         candidateIds: arrayUnion(id),
-      }).catch(() => {});
-      return { success: true, message: 'Candidate assigned to position.' };
+      });
+      await batch.commit();
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Changed Candidate Position -> ${targetPos.title}`,
+        target: `${cand.fullName} (${election.title})`,
+      });
+      return { success: true, message: `Candidate assigned to ${targetPos.title}.` };
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `candidates/${id}`);
+      return { success: false, error: err?.message || 'Unable to assign candidate position.' };
+    }
+  }
+
+  async findContestantByStudentId(studentId: string): Promise<ContestantProfile | null> {
+    const normSid = normalizeStudentId(studentId);
+    if (!normSid) return null;
+
+    const deterministicId = buildContestantId(normSid);
+    const directSnap = await getDoc(doc(db, 'contestants', deterministicId)).catch(() => null);
+    if (directSnap?.exists()) {
+      return mapDoc<ContestantProfile>(directSnap.id, directSnap.data());
+    }
+
+    const qSnap = await getDocs(
+      query(collection(db, 'contestants'), where('studentId', '==', normSid))
+    ).catch(() => null);
+    if (qSnap && !qSnap.empty) {
+      return mapDoc<ContestantProfile>(qSnap.docs[0].id, qSnap.docs[0].data());
+    }
+
+    const candSnap = await getDocs(
+      query(collection(db, 'candidates'), where('studentId', '==', normSid))
+    ).catch(() => null);
+    if (candSnap && !candSnap.empty) {
+      const c = mapDoc<Candidate>(candSnap.docs[0].id, candSnap.docs[0].data());
+      return {
+        id: c.contestantId || deterministicId,
+        fullName: c.fullName,
+        studentId: normSid,
+        nickname: c.nickname,
+        email: c.email,
+        phone: c.phone,
+        department: c.department,
+        faculty: c.faculty,
+        programme: c.programme || '',
+        level: c.level,
+        hall: c.hall,
+        photoUrl: c.photoUrl || c.electionPhotoUrl || '',
+        photoStoragePath: c.photoStoragePath,
+        biography: c.biography || '',
+        leadershipExperience: c.leadershipExperience || [],
+      };
+    }
+
+    const histMatch = HISTORICAL_2026_CANDIDATES.find(
+      (c) => normalizeStudentId(c.studentId) === normSid
+    );
+    if (histMatch) {
+      return {
+        id: buildContestantId(histMatch.studentId, histMatch.fullName),
+        fullName: histMatch.fullName,
+        studentId: normSid,
+        nickname: histMatch.nickname,
+        email: histMatch.email,
+        department: histMatch.department,
+        faculty: histMatch.faculty,
+        programme: histMatch.programme || '',
+        level: histMatch.level,
+        hall: histMatch.hall,
+        photoUrl: histMatch.photoUrl || '',
+        biography: histMatch.biography || '',
+        leadershipExperience: histMatch.leadershipExperience || [],
+      };
+    }
+    return null;
+  }
+
+  async createContestantProfile(payload: {
+    fullName: string;
+    studentId?: string;
+    nickname?: string;
+    email?: string;
+    phone?: string;
+    department: string;
+    faculty: string;
+    programme?: string;
+    level: string;
+    hall: string;
+    photoUrl?: string;
+    photoStoragePath?: string;
+    biography?: string;
+    leadershipExperience?: string[];
+  }): Promise<{
+    success: boolean;
+    contestant?: ContestantProfile;
+    duplicateContestant?: ContestantProfile;
+    error?: string;
+  }> {
+    try {
+      const fullName = payload.fullName?.trim();
+      if (!fullName || fullName.length < 2) {
+        return { success: false, error: 'Contestant full name is required.' };
+      }
+
+      const normSid = normalizeStudentId(payload.studentId);
+      if (normSid) {
+        const duplicate = await this.findContestantByStudentId(normSid);
+        if (duplicate) {
+          return {
+            success: false,
+            duplicateContestant: duplicate,
+            error: `A permanent contestant profile already exists for Student ID ${normSid} (${duplicate.fullName}). Select the existing contestant instead of creating a duplicate.`,
+          };
+        }
+      }
+
+      const contestantId = buildContestantId(normSid, fullName);
+      const existingSnap = await getDoc(doc(db, 'contestants', contestantId)).catch(() => null);
+      if (existingSnap?.exists()) {
+        const existing = mapDoc<ContestantProfile>(existingSnap.id, existingSnap.data());
+        return {
+          success: false,
+          duplicateContestant: existing,
+          error: `A permanent contestant profile already exists for ${existing.fullName}. Select the existing contestant instead.`,
+        };
+      }
+
+      const nowIso = new Date().toISOString();
+      const profileDoc: ContestantProfile = stripUndefined({
+        id: contestantId,
+        fullName,
+        studentId: normSid || payload.studentId?.trim() || 'Not verified',
+        nickname: payload.nickname?.trim() || undefined,
+        email: payload.email?.trim() || undefined,
+        phone: payload.phone?.trim() || undefined,
+        department: payload.department?.trim() || 'Not verified',
+        faculty: payload.faculty?.trim() || 'Not verified',
+        programme: payload.programme?.trim() || '',
+        level: payload.level?.trim() || 'Not verified',
+        hall: payload.hall?.trim() || 'Not verified',
+        photoUrl: payload.photoUrl?.trim() || '',
+        photoStoragePath: payload.photoStoragePath?.trim() || undefined,
+        biography: payload.biography?.trim() || '',
+        leadershipExperience: Array.isArray(payload.leadershipExperience)
+          ? payload.leadershipExperience.filter(Boolean)
+          : [],
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+
+      await setDoc(
+        doc(db, 'contestants', contestantId),
+        stripUndefined({
+          ...profileDoc,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Created Permanent Contestant Profile',
+        target: `${profileDoc.fullName} (${profileDoc.studentId})`,
+      });
+
+      return { success: true, contestant: profileDoc };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to create contestant profile.' };
+    }
+  }
+
+  async updateContestantPermanentProfile(
+    contestantId: string,
+    updates: Partial<ContestantProfile>,
+    reason?: string
+  ): Promise<{
+    success: boolean;
+    contestant?: ContestantProfile;
+    syncedCandidateCount?: number;
+    error?: string;
+  }> {
+    try {
+      const ref = doc(db, 'contestants', contestantId);
+      const existingSnap = await getDoc(ref).catch(() => null);
+      const existingData = existingSnap?.exists()
+        ? mapDoc<ContestantProfile>(existingSnap.id, existingSnap.data())
+        : null;
+
+      const normNewSid = normalizeStudentId(updates.studentId ?? existingData?.studentId);
+      if (normNewSid) {
+        const collision = await this.findContestantByStudentId(normNewSid);
+        if (collision && collision.id !== contestantId) {
+          return {
+            success: false,
+            error: `Student ID ${normNewSid} already belongs to permanent contestant "${collision.fullName}".`,
+          };
+        }
+      }
+
+      const prevNormSid = normalizeStudentId(existingData?.studentId);
+      const cleanedUpdates: Partial<ContestantProfile> = stripUndefined({
+        fullName: updates.fullName?.trim() ?? existingData?.fullName,
+        studentId:
+          normNewSid ||
+          updates.studentId?.trim() ||
+          existingData?.studentId ||
+          'Not verified',
+        nickname: updates.nickname !== undefined ? updates.nickname.trim() : existingData?.nickname,
+        email: updates.email !== undefined ? updates.email.trim() : existingData?.email,
+        phone: updates.phone !== undefined ? updates.phone.trim() : existingData?.phone,
+        department: updates.department?.trim() ?? existingData?.department ?? 'Not verified',
+        faculty: updates.faculty?.trim() ?? existingData?.faculty ?? 'Not verified',
+        programme: updates.programme !== undefined ? updates.programme.trim() : existingData?.programme ?? '',
+        level: updates.level?.trim() ?? existingData?.level ?? 'Not verified',
+        hall: updates.hall?.trim() ?? existingData?.hall ?? 'Not verified',
+        photoUrl: updates.photoUrl !== undefined ? updates.photoUrl.trim() : existingData?.photoUrl ?? '',
+        photoStoragePath:
+          updates.photoStoragePath !== undefined
+            ? updates.photoStoragePath
+            : existingData?.photoStoragePath,
+        biography: updates.biography !== undefined ? updates.biography.trim() : existingData?.biography ?? '',
+        leadershipExperience:
+          updates.leadershipExperience !== undefined
+            ? updates.leadershipExperience.filter(Boolean)
+            : existingData?.leadershipExperience ?? [],
+      });
+
+      if (!cleanedUpdates.fullName || cleanedUpdates.fullName.length < 2) {
+        return { success: false, error: 'Contestant full name is required.' };
+      }
+
+      const changedFields: string[] = [];
+      if (existingData) {
+        (Object.keys(cleanedUpdates) as (keyof ContestantProfile)[]).forEach((k) => {
+          if (JSON.stringify(cleanedUpdates[k]) !== JSON.stringify(existingData[k])) {
+            changedFields.push(String(k));
+          }
+        });
+      } else {
+        changedFields.push('initial_profile_materialization');
+      }
+
+      const writePayload: Record<string, any> = stripUndefined({
+        ...cleanedUpdates,
+        id: contestantId,
+        updatedAt: serverTimestamp(),
+      });
+      if (!existingSnap?.exists()) {
+        writePayload.createdAt = serverTimestamp();
+      }
+      await setDoc(ref, writePayload, { merge: true });
+
+      // Fan out shared permanent fields (NEVER phone PII, NEVER votesReceived, NEVER election-specific fields)
+      const byContestantSnap = await getDocs(
+        query(collection(db, 'candidates'), where('contestantId', '==', contestantId))
+      ).catch(() => null);
+      const candidateDocsMap = new Map<string, Candidate>();
+      byContestantSnap?.docs.forEach((d) =>
+        candidateDocsMap.set(d.id, mapDoc<Candidate>(d.id, d.data()))
+      );
+
+      if (prevNormSid || normNewSid) {
+        const sidToSearch = prevNormSid || normNewSid;
+        const bySidSnap = await getDocs(
+          query(collection(db, 'candidates'), where('studentId', '==', sidToSearch))
+        ).catch(() => null);
+        bySidSnap?.docs.forEach((d) => {
+          if (!candidateDocsMap.has(d.id)) {
+            candidateDocsMap.set(d.id, mapDoc<Candidate>(d.id, d.data()));
+          }
+        });
+      }
+
+      let syncedCandidateCount = 0;
+      if (candidateDocsMap.size > 0) {
+        const fanOutBatch = writeBatch(db);
+        const hallId =
+          cleanedUpdates.hall && isOfficialHallAffiliation(cleanedUpdates.hall, UCC_HALLS)
+            ? findMatchingHallUnit(cleanedUpdates.hall, UCC_HALLS)?.id
+            : undefined;
+
+        candidateDocsMap.forEach((cand, candDocId) => {
+          const sharedUpdate = stripUndefined({
+            contestantId,
+            fullName: cleanedUpdates.fullName,
+            studentId: cleanedUpdates.studentId,
+            nickname: cleanedUpdates.nickname,
+            email: cleanedUpdates.email,
+            department: cleanedUpdates.department,
+            faculty: cleanedUpdates.faculty,
+            programme: cleanedUpdates.programme,
+            level: cleanedUpdates.level,
+            hall: cleanedUpdates.hall,
+            ...(hallId ? { hallId } : {}),
+            biography: cleanedUpdates.biography,
+            leadershipExperience: cleanedUpdates.leadershipExperience,
+            // Preserve election-specific portrait override if present; otherwise sync default portrait
+            photoUrl: cand.electionPhotoUrl ? cand.photoUrl : cleanedUpdates.photoUrl,
+            ...(cand.electionPhotoUrl ? {} : { photoStoragePath: cleanedUpdates.photoStoragePath }),
+            updatedAt: serverTimestamp(),
+          });
+          fanOutBatch.update(doc(db, 'candidates', candDocId), sharedUpdate);
+          syncedCandidateCount++;
+        });
+        await fanOutBatch.commit();
+      }
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Updated Permanent Contestant Profile [${changedFields.join(', ') || 'saved'}]`,
+        target: `${cleanedUpdates.fullName} (${cleanedUpdates.studentId})${reason ? ` — ${reason}` : ''}`,
+      });
+
+      const refreshed = await getDoc(ref).catch(() => null);
+      return {
+        success: true,
+        contestant: refreshed?.exists()
+          ? mapDoc<ContestantProfile>(refreshed.id, refreshed.data())
+          : ({ ...cleanedUpdates, id: contestantId } as ContestantProfile),
+        syncedCandidateCount,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to update permanent contestant profile.' };
+    }
+  }
+
+  async assignContestantToElection(payload: {
+    electionId: string;
+    positionId: string;
+    contestantId?: string;
+    mode: 'existing' | 'new';
+    updatePermanentProfile?: boolean;
+    permanentProfileUpdates?: Partial<ContestantProfile>;
+    profileSnapshot: Partial<ContestantProfile>;
+    electionParticipation: {
+      manifestoSummary?: string;
+      fullManifesto?: string[];
+      keyPromises?: string[];
+      campaignStatement?: string;
+      electionPhotoUrl?: string;
+      videoUrl?: string;
+      applicationStatus?: Candidate['applicationStatus'];
+    };
+  }): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    contestantId?: string;
+    duplicateContestant?: ContestantProfile;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      await ensureHistoricalElectionInFirestore(payload.electionId);
+      await ensureHistoricalPositionInFirestore(payload.positionId);
+
+      const [eSnap, pSnap] = await Promise.all([
+        getDoc(doc(db, 'elections', payload.electionId)),
+        getDoc(doc(db, 'positions', payload.positionId)),
+      ]);
+
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Target election could not be found in Firestore.' };
+      }
+      if (!pSnap.exists()) {
+        return { success: false, error: 'Selected position could not be found in Firestore.' };
+      }
+
+      const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      const position = mapDoc<Position>(pSnap.id, pSnap.data());
+
+      // Enforce election status safeguards
+      const guard = evaluateElectionCandidateActionAllowed(election, 'add');
+      if (!guard.allowed) {
+        return { success: false, error: guard.reason || 'Election is locked against adding candidates.' };
+      }
+
+      // Strictly bind position to the target election
+      if (position.electionId !== election.id) {
+        return {
+          success: false,
+          error: `Position "${position.title}" does not belong to "${election.title}".`,
+        };
+      }
+
+      const mergedProfile: Partial<ContestantProfile> = {
+        ...payload.profileSnapshot,
+        ...(payload.updatePermanentProfile ? payload.permanentProfileUpdates || {} : {}),
+      };
+
+      const fullName = mergedProfile.fullName?.trim() || '';
+      if (fullName.length < 2) {
+        return { success: false, error: 'Contestant full name must be at least 2 characters.' };
+      }
+
+      const normSid = normalizeStudentId(mergedProfile.studentId);
+
+      if (payload.mode === 'new' && normSid) {
+        const duplicateProfile = await this.findContestantByStudentId(normSid);
+        if (duplicateProfile) {
+          return {
+            success: false,
+            duplicateContestant: duplicateProfile,
+            error: `Student ID ${normSid} already exists for "${duplicateProfile.fullName}". Select them via "Add Existing Contestant" instead of creating a duplicate profile.`,
+          };
+        }
+      }
+
+      const contestantId =
+        payload.contestantId || buildContestantId(normSid, fullName);
+
+      // Duplicate assignment check in target (electionId, positionId)
+      const samePosSnap = await getDocs(
+        query(
+          collection(db, 'candidates'),
+          where('electionId', '==', election.id),
+          where('positionId', '==', position.id)
+        )
+      );
+      const samePosCandidates = samePosSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()));
+      const duplicateAssignment = findDuplicateAssignment(samePosCandidates, {
+        electionId: election.id,
+        positionId: position.id,
+        contestantId,
+        studentId: normSid || mergedProfile.studentId,
+      });
+
+      const assignmentKey = buildAssignmentUniquenessKey(
+        election.id,
+        position.id,
+        normSid || contestantId
+      );
+      const lockSnap = await getDoc(doc(db, 'candidate_assignments', assignmentKey)).catch(() => null);
+
+      if (duplicateAssignment || lockSnap?.exists()) {
+        return {
+          success: false,
+          error: `${fullName} is already registered for "${position.title}" in "${election.title}".`,
+        };
+      }
+
+      // Persist / update permanent profile before or inside batch
+      const contestantRef = doc(db, 'contestants', contestantId);
+      const existingContestantSnap = await getDoc(contestantRef).catch(() => null);
+      const shouldWriteContestant =
+        !existingContestantSnap?.exists() || Boolean(payload.updatePermanentProfile);
+
+      if (payload.updatePermanentProfile && existingContestantSnap?.exists()) {
+        const permRes = await this.updateContestantPermanentProfile(
+          contestantId,
+          mergedProfile,
+          `Confirmed update while adding to ${election.title}`
+        );
+        if (!permRes.success) {
+          return { success: false, error: permRes.error };
+        }
+      }
+
+      const candidateId = `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const actor = await getCurrentAdminContext();
+      const nowIso = new Date().toISOString();
+
+      const permanentPhotoUrl = mergedProfile.photoUrl?.trim() || '';
+      const electionPhotoUrl = payload.electionParticipation.electionPhotoUrl?.trim() || '';
+      const effectivePhotoUrl = electionPhotoUrl || permanentPhotoUrl;
+
+      const resolvedHall = mergedProfile.hall?.trim() || 'Not verified';
+      const resolvedHallId =
+        election.hallId ||
+        (isOfficialHallAffiliation(resolvedHall, UCC_HALLS)
+          ? findMatchingHallUnit(resolvedHall, UCC_HALLS)?.id
+          : undefined);
+
+      const candidateDoc: Candidate = stripUndefined({
+        id: candidateId,
+        contestantId,
+        electionId: election.id,
+        positionId: position.id,
+        domainId: election.domainId || categoryToDomainId(election.category),
+        hallId: resolvedHallId,
+        facultyId: election.facultyId,
+        departmentId: election.departmentId,
+        submittedByUid: actor.uid || undefined,
+        fullName,
+        nickname: mergedProfile.nickname?.trim() || undefined,
+        studentId: normSid || mergedProfile.studentId?.trim() || 'Not verified',
+        email: mergedProfile.email?.trim() || undefined,
+        // NOTE: Never copy phone PII onto public candidates documents
+        department: mergedProfile.department?.trim() || 'Not verified',
+        faculty: mergedProfile.faculty?.trim() || 'Not verified',
+        programme: mergedProfile.programme?.trim() || '',
+        level: mergedProfile.level?.trim() || 'Not verified',
+        hall: resolvedHall,
+        photoUrl: permanentPhotoUrl || effectivePhotoUrl,
+        electionPhotoUrl: electionPhotoUrl || undefined,
+        photoStoragePath: mergedProfile.photoStoragePath || undefined,
+        videoUrl: payload.electionParticipation.videoUrl?.trim() || undefined,
+        manifestoSummary:
+          payload.electionParticipation.manifestoSummary?.trim() ||
+          payload.electionParticipation.campaignStatement?.trim() ||
+          '',
+        campaignStatement: payload.electionParticipation.campaignStatement?.trim() || undefined,
+        fullManifesto: (payload.electionParticipation.fullManifesto || [])
+          .map((s) => s.trim())
+          .filter(Boolean),
+        keyPromises: (payload.electionParticipation.keyPromises || [])
+          .map((s) => s.trim())
+          .filter(Boolean),
+        biography: mergedProfile.biography?.trim() || '',
+        leadershipExperience: Array.isArray(mergedProfile.leadershipExperience)
+          ? mergedProfile.leadershipExperience.filter(Boolean)
+          : [],
+        applicationStatus: payload.electionParticipation.applicationStatus || 'Approved',
+        eligibilityVerified: true,
+        submittedAt: nowIso,
+        reviewedAt: nowIso,
+        reviewedBy: actor.name,
+        votesReceived: 0,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+
+      const batch = writeBatch(db);
+
+      if (shouldWriteContestant && !existingContestantSnap?.exists()) {
+        batch.set(
+          contestantRef,
+          stripUndefined({
+            id: contestantId,
+            fullName,
+            studentId: normSid || mergedProfile.studentId?.trim() || 'Not verified',
+            nickname: mergedProfile.nickname?.trim() || undefined,
+            email: mergedProfile.email?.trim() || undefined,
+            phone: mergedProfile.phone?.trim() || undefined,
+            department: mergedProfile.department?.trim() || 'Not verified',
+            faculty: mergedProfile.faculty?.trim() || 'Not verified',
+            programme: mergedProfile.programme?.trim() || '',
+            level: mergedProfile.level?.trim() || 'Not verified',
+            hall: resolvedHall,
+            photoUrl: permanentPhotoUrl,
+            photoStoragePath: mergedProfile.photoStoragePath || undefined,
+            biography: mergedProfile.biography?.trim() || '',
+            leadershipExperience: Array.isArray(mergedProfile.leadershipExperience)
+              ? mergedProfile.leadershipExperience.filter(Boolean)
+              : [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+      }
+
+      batch.set(
+        doc(db, 'candidates', candidateId),
+        stripUndefined({
+          ...candidateDoc,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      batch.set(
+        doc(db, 'candidate_assignments', assignmentKey),
+        stripUndefined({
+          electionId: election.id,
+          positionId: position.id,
+          contestantId,
+          candidateId,
+          studentIdNormalized: normSid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      batch.update(doc(db, 'positions', position.id), {
+        candidateIds: arrayUnion(candidateId),
+      });
+
+      await batch.commit();
+
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action:
+          payload.mode === 'existing'
+            ? `Added Existing Contestant to "${position.title}"`
+            : `Registered & Added New Contestant to "${position.title}"`,
+        target: `${fullName} (${candidateDoc.studentId}) -> ${election.title}`,
+      });
+
+      return {
+        success: true,
+        candidate: candidateDoc,
+        contestantId,
+        message: `${fullName} added to ${position.title} in ${election.title}.`,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to assign contestant to election.',
+      };
+    }
+  }
+
+  async updateElectionCandidateParticipation(
+    candidateId: string,
+    payload: {
+      positionId?: string;
+      manifestoSummary?: string;
+      fullManifesto?: string[];
+      keyPromises?: string[];
+      campaignStatement?: string;
+      electionPhotoUrl?: string;
+      videoUrl?: string;
+      applicationStatus?: Candidate['applicationStatus'];
+      confirmPermanentUpdate?: boolean;
+      permanentProfileUpdates?: Partial<ContestantProfile>;
+    }
+  ): Promise<{
+    success: boolean;
+    candidate?: Candidate;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      await ensureHistoricalCandidateInFirestore(candidateId);
+      const cSnap = await getDoc(doc(db, 'candidates', candidateId));
+      if (!cSnap.exists()) {
+        return { success: false, error: 'Candidate record not found.' };
+      }
+
+      const existing = mapDoc<Candidate>(cSnap.id, cSnap.data());
+      await ensureHistoricalElectionInFirestore(existing.electionId);
+      const eSnap = await getDoc(doc(db, 'elections', existing.electionId));
+      const election = eSnap.exists() ? mapDoc<Election>(eSnap.id, eSnap.data()) : null;
+
+      const isChangingPosition =
+        Boolean(payload.positionId) && payload.positionId !== existing.positionId;
+
+      const editGuard = evaluateElectionCandidateActionAllowed(
+        election,
+        isChangingPosition ? 'change_position' : 'edit_info',
+        existing
+      );
+      if (!editGuard.allowed) {
+        return { success: false, error: editGuard.reason || 'Action blocked by election safeguards.' };
+      }
+
+      if (payload.confirmPermanentUpdate && payload.permanentProfileUpdates) {
+        const targetContestantId =
+          existing.contestantId || buildContestantId(existing.studentId, existing.fullName);
+        const permRes = await this.updateContestantPermanentProfile(
+          targetContestantId,
+          payload.permanentProfileUpdates,
+          `Confirmed update while editing candidate in ${election?.title || existing.electionId}`
+        );
+        if (!permRes.success) {
+          return { success: false, error: permRes.error };
+        }
+      }
+
+      const nextPosId = payload.positionId || existing.positionId;
+      if (isChangingPosition) {
+        await ensureHistoricalPositionInFirestore(nextPosId);
+        const targetPosSnap = await getDoc(doc(db, 'positions', nextPosId));
+        if (!targetPosSnap.exists()) {
+          return { success: false, error: 'Selected position does not exist.' };
+        }
+        const targetPos = mapDoc<Position>(targetPosSnap.id, targetPosSnap.data());
+        if (targetPos.electionId !== existing.electionId) {
+          return { success: false, error: 'Target position does not belong to this election.' };
+        }
+
+        const samePosSnap = await getDocs(
+          query(
+            collection(db, 'candidates'),
+            where('electionId', '==', existing.electionId),
+            where('positionId', '==', nextPosId)
+          )
+        );
+        const dup = findDuplicateAssignment(
+          samePosSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data())),
+          {
+            electionId: existing.electionId,
+            positionId: nextPosId,
+            contestantId: existing.contestantId,
+            studentId: existing.studentId,
+            ignoreCandidateId: candidateId,
+          }
+        );
+        if (dup) {
+          return {
+            success: false,
+            error: `${existing.fullName} is already assigned to "${targetPos.title}" in this election.`,
+          };
+        }
+      }
+
+      const electionUpdates: Record<string, any> = stripUndefined({
+        positionId: nextPosId,
+        manifestoSummary: payload.manifestoSummary?.trim(),
+        fullManifesto: payload.fullManifesto?.map((s) => s.trim()).filter(Boolean),
+        keyPromises: payload.keyPromises?.map((s) => s.trim()).filter(Boolean),
+        campaignStatement: payload.campaignStatement?.trim(),
+        electionPhotoUrl:
+          payload.electionPhotoUrl !== undefined ? payload.electionPhotoUrl.trim() : undefined,
+        videoUrl: payload.videoUrl !== undefined ? payload.videoUrl.trim() : undefined,
+        applicationStatus: payload.applicationStatus,
+        updatedAt: serverTimestamp(),
+      });
+
+      const changedFields: string[] = [];
+      (Object.keys(electionUpdates) as string[]).forEach((k) => {
+        if (k === 'updatedAt') return;
+        if (JSON.stringify(electionUpdates[k]) !== JSON.stringify((existing as any)[k])) {
+          changedFields.push(k);
+        }
+      });
+
+      const batch = writeBatch(db);
+      if (isChangingPosition) {
+        const keySegment =
+          normalizeStudentId(existing.studentId) || existing.contestantId || candidateId;
+        const oldLockKey = buildAssignmentUniquenessKey(
+          existing.electionId,
+          existing.positionId,
+          keySegment
+        );
+        const newLockKey = buildAssignmentUniquenessKey(
+          existing.electionId,
+          nextPosId,
+          keySegment
+        );
+        batch.delete(doc(db, 'candidate_assignments', oldLockKey));
+        batch.set(
+          doc(db, 'candidate_assignments', newLockKey),
+          stripUndefined({
+            electionId: existing.electionId,
+            positionId: nextPosId,
+            contestantId:
+              existing.contestantId || buildContestantId(existing.studentId, existing.fullName),
+            candidateId,
+            studentIdNormalized: normalizeStudentId(existing.studentId),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+        if (existing.positionId) {
+          batch.update(doc(db, 'positions', existing.positionId), {
+            candidateIds: arrayRemove(candidateId),
+          });
+        }
+        batch.update(doc(db, 'positions', nextPosId), {
+          candidateIds: arrayUnion(candidateId),
+        });
+      }
+
+      batch.update(doc(db, 'candidates', candidateId), electionUpdates);
+      await batch.commit();
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: `Updated Election Candidate Record [${changedFields.join(', ') || 'synced'}]`,
+        target: `${existing.fullName} (${election?.title || existing.electionId})`,
+      });
+
+      const refreshed = await getDoc(doc(db, 'candidates', candidateId));
+      return {
+        success: true,
+        candidate: refreshed.exists()
+          ? mapDoc<Candidate>(refreshed.id, refreshed.data())
+          : undefined,
+        message: 'Candidate participation information updated.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to update candidate information.',
+      };
+    }
+  }
+
+  async removeCandidateFromElection(
+    candidateId: string,
+    reason?: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const cSnap = await getDoc(doc(db, 'candidates', candidateId));
+      if (!cSnap.exists()) {
+        const hist = getHistoricalCandidateById(candidateId);
+        if (hist) {
+          return {
+            success: false,
+            error:
+              'Archived 2026 historical election records cannot have candidates removed.',
+          };
+        }
+        return { success: false, error: 'Candidate record not found.' };
+      }
+
+      const cand = mapDoc<Candidate>(cSnap.id, cSnap.data());
+      const eSnap = await getDoc(doc(db, 'elections', cand.electionId)).catch(() => null);
+      const election = eSnap?.exists() ? mapDoc<Election>(eSnap.id, eSnap.data()) : null;
+
+      const guard = evaluateElectionCandidateActionAllowed(election, 'remove', cand);
+      if (!guard.allowed) {
+        return { success: false, error: guard.reason || 'Removal blocked by election safeguards.' };
+      }
+
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'candidates', candidateId));
+
+      if (cand.positionId) {
+        const lockKeys = new Set<string>();
+        const normSid = normalizeStudentId(cand.studentId);
+        if (normSid) {
+          lockKeys.add(buildAssignmentUniquenessKey(cand.electionId, cand.positionId, normSid));
+        }
+        if (cand.contestantId) {
+          lockKeys.add(
+            buildAssignmentUniquenessKey(cand.electionId, cand.positionId, cand.contestantId)
+          );
+        }
+        lockKeys.add(buildAssignmentUniquenessKey(cand.electionId, cand.positionId, candidateId));
+
+        lockKeys.forEach((lk) => {
+          batch.delete(doc(db, 'candidate_assignments', lk));
+        });
+
+        batch.update(doc(db, 'positions', cand.positionId), {
+          candidateIds: arrayRemove(candidateId),
+        });
+      }
+
+      await batch.commit();
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Removed Candidate from Election (Permanent Profile Preserved)',
+        target: `${cand.fullName} (${cand.studentId}) <- ${election?.title || cand.electionId}${reason ? ` [${reason}]` : ''}`,
+      });
+
+      return {
+        success: true,
+        message: `${cand.fullName} removed from this election. Their permanent contestant profile remains preserved.`,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to remove candidate from election.',
+      };
     }
   }
 
@@ -950,7 +1966,7 @@ class FirebaseAdminService {
             fullName: c.fullName,
             nickname: c.nickname,
             studentId: c.studentId,
-            photoUrl: c.photoUrl || '',
+            photoUrl: c.electionPhotoUrl || c.photoUrl || '',
             department: c.department,
             faculty: c.faculty,
             hall: c.hall,

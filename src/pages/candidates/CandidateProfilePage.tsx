@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Logo } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
+import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import { 
   ArrowLeft, 
   Vote, 
@@ -24,7 +25,7 @@ import {
 import { ManifestoComparisonModal } from '../../components/candidates/ManifestoComparisonModal';
 
 export const CandidateProfilePage: React.FC = () => {
-  const { selectedCandidateId, candidates, elections, positionsByElection, navigateTo } = useApp();
+  const { selectedCandidateId, candidates, elections, positionsByElection, navigateTo, userRole } = useApp();
   const [showComparisonModal, setShowComparisonModal] = useState(false);
 
   // Find candidate from live context candidates
@@ -110,7 +111,7 @@ export const CandidateProfilePage: React.FC = () => {
           {/* Large Profile Photograph with Status Badge */}
           <div className="relative shrink-0 mx-auto md:mx-0">
             <CandidateAvatar
-              src={candidate.photoUrl}
+              src={resolveCandidatePhotoUrl(candidate)}
               alt={candidate.fullName}
               className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl object-cover object-top border-2 border-slate-200 shadow-md ring-4 ring-[#EAF2FA]"
             />
@@ -209,7 +210,7 @@ export const CandidateProfilePage: React.FC = () => {
                 <FileText className="w-4 h-4 text-[#123B70] shrink-0" />
                 <span><strong>ID:</strong> <code className="font-mono">{candidate.studentId}</code></span>
               </div>
-              {candidate.email && (
+              {userRole === 'admin' && candidate.email && (
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-[#123B70] shrink-0" />
                   <span className="truncate"><strong>Email:</strong> {candidate.email}</span>
@@ -281,17 +282,22 @@ export const CandidateProfilePage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
               <FileText className="w-4 h-4 text-[#123B70]" />
-              <span>Vision Statement & Core Slogan</span>
+              <span>Vision Statement &amp; Core Slogan</span>
             </h2>
+            {candidate.campaignStatement && (
+              <p className="text-xs sm:text-sm font-bold text-[#102A43]">
+                {candidate.campaignStatement}
+              </p>
+            )}
             {candidate.manifestoSummary ? (
               <blockquote className="p-4 rounded-xl bg-[#EAF2FA] text-xs sm:text-sm text-[#0B1F3A] font-medium leading-relaxed italic border-l-4 border-[#123B70]">
                 "{candidate.manifestoSummary}"
               </blockquote>
-            ) : (
+            ) : !candidate.campaignStatement ? (
               <p className="text-xs text-slate-500 italic">
                 Vision statement not yet provided.
               </p>
-            )}
+            ) : null}
           </div>
 
           {/* Full Manifesto Pillars */}
