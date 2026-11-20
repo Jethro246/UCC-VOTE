@@ -51,7 +51,7 @@
     "Election": {
       "collection": "elections",
       "documentId": "{electionId}",
-      "description": "Election configuration, scheduling, domain scope (including hallId for JCRC / Hall elections), eligibility criteria, and guidelinesUrl."
+      "description": "Election configuration, scheduling, domain scope (including hallId for JCRC / Hall elections), eligibility criteria, archival/cancellation metadata (previousStatus, archivedAt, archivedBy, archivedByUid, archiveReason, cancelledAt, cancelledBy, cancellationReason), and guidelinesUrl."
     },
     "Position": {
       "collection": "positions",
@@ -149,7 +149,7 @@
     "AuditLog": {
       "collection": "audit_logs",
       "documentId": "{logId}",
-      "description": "Immutable administrative and security audit trail."
+      "description": "Immutable administrative and security audit trail including adminUid, electionId, action, timestamp, and reason."
     }
   }
 }

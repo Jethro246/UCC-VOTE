@@ -267,6 +267,11 @@ export const ElectionDetailsPage: React.FC = () => {
                     Certified Results Ready
                   </span>
                 )}
+                {election.status === 'cancelled' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-[#C62828] text-xs font-bold">
+                    Cancelled Election
+                  </span>
+                )}
                 {election.status === 'archived' && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-300 text-slate-800 text-xs font-bold">
                     Archived Record

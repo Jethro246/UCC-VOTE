@@ -1075,3 +1075,357 @@ export const reviewCandidateApplication = onCall({ region: FUNCTIONS_REGION }, a
 
   return { success: true, message: `Candidate nomination marked as ${decision}.` };
 });
+
+const VALID_ELECTION_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+
+function assertValidElectionIdServer(electionId: string) {
+  if (!electionId || !VALID_ELECTION_ID_PATTERN.test(electionId)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Invalid election ID format. Allowed: 1-128 alphanumeric, underscore, or hyphen characters.'
+    );
+  }
+}
+
+function assertAdminDomainScopeServer(actor: Record<string, any> | undefined, election: Record<string, any>) {
+  const managedDomains = Array.isArray(actor?.managedDomainIds) ? actor.managedDomainIds : [];
+  if (managedDomains.length > 0 && election.domainId && !managedDomains.includes(election.domainId)) {
+    throw new HttpsError(
+      'permission-denied',
+      'You do not have administrative authority over this election domain.'
+    );
+  }
+}
+
+async function commitDeletesInChunks(refs: admin.firestore.DocumentReference[]) {
+  const CHUNK_SIZE = 400;
+  for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
+    const batch = db.batch();
+    const slice = refs.slice(i, i + CHUNK_SIZE);
+    slice.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+export const removeElection = onCall({ region: FUNCTIONS_REGION }, async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const uid = request.auth!.uid;
+  const electionId = String(request.data?.electionId || '').trim();
+  const confirmationText = String(request.data?.confirmationText || '').trim();
+  const reason = String(request.data?.reason || '').trim();
+
+  assertValidElectionIdServer(electionId);
+
+  const electionRef = db.collection('elections').doc(electionId);
+  const electionSnap = await electionRef.get();
+  if (!electionSnap.exists) {
+    throw new HttpsError('not-found', 'Election record not found.');
+  }
+
+  const election = electionSnap.data()!;
+  assertAdminDomainScopeServer(actor, election);
+
+  if (election.isHistorical === true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Historical 2026 University of Cape Coast election records cannot be permanently deleted.'
+    );
+  }
+
+  if (election.status === 'live') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Active (live) elections cannot be removed while polling is open. Close or cancel the election first.'
+    );
+  }
+
+  const allowedDeleteStatuses = new Set([
+    'draft',
+    'pending_approval',
+    'scheduled',
+    'upcoming',
+    'suspended',
+    'closed',
+    'cancelled',
+    'archived',
+  ]);
+  if (!allowedDeleteStatuses.has(String(election.status || ''))) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Elections with status "${election.status}" must be closed, cancelled, or reverted to draft before removal.`
+    );
+  }
+
+  const expectedTitle = String(election.title || '').trim();
+  const expectedPhrase = election.code ? `DELETE ${String(election.code).trim()}` : '';
+  const confirmed =
+    Boolean(confirmationText) &&
+    ((Boolean(expectedTitle) && confirmationText === expectedTitle) ||
+      (Boolean(expectedPhrase) && confirmationText === expectedPhrase));
+
+  if (!confirmed) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Explicit confirmation text did not match the election title or required deletion phrase.'
+    );
+  }
+
+  const [ballotsSnap, authSnap, confirmSnap, candSnap, posSnap, assignSnap, resSnap] = await Promise.all([
+    db.collection('ballots').where('electionId', '==', electionId).limit(1).get(),
+    db.collection('voter_authorisations').where('electionId', '==', electionId).limit(1).get(),
+    db.collection('vote_confirmations').where('electionId', '==', electionId).limit(1).get(),
+    db.collection('candidates').where('electionId', '==', electionId).get(),
+    db.collection('positions').where('electionId', '==', electionId).get(),
+    db.collection('candidate_assignments').where('electionId', '==', electionId).get(),
+    db.collection('election_results').doc(electionId).get(),
+  ]);
+
+  const candidateHasVotes = candSnap.docs.some((d) => (Number(d.data()?.votesReceived) || 0) > 0);
+  const resultsPublishedOrCertified =
+    resSnap.exists &&
+    (resSnap.data()?.isPublished === true || resSnap.data()?.resultsCertified === true);
+
+  if (
+    (Number(election.totalVotesCast) || 0) > 0 ||
+    !ballotsSnap.empty ||
+    !authSnap.empty ||
+    !confirmSnap.empty ||
+    candidateHasVotes ||
+    Boolean(election.resultsCertified) ||
+    resultsPublishedOrCertified
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'This election already has votes, voter authorisations, receipts, or certified results and cannot be permanently deleted. Archive the election instead.'
+    );
+  }
+
+  const refsToDelete: admin.firestore.DocumentReference[] = [
+    ...posSnap.docs.map((d) => d.ref),
+    ...candSnap.docs.map((d) => d.ref),
+    ...assignSnap.docs.map((d) => d.ref),
+  ];
+  if (resSnap.exists && !resultsPublishedOrCertified) {
+    refsToDelete.push(resSnap.ref);
+  }
+  refsToDelete.push(electionRef);
+
+  await commitDeletesInChunks(refsToDelete);
+
+  const actorName = actor?.fullName || request.auth?.token?.email || 'Electoral Commissioner';
+  await db.collection('audit_logs').add({
+    adminName: actorName,
+    adminRole: actor?.role || 'Administrator',
+    adminUid: uid,
+    electionId,
+    reason: reason || 'Draft/unused election permanently removed by administrator',
+    action: 'Permanently Removed Election',
+    target: `${election.title || electionId} (${election.code || electionId})`,
+    ipAddress: 'cloud-functions',
+    status: 'warning',
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    success: true,
+    mode: 'deleted',
+    electionId,
+    deletedDocumentsCount: refsToDelete.length,
+    message: `Election "${election.title || electionId}" and its associated unpublished records were permanently removed.`,
+  };
+});
+
+export const archiveElection = onCall({ region: FUNCTIONS_REGION }, async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const uid = request.auth!.uid;
+  const electionId = String(request.data?.electionId || '').trim();
+  const reason = String(request.data?.reason || '').trim();
+
+  assertValidElectionIdServer(electionId);
+
+  const electionRef = db.collection('elections').doc(electionId);
+  const electionSnap = await electionRef.get();
+  if (!electionSnap.exists) {
+    throw new HttpsError('not-found', 'Election record not found.');
+  }
+
+  const election = electionSnap.data()!;
+  assertAdminDomainScopeServer(actor, election);
+
+  if (election.status === 'live') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Active (live) elections must be closed or cancelled before archiving.'
+    );
+  }
+  if (election.status === 'archived') {
+    throw new HttpsError('failed-precondition', 'This election is already archived.');
+  }
+
+  const actorName = actor?.fullName || request.auth?.token?.email || 'Electoral Commissioner';
+  const archivedAt = new Date().toISOString();
+
+  await electionRef.update({
+    previousStatus: election.status,
+    status: 'archived',
+    archivedAt,
+    archivedBy: actorName,
+    archivedByUid: uid,
+    archiveReason: reason || 'Archived by Electoral Commission administrator',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('audit_logs').add({
+    adminName: actorName,
+    adminRole: actor?.role || 'Administrator',
+    adminUid: uid,
+    electionId,
+    reason: reason || 'Archived by Electoral Commission administrator',
+    action: 'Archived Election',
+    target: `${election.title || electionId} (${election.code || electionId})`,
+    ipAddress: 'cloud-functions',
+    status: 'success',
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const updated = await electionRef.get();
+  return {
+    success: true,
+    mode: 'archived',
+    election: { id: updated.id, ...updated.data() },
+    message: `Election "${election.title || electionId}" has been archived. All ballots, confirmations, results, and audit logs were preserved.`,
+  };
+});
+
+export const restoreArchivedElection = onCall({ region: FUNCTIONS_REGION }, async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const uid = request.auth!.uid;
+  const electionId = String(request.data?.electionId || '').trim();
+  const reason = String(request.data?.reason || '').trim();
+  const requestedStatus = String(request.data?.targetStatus || '').trim();
+
+  assertValidElectionIdServer(electionId);
+
+  const electionRef = db.collection('elections').doc(electionId);
+  const electionSnap = await electionRef.get();
+  if (!electionSnap.exists) {
+    throw new HttpsError('not-found', 'Election record not found.');
+  }
+
+  const election = electionSnap.data()!;
+  assertAdminDomainScopeServer(actor, election);
+
+  if (election.isHistorical === true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Historical 2026 archives remain permanently archived.'
+    );
+  }
+  if (election.status !== 'archived') {
+    throw new HttpsError('failed-precondition', 'Only archived elections can be restored.');
+  }
+
+  const safeRestoreStatuses = new Set([
+    'draft',
+    'pending_approval',
+    'scheduled',
+    'suspended',
+    'closed',
+    'cancelled',
+    'results_pending_certification',
+    'results_published',
+  ]);
+  const candidateStatus = requestedStatus || String(election.previousStatus || '');
+  const restoredStatus = safeRestoreStatuses.has(candidateStatus) ? candidateStatus : 'closed';
+
+  const actorName = actor?.fullName || request.auth?.token?.email || 'Electoral Commissioner';
+  const restoredAt = new Date().toISOString();
+
+  await electionRef.update({
+    status: restoredStatus,
+    restoredAt,
+    restoredBy: actorName,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('audit_logs').add({
+    adminName: actorName,
+    adminRole: actor?.role || 'Administrator',
+    adminUid: uid,
+    electionId,
+    reason: reason || `Restored from archive to ${restoredStatus}`,
+    action: `Restored Archived Election -> ${restoredStatus}`,
+    target: `${election.title || electionId} (${election.code || electionId})`,
+    ipAddress: 'cloud-functions',
+    status: 'success',
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const updated = await electionRef.get();
+  return {
+    success: true,
+    election: { id: updated.id, ...updated.data() },
+    message: `Election restored from archive to ${restoredStatus.replace(/_/g, ' ')}.`,
+  };
+});
+
+export const cancelElection = onCall({ region: FUNCTIONS_REGION }, async (request) => {
+  const actor = await assertAdmin(request.auth?.uid, request.auth?.token);
+  const uid = request.auth!.uid;
+  const electionId = String(request.data?.electionId || '').trim();
+  const reason = String(request.data?.reason || '').trim();
+
+  assertValidElectionIdServer(electionId);
+
+  const electionRef = db.collection('elections').doc(electionId);
+  const electionSnap = await electionRef.get();
+  if (!electionSnap.exists) {
+    throw new HttpsError('not-found', 'Election record not found.');
+  }
+
+  const election = electionSnap.data()!;
+  assertAdminDomainScopeServer(actor, election);
+
+  if (election.isHistorical === true) {
+    throw new HttpsError('failed-precondition', 'Historical 2026 records cannot be cancelled.');
+  }
+  if (['cancelled', 'archived', 'results_published'].includes(String(election.status || ''))) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Elections with status "${election.status}" cannot be cancelled.`
+    );
+  }
+
+  const actorName = actor?.fullName || request.auth?.token?.email || 'Electoral Commissioner';
+  const cancelledAt = new Date().toISOString();
+
+  await electionRef.update({
+    previousStatus: election.status,
+    status: 'cancelled',
+    cancelledAt,
+    cancelledBy: actorName,
+    cancellationReason: reason || 'Cancelled by Electoral Commission administrator',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('audit_logs').add({
+    adminName: actorName,
+    adminRole: actor?.role || 'Administrator',
+    adminUid: uid,
+    electionId,
+    reason: reason || 'Cancelled by Electoral Commission administrator',
+    action: 'Cancelled Election',
+    target: `${election.title || electionId} (${election.code || electionId})`,
+    ipAddress: 'cloud-functions',
+    status: 'warning',
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const updated = await electionRef.get();
+  return {
+    success: true,
+    election: { id: updated.id, ...updated.data() },
+    message: `Election "${election.title || electionId}" has been cancelled.`,
+  };
+});
+

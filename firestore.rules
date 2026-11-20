@@ -118,12 +118,40 @@ service cloud.firestore {
     // Elections and Contested Positions
     match /elections/{electionId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isValidId(electionId) && isAdmin();
+      allow update: if isValidId(electionId) && isAdmin();
+      allow delete: if isValidId(electionId) && isAdmin()
+        && resource.data.status in [
+          'draft',
+          'pending_approval',
+          'scheduled',
+          'upcoming',
+          'suspended',
+          'closed',
+          'cancelled',
+          'archived'
+        ]
+        && resource.data.get('isHistorical', false) != true
+        && resource.data.get('totalVotesCast', 0) == 0
+        && resource.data.get('resultsCertified', false) != true
+        && (
+          !exists(/databases/$(database)/documents/election_results/$(electionId))
+          || get(/databases/$(database)/documents/election_results/$(electionId)).data.get('isPublished', false) != true
+        );
     }
 
     match /positions/{positionId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isValidId(positionId) && isAdmin();
+      allow delete: if isValidId(positionId) && isAdmin()
+        && (
+          !exists(/databases/$(database)/documents/elections/$(resource.data.electionId))
+          || (
+            get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.status != 'live'
+            && get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.get('totalVotesCast', 0) == 0
+            && get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.get('isHistorical', false) != true
+          )
+        );
     }
 
     // Permanent reusable contestant profiles (contains contact PII -> strictly admin-only)
@@ -195,7 +223,10 @@ service cloud.firestore {
     // Certified / Published Election Results
     match /election_results/{electionId} {
       allow read: if (resource != null && resource.data.isPublished == true) || isAdmin();
-      allow write: if isAdmin();
+      allow create, update: if isValidId(electionId) && isAdmin();
+      allow delete: if isValidId(electionId) && isAdmin()
+        && resource.data.get('isPublished', false) != true
+        && resource.data.get('resultsCertified', false) != true;
     }
 
     // Structural UCC Governance Registry

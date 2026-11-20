@@ -153,6 +153,7 @@ export type ElectionStatus =
   | 'live'
   | 'suspended'
   | 'closed'
+  | 'cancelled'
   | 'results_pending_certification'
   | 'results_published'
   | 'cancelled'
@@ -310,6 +311,16 @@ export interface Election {
     | 'hall_records_pending_admin_input';
   unverifiedContestantsCount?: number;
   tallyAvailable?: boolean;
+  previousStatus?: ElectionStatus;
+  archivedAt?: string;
+  archivedBy?: string;
+  archivedByUid?: string;
+  archiveReason?: string;
+  restoredAt?: string;
+  restoredBy?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;
@@ -503,6 +514,9 @@ export interface AuditLogItem {
   timestamp: string;
   adminName: string;
   adminRole: string;
+  adminUid?: string;
+  electionId?: string;
+  reason?: string;
   action: string;
   target: string;
   ipAddress: string;

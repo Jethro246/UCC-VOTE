@@ -230,7 +230,15 @@ export const StudentDashboard: React.FC = () => {
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  const allElectionsWithEligibility = elections.map((el: any) => {
+  const studentVisibleElections = elections.filter(
+    (el: any) =>
+      el.status !== 'draft' &&
+      el.status !== 'pending_approval' &&
+      el.status !== 'cancelled' &&
+      (el.status !== 'archived' || el.isHistorical === true)
+  );
+
+  const allElectionsWithEligibility = studentVisibleElections.map((el: any) => {
     const { isEligible, reason } = computeEligibility(el);
     const hasVoted = currentStudent.hasVotedElections?.includes(el.id);
     const canVoteNow = isEligible && el.status === 'live' && !hasVoted && !isSuspended;
@@ -243,20 +251,22 @@ export const StudentDashboard: React.FC = () => {
     };
   });
 
-  const availableElections = allElectionsWithEligibility.filter(e => e.isEligible);
+  const availableElections = allElectionsWithEligibility.filter(
+    e => e.isEligible && e.status !== 'archived'
+  );
   const activeElections = allElectionsWithEligibility.filter(e => e.status === 'live');
   const upcomingElections = allElectionsWithEligibility.filter(
     e => e.status === 'upcoming' || e.status === 'scheduled'
   );
   const completedElections = allElectionsWithEligibility.filter(
-    e => e.status === 'results_published' || e.status === 'closed' || e.status === 'archived'
+    e => e.status === 'results_published' || e.status === 'closed' || (e.status === 'archived' && e.isHistorical === true)
   );
 
   // Voting Status figures
   const completedVotesCount = availableElections.filter(e => e.hasVoted).length;
   const pendingVotesCount = availableElections.filter(e => e.status === 'live' && !e.hasVoted).length;
-  const closedEligibleCount = availableElections.filter(
-    e => e.status === 'results_published' || e.status === 'closed' || e.status === 'archived'
+  const closedEligibleCount = allElectionsWithEligibility.filter(
+    e => e.isEligible && (e.status === 'results_published' || e.status === 'closed' || (e.status === 'archived' && e.isHistorical === true))
   ).length;
 
   const firstPendingElection = availableElections.find(e => e.canVoteNow);

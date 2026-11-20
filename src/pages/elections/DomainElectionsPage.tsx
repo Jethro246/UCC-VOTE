@@ -191,6 +191,14 @@ export const DomainElectionsPage: React.FC = () => {
 
   const domainElections = useMemo(() => {
     return elections.filter((e) => {
+      if (
+        e.status === 'draft' ||
+        e.status === 'pending_approval' ||
+        e.status === 'cancelled' ||
+        (e.status === 'archived' && e.isHistorical !== true)
+      ) {
+        return false;
+      }
       const domId =
         e.domainId ||
         (e.category === 'SRC'

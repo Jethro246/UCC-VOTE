@@ -37,48 +37,73 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
       { status: 'scheduled', label: 'Publish & Schedule Election', desc: 'Publish election configuration to students with official poll schedule.' },
       { status: 'live', label: 'Publish & Open Voting Now', desc: 'Publish election and open digital ballot box immediately for accredited voters.' },
       { status: 'pending_approval', label: 'Submit for Approval', desc: 'Forward draft to Electoral Commission board for gazetting review.' },
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Mark this draft election as cancelled and remove from active planning.' },
+      { status: 'archived', label: 'Archive Draft', desc: 'Move unpublished draft to administrative archive.' }
     ],
     pending_approval: [
       { status: 'scheduled', label: 'Gazette & Schedule', desc: 'Formal approval granted by Electoral Commissioner.' },
       { status: 'live', label: 'Approve & Open Voting Now', desc: 'Approve election and immediately open polls.' },
       { status: 'draft', label: 'Return to Draft', desc: 'Send back to organizing committee for corrections.' },
-      { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' }
+      { status: 'suspended', label: 'Suspend Process', desc: 'Halt proceedings pending legal or vetting resolution.' },
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Cancel pending election before gazetting.' }
     ],
     scheduled: [
       { status: 'live', label: 'Open Voting Now (Activate)', desc: 'Open digital ballot interface for accredited voters.' },
       { status: 'draft', label: 'Unpublish (Revert to Draft)', desc: 'Remove from published student schedule and return to draft.' },
-      { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
+      { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' },
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Cancel scheduled election and notify stakeholders.' },
+      { status: 'archived', label: 'Archive Election', desc: 'Hide from active schedule while preserving configuration.' }
     ],
     upcoming: [
       { status: 'live', label: 'Open Voting Now (Activate)', desc: 'Open digital ballot interface for accredited voters.' },
       { status: 'draft', label: 'Unpublish (Revert to Draft)', desc: 'Remove from published student schedule and return to draft.' },
-      { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' }
+      { status: 'suspended', label: 'Halt / Postpone', desc: 'Temporarily freeze voting schedule.' },
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Cancel scheduled election.' },
+      { status: 'archived', label: 'Archive Election', desc: 'Hide from active schedule while preserving configuration.' }
     ],
     live: [
       { status: 'closed', label: 'Close Voting Portal', desc: 'Officially close ballot submission. No further votes will be accepted.' },
-      { status: 'suspended', label: 'Emergency Suspension', desc: 'Halt voting immediately due to security or connectivity alert.' }
+      { status: 'suspended', label: 'Emergency Suspension', desc: 'Halt voting immediately due to security or connectivity alert.' },
+      { status: 'cancelled', label: 'Cancel Election Immediately', desc: 'Halt voting immediately and mark election cancelled while preserving recorded audit state.' }
     ],
     suspended: [
       { status: 'live', label: 'Resume Live Voting', desc: 'Restore voting access to accredited students.' },
       { status: 'scheduled', label: 'Reschedule Opening', desc: 'Assign new timeline for voting.' },
       { status: 'closed', label: 'Close Election', desc: 'Conclude the election without resuming polls.' },
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Permanently cancel suspended election.' },
       { status: 'draft', label: 'Unpublish to Draft', desc: 'Return election to unpublished draft state.' }
     ],
     closed: [
       { status: 'results_pending_certification', label: 'Initiate Results Audit', desc: 'Begin cryptographic ballot counting and reconciliation.' },
       { status: 'live', label: 'Reopen Voting Portal', desc: 'Reopen digital polling portal for additional voting.' },
-      { status: 'archived', label: 'Archive Record', desc: 'Lock election as an immutable historical record.' }
+      { status: 'cancelled', label: 'Cancel Election', desc: 'Annul or cancel concluded poll (recorded in audit trail).' },
+      { status: 'archived', label: 'Archive Record', desc: 'Hide from active elections while preserving ballots, confirmations, and results.' }
+    ],
+    cancelled: [
+      { status: 'draft', label: 'Reopen as Draft', desc: 'Return cancelled election to draft status for re-configuration.' },
+      { status: 'archived', label: 'Archive Cancelled Election', desc: 'Move cancelled election record into Commission archives.' }
     ],
     results_pending_certification: [
       { status: 'results_published', label: 'Publish Certified Results', desc: 'Release officially signed election outcomes to students.' },
-      { status: 'closed', label: 'Return for Recount', desc: 'Audit discrepancies detected; return for investigation.' }
+      { status: 'closed', label: 'Return for Recount', desc: 'Audit discrepancies detected; return for investigation.' },
+      { status: 'archived', label: 'Archive Record', desc: 'Archive election while preserving ballots and preliminary tallies.' }
     ],
     results_published: [
       { status: 'closed', label: 'Unpublish Results', desc: 'Withdraw public result publication and revert status to closed.' },
       { status: 'results_pending_certification', label: 'Return to Certification Audit', desc: 'Unpublish public gazette and reopen audit verification.' },
-      { status: 'archived', label: 'Archive Record', desc: 'Seal election archives permanently.' }
+      { status: 'archived', label: 'Archive Record', desc: 'Hide from active polls while preserving certified results and audit logs.' }
     ],
-    archived: []
+    archived: election.isHistorical
+      ? []
+      : [
+          {
+            status: election.previousStatus && election.previousStatus !== 'archived' && election.previousStatus !== 'live'
+              ? election.previousStatus
+              : 'closed',
+            label: 'Restore Archived Election',
+            desc: `Restore election from archive to ${(election.previousStatus && election.previousStatus !== 'archived' && election.previousStatus !== 'live' ? election.previousStatus : 'closed').replace(/_/g, ' ')} status.`,
+          },
+        ]
   };
 
   const availableTransitions = transitionOptions[election.status] || [];
@@ -98,14 +123,21 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
     }
 
     setSubmitting(true);
-    const res = await adminService.changeStatus(election.id, targetStatus as ElectionStatus, justification);
+    const res =
+      election.status === 'archived'
+        ? await adminService.restoreArchivedElection(
+            election.id,
+            targetStatus as ElectionStatus,
+            justification
+          )
+        : await adminService.changeStatus(election.id, targetStatus as ElectionStatus, justification);
     setSubmitting(false);
 
     if (res?.success && res.election) {
       onSuccess(res.election);
       onClose();
     } else {
-      setErrorMsg('Failed to update status.');
+      setErrorMsg(res?.error || 'Failed to update status.');
     }
   };
 

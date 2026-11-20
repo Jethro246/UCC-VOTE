@@ -38,11 +38,14 @@ import {
   Edit3,
   BarChart3,
   Upload,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 import { AdminProfile, AdminRoleType, DomainId, Election, Candidate } from '../../types';
 import { CreateElectionModal } from '../../components/admin/CreateElectionModal';
 import { EditElectionModal } from '../../components/admin/EditElectionModal';
 import { StatusTransitionModal } from '../../components/admin/StatusTransitionModal';
+import { RemoveElectionModal } from '../../components/admin/RemoveElectionModal';
 import { PositionManagerModal } from '../../components/admin/PositionManagerModal';
 import { EligibilityTesterModal } from '../../components/admin/EligibilityTesterModal';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
@@ -52,6 +55,11 @@ import { ContestantSelectorModal } from '../../components/admin/ContestantSelect
 import { AdminResultsPanel } from '../../components/admin/AdminResultsPanel';
 import { uploadHallLogo } from '../../services/firebaseStorageService';
 import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
+import {
+  canUserManageElectionRemoval,
+  getAvailableElectionActions,
+  getElectionStatusMeta,
+} from '../../utils/electionRemovalUtils';
 import {
   computeHallMetrics,
   findMatchingHallUnit,
@@ -245,10 +253,13 @@ const AdminDashboardContent: React.FC = () => {
   const [createDefaultHallId, setCreateDefaultHallId] = useState<string | undefined>(undefined);
   const [selectedElectionForEdit, setSelectedElectionForEdit] = useState<Election | null>(null);
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
+  const [selectedElectionForRemoval, setSelectedElectionForRemoval] = useState<Election | null>(null);
+  const [removalModalMode, setRemovalModalMode] = useState<'remove' | 'archive' | 'restore'>('remove');
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForCandidates, setSelectedElectionForCandidates] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
   const [selectedHallFilterId, setSelectedHallFilterId] = useState<string>('all');
+  const [electionStatusFilter, setElectionStatusFilter] = useState<'all' | 'active_draft' | 'archived' | 'cancelled'>('all');
   const [syncingHalls, setSyncingHalls] = useState(false);
   const [syncingHistorical2026, setSyncingHistorical2026] = useState(false);
   const [uploadingHallLogoId, setUploadingHallLogoId] = useState<string | null>(null);
@@ -773,9 +784,17 @@ const AdminDashboardContent: React.FC = () => {
           selectedHallFilterId !== 'all'
             ? halls.find((h) => h.id === selectedHallFilterId)
             : undefined;
-        const displayedTableElections = selectedHallObj
+        const tableHallFiltered = selectedHallObj
           ? scopedElections.filter((el) => isElectionForHall(el, selectedHallObj, halls))
           : scopedElections;
+        const displayedTableElections = tableHallFiltered.filter((el) => {
+          if (electionStatusFilter === 'archived') return el.status === 'archived';
+          if (electionStatusFilter === 'cancelled') return el.status === 'cancelled';
+          if (electionStatusFilter === 'active_draft') {
+            return el.status !== 'archived' && el.status !== 'cancelled';
+          }
+          return true;
+        });
 
         return (
           <div className="space-y-6">
@@ -966,62 +985,83 @@ const AdminDashboardContent: React.FC = () => {
                         </div>
 
                         <div className="space-y-1.5 pt-1">
-                          {primaryElection && (
-                            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedElectionForEdit(primaryElection)}
-                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
-                              >
-                                Edit Details
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedElectionForPositions(primaryElection)}
-                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
-                              >
-                                Positions ({primaryElection.positionsCount})
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedElectionForCandidates(primaryElection)}
-                                className="px-2 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#2563EB] font-bold cursor-pointer whitespace-nowrap"
-                              >
-                                Candidates
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedElectionForStatus(primaryElection)}
-                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[#123B70] font-bold cursor-pointer whitespace-nowrap"
-                              >
-                                Publish / Voting
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setResultsDefaultElectionId(primaryElection.id);
-                                  setActiveTab('results');
-                                }}
-                                className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
-                              >
-                                <BarChart3 className="w-3 h-3" />
-                                <span>Results</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedHallFilterId(isTableFiltered ? 'all' : hall.id)
-                                }
-                                className={`px-2 py-1.5 rounded-lg border text-center font-semibold cursor-pointer whitespace-nowrap ${
-                                  isTableFiltered
-                                    ? 'bg-[#123B70] text-white border-[#123B70]'
-                                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                                }`}
-                              >
-                                {isTableFiltered ? 'Show All Polls' : `Polls (${hallElections.length})`}
-                              </button>
-                            </div>
-                          )}
+                          {primaryElection && (() => {
+                            const canManagePrimary = canUserManageElectionRemoval('admin', admin, primaryElection);
+                            const primaryActions = getAvailableElectionActions(primaryElection, canManagePrimary);
+                            return (
+                              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                                {primaryActions.edit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedElectionForEdit(primaryElection)}
+                                    className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                                  >
+                                    Edit Details
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedElectionForPositions(primaryElection)}
+                                  className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer whitespace-nowrap"
+                                >
+                                  Positions ({primaryElection.positionsCount})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedElectionForCandidates(primaryElection)}
+                                  className="px-2 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#2563EB] font-bold cursor-pointer whitespace-nowrap"
+                                >
+                                  Candidates
+                                </button>
+                                {primaryActions.statusManage && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedElectionForStatus(primaryElection)}
+                                    className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[#123B70] font-bold cursor-pointer whitespace-nowrap"
+                                  >
+                                    Publish / Voting
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setResultsDefaultElectionId(primaryElection.id);
+                                    setActiveTab('results');
+                                  }}
+                                  className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
+                                >
+                                  <BarChart3 className="w-3 h-3" />
+                                  <span>Results</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedHallFilterId(isTableFiltered ? 'all' : hall.id)
+                                  }
+                                  className={`px-2 py-1.5 rounded-lg border text-center font-semibold cursor-pointer whitespace-nowrap ${
+                                    isTableFiltered
+                                      ? 'bg-[#123B70] text-white border-[#123B70]'
+                                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  {isTableFiltered ? 'Show All Polls' : `Polls (${hallElections.length})`}
+                                </button>
+                                {primaryActions.remove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRemovalModalMode('remove');
+                                      setSelectedElectionForRemoval(primaryElection);
+                                    }}
+                                    className="col-span-2 px-2 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#C62828] font-bold cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Remove Election</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           <button
                             type="button"
@@ -1055,6 +1095,17 @@ const AdminDashboardContent: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={electionStatusFilter}
+                    onChange={(e) => setElectionStatusFilter(e.target.value as any)}
+                    className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700"
+                    aria-label="Filter elections by lifecycle status"
+                  >
+                    <option value="all">All Elections ({tableHallFiltered.length})</option>
+                    <option value="active_draft">Active, Scheduled &amp; Draft</option>
+                    <option value="archived">Archived Records</option>
+                    <option value="cancelled">Cancelled Elections</option>
+                  </select>
                   {selectedHallObj && (
                     <button
                       type="button"
@@ -1119,73 +1170,132 @@ const AdminDashboardContent: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      displayedTableElections.map((el) => (
-                        <tr key={el.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
-                            <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
-                            <div className="truncate font-bold">{el.title}</div>
-                            <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                              {formatElectionWindow(el)}
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4 font-medium text-slate-700">
-                            <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
-                            {el.subdomainLabel && (
-                              <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className="font-bold text-[11px] text-slate-800 uppercase">
-                              {el.status.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                            <button
-                              onClick={() => setSelectedElectionForPositions(el)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-bold cursor-pointer transition-colors whitespace-nowrap"
-                            >
-                              {el.positionsCount} Portfolios
-                            </button>
-                          </td>
-                          <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
-                            {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
-                          </td>
-                          <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                            <button
-                              onClick={() => setSelectedElectionForEdit(el)}
-                              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              onClick={() => setSelectedElectionForCandidates(el)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Users className="w-3 h-3" />
-                              <span>Candidates</span>
-                            </button>
-                            <button
-                              onClick={() => setSelectedElectionForStatus(el)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
-                            >
-                              Status
-                            </button>
-                            <button
-                              onClick={() => setSelectedElectionForEligibility(el)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
-                            >
-                              Eligibility
-                            </button>
-                            <button
-                              onClick={() => navigateTo('election_details', { electionId: el.id })}
-                              className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
-                            >
-                              Inspect
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                      displayedTableElections.map((el) => {
+                        const statusMeta = getElectionStatusMeta(el.status);
+                        const canManageRemoval = canUserManageElectionRemoval('admin', admin, el);
+                        const actions = getAvailableElectionActions(el, canManageRemoval);
+                        return (
+                          <tr key={el.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
+                              <div className="font-mono text-[10px] text-slate-400">{el.code}</div>
+                              <div className="truncate font-bold">{el.title}</div>
+                              <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                {formatElectionWindow(el)}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-medium text-slate-700">
+                              <div className="font-bold text-[#123B70] text-[11px]">{el.category}</div>
+                              {el.subdomainLabel && (
+                                <div className="text-[10px] text-slate-500 mt-0.5">{el.subdomainLabel}</div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase whitespace-nowrap ${statusMeta.badgeClass}`}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                              <button
+                                onClick={() => setSelectedElectionForPositions(el)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[#123B70] font-bold cursor-pointer transition-colors whitespace-nowrap"
+                              >
+                                {el.positionsCount} Portfolios
+                              </button>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                              {el.turnoutPercentage}% ({el.totalVotesCast.toLocaleString()})
+                            </td>
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                              <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                {actions.edit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedElectionForEdit(el)}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Edit</span>
+                                  </button>
+                                )}
+                                {!el.isHistorical && el.status !== 'archived' && el.status !== 'cancelled' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedElectionForCandidates(el)}
+                                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Users className="w-3 h-3" />
+                                    <span>Candidates</span>
+                                  </button>
+                                )}
+                                {actions.statusManage && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedElectionForStatus(el)}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
+                                  >
+                                    {actions.close ? 'Close / Status' : 'Status'}
+                                  </button>
+                                )}
+                                {actions.archive && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRemovalModalMode('archive');
+                                      setSelectedElectionForRemoval(el);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Archive className="w-3 h-3" />
+                                    <span>Archive</span>
+                                  </button>
+                                )}
+                                {actions.restore && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRemovalModalMode('restore');
+                                      setSelectedElectionForRemoval(el);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Restore</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedElectionForEligibility(el)}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#123B70] font-bold text-[11px] transition-colors cursor-pointer"
+                                >
+                                  Eligibility
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => navigateTo('election_details', { electionId: el.id })}
+                                  className="px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-[11px] transition-colors cursor-pointer"
+                                >
+                                  View Election
+                                </button>
+                                {actions.remove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRemovalModalMode('remove');
+                                      setSelectedElectionForRemoval(el);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#C62828] font-bold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Remove Election</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2374,6 +2484,18 @@ const AdminDashboardContent: React.FC = () => {
         onSuccess={async (updated) => {
           showSuccessToast(`Election "${updated.title}" status changed to ${updated.status.toUpperCase()}.`);
           await refreshElections();
+        }}
+      />
+
+      <RemoveElectionModal
+        isOpen={!!selectedElectionForRemoval}
+        election={selectedElectionForRemoval}
+        initialMode={removalModalMode}
+        onClose={() => setSelectedElectionForRemoval(null)}
+        onOpenStatusModal={(el) => setSelectedElectionForStatus(el)}
+        onSuccess={async (message) => {
+          showSuccessToast(message);
+          await Promise.all([refreshElections(), refreshCandidates(), fetchAuditLogs()]);
         }}
       />
 

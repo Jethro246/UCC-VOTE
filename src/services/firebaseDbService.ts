@@ -603,6 +603,9 @@ export async function createCalendarEvent(payload: Omit<CalendarEvent, 'id'>): P
 export async function writeAuditLog(payload: {
   adminName: string;
   adminRole: string;
+  adminUid?: string;
+  electionId?: string;
+  reason?: string;
   action: string;
   target: string;
   status?: 'success' | 'flagged' | 'warning';
@@ -611,6 +614,9 @@ export async function writeAuditLog(payload: {
     await addDoc(collection(db, 'audit_logs'), {
       adminName: payload.adminName,
       adminRole: payload.adminRole,
+      ...(payload.adminUid ? { adminUid: payload.adminUid } : {}),
+      ...(payload.electionId ? { electionId: payload.electionId } : {}),
+      ...(payload.reason ? { reason: payload.reason } : {}),
       action: payload.action,
       target: payload.target,
       ipAddress: 'firebase-client',

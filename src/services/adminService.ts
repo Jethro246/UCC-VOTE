@@ -61,6 +61,12 @@ import {
   findDuplicateAssignment,
   normalizeStudentId,
 } from '../utils/contestantUtils';
+import {
+  ElectionRemovalEligibility,
+  assessElectionRemovalEligibility,
+  isValidElectionId,
+  matchesRemovalConfirmation,
+} from '../utils/electionRemovalUtils';
 import { findMatchingHallUnit, isOfficialHallAffiliation } from '../utils/hallUtils';
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
@@ -105,6 +111,85 @@ async function getCurrentAdminContext(): Promise<{ name: string; role: string; u
     // Fallback to Firebase Auth display name / email
   }
   return { name: user.displayName || user.email || 'Administrator', role: 'Admin', uid: user.uid };
+}
+
+const AUTHORIZED_FALLBACK_ADMIN_EMAILS = new Set([
+  'fynnjethro7@gmail.com',
+  'fynnjethro63@gmail.com',
+]);
+
+async function assertActiveAdminContext(election?: Election): Promise<
+  | { ok: true; actor: { name: string; role: string; uid: string; managedDomainIds?: DomainId[] } }
+  | { ok: false; error: string }
+> {
+  const user = auth.currentUser;
+  if (!user) {
+    return { ok: false, error: 'Authentication required. Please sign in as an administrator.' };
+  }
+
+  let claims: Record<string, any> = {};
+  try {
+    const tokenRes = await user.getIdTokenResult();
+    claims = tokenRes.claims || {};
+  } catch {
+    claims = {};
+  }
+
+  const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
+  const adminData = adminSnap?.exists() ? (adminSnap.data() as AdminProfile) : null;
+  if (adminData && adminData.isActive === false) {
+    return { ok: false, error: 'Your administrator account has been deactivated.' };
+  }
+
+  const hasClaimAdmin = claims.admin === true;
+  const email = (user.email || '').trim().toLowerCase();
+  const hasAllowlistedEmail = Boolean(user.emailVerified && AUTHORIZED_FALLBACK_ADMIN_EMAILS.has(email));
+
+  if (!hasClaimAdmin && !hasAllowlistedEmail) {
+    return {
+      ok: false,
+      error: 'Administrator authorisation required. Ordinary student or candidate accounts cannot manage or remove elections.',
+    };
+  }
+
+  if (
+    election &&
+    Array.isArray(adminData?.managedDomainIds) &&
+    adminData!.managedDomainIds.length > 0 &&
+    election.domainId &&
+    !adminData!.managedDomainIds.includes(election.domainId)
+  ) {
+    return {
+      ok: false,
+      error: 'You do not have administrative authority over this election domain.',
+    };
+  }
+
+  return {
+    ok: true,
+    actor: {
+      name: adminData?.fullName || user.displayName || user.email || 'Electoral Administrator',
+      role: adminData?.role || String(claims.role || 'Electoral Commissioner'),
+      uid: user.uid,
+      managedDomainIds: adminData?.managedDomainIds,
+    },
+  };
+}
+
+function isCallableDomainRejection(err: any): boolean {
+  const code = String(err?.code || '').toLowerCase();
+  return (
+    code === 'functions/unauthenticated' ||
+    code === 'functions/permission-denied' ||
+    code === 'functions/failed-precondition' ||
+    code === 'functions/invalid-argument' ||
+    code === 'functions/not-found' ||
+    code === 'unauthenticated' ||
+    code === 'permission-denied' ||
+    code === 'failed-precondition' ||
+    code === 'invalid-argument' ||
+    code === 'not-found'
+  );
 }
 
 async function ensureHistoricalElectionInFirestore(id: string): Promise<void> {
@@ -606,6 +691,13 @@ class FirebaseAdminService {
     newStatus: ElectionStatus,
     justification?: string
   ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+    if (newStatus === 'archived') {
+      return this.archiveElection(id, justification);
+    }
+    if (newStatus === 'cancelled') {
+      return this.cancelElection(id, justification);
+    }
+
     try {
       const actor = await getCurrentAdminContext();
       const statusUpdate: Record<string, any> = {
@@ -624,7 +716,7 @@ class FirebaseAdminService {
       await ensureHistoricalElectionInFirestore(id);
       await updateDoc(doc(db, 'elections', id), statusUpdate);
 
-      // Keep published state of election_results synced when unpublishing results
+      // Keep published state of election_results synced when unpublishing results (never strip archived results)
       if (newStatus !== 'results_published') {
         const resDocRef = doc(db, 'election_results', id);
         const resSnap = await getDoc(resDocRef).catch(() => null);
@@ -639,6 +731,9 @@ class FirebaseAdminService {
       await writeAuditLog({
         adminName: actor.name,
         adminRole: actor.role,
+        adminUid: actor.uid,
+        electionId: id,
+        reason: justification,
         action: `Transitioned Election Status -> ${newStatus}`,
         target: justification ? `${id} (${justification})` : id,
       });
@@ -650,6 +745,467 @@ class FirebaseAdminService {
       };
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `elections/${id}`);
+    }
+  }
+
+  async inspectElectionRemovalEligibility(electionId: string): Promise<{
+    success: boolean;
+    election?: Election;
+    eligibility?: ElectionRemovalEligibility;
+    counts?: {
+      positionsCount: number;
+      candidatesCount: number;
+      authorisationsCount: number;
+      confirmationsCount: number;
+    };
+    error?: string;
+  }> {
+    if (!isValidElectionId(electionId)) {
+      return { success: false, error: 'Invalid election ID format.' };
+    }
+
+    try {
+      const electionSnap = await getDoc(doc(db, 'elections', electionId));
+      const election: Election | null = electionSnap.exists()
+        ? mapDoc<Election>(electionSnap.id, electionSnap.data())
+        : getHistoricalElectionById(electionId) || null;
+
+      if (!election) {
+        return { success: false, error: 'Election record not found.' };
+      }
+
+      const [posSnap, candSnap, authSnap, confirmSnap, resSnap, ballotsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))).catch(() => null),
+        getDocs(query(collection(db, 'candidates'), where('electionId', '==', electionId))).catch(() => null),
+        getDocs(query(collection(db, 'voter_authorisations'), where('electionId', '==', electionId))).catch(
+          () => null
+        ),
+        getDocs(query(collection(db, 'vote_confirmations'), where('electionId', '==', electionId))).catch(
+          () => null
+        ),
+        getDoc(doc(db, 'election_results', electionId)).catch(() => null),
+        getDocs(query(collection(db, 'ballots'), where('electionId', '==', electionId), limit(1))).catch(
+          () => null
+        ),
+      ]);
+
+      const candidateVotesTotal = candSnap
+        ? candSnap.docs.reduce((sum, d) => sum + (Number(d.data()?.votesReceived) || 0), 0)
+        : 0;
+      const authorisationsCount = authSnap?.size || 0;
+      const confirmationsCount = confirmSnap?.size || 0;
+      const ballotsCount = ballotsSnap?.size || 0;
+      const resData = resSnap?.exists() ? resSnap.data() : null;
+
+      const eligibility = assessElectionRemovalEligibility(election, {
+        ballotsCount,
+        authorisationsCount,
+        confirmationsCount,
+        candidateVotesTotal,
+        hasPublishedResults: Boolean(resData?.isPublished),
+        hasExistingResultsDoc: Boolean(resSnap?.exists()),
+        resultsCertified: Boolean(resData?.resultsCertified),
+      });
+
+      return {
+        success: true,
+        election,
+        eligibility,
+        counts: {
+          positionsCount: posSnap?.size || election.positionsCount || 0,
+          candidatesCount: candSnap?.size || 0,
+          authorisationsCount,
+          confirmationsCount,
+        },
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to inspect election removal eligibility.' };
+    }
+  }
+
+  async removeElectionPermanently(
+    electionId: string,
+    confirmationText: string,
+    reason?: string
+  ): Promise<{
+    success: boolean;
+    mode?: 'deleted';
+    deletedDocumentsCount?: number;
+    message?: string;
+    error?: string;
+    code?: string;
+  }> {
+    if (!isValidElectionId(electionId)) {
+      return { success: false, error: 'Invalid election ID format.' };
+    }
+
+    const inspection = await this.inspectElectionRemovalEligibility(electionId);
+    if (!inspection.success || !inspection.election || !inspection.eligibility) {
+      return { success: false, error: inspection.error || 'Election record not found.' };
+    }
+
+    const authCheck = await assertActiveAdminContext(inspection.election);
+    if (authCheck.ok === false) {
+      return { success: false, error: authCheck.error, code: 'PERMISSION_DENIED' };
+    }
+
+    if (!matchesRemovalConfirmation(confirmationText, inspection.election)) {
+      return {
+        success: false,
+        error: 'Explicit confirmation text did not match the election title or required deletion phrase.',
+        code: 'CONFIRMATION_MISMATCH',
+      };
+    }
+
+    if (!inspection.eligibility.canPermanentlyDelete) {
+      return {
+        success: false,
+        error:
+          inspection.eligibility.blockedReason ||
+          'This election cannot be permanently deleted.',
+        code: inspection.eligibility.isLive ? 'ELECTION_LIVE' : 'REMOVAL_BLOCKED',
+      };
+    }
+
+    // Attempt trusted Cloud Function first when deployed
+    try {
+      const fn = httpsCallable(functions, 'removeElection');
+      const res = await fn({ electionId, confirmationText, reason });
+      const data = res.data as any;
+      if (data?.success) {
+        return {
+          success: true,
+          mode: 'deleted',
+          deletedDocumentsCount: data.deletedDocumentsCount,
+          message: data.message || `Election "${inspection.election.title}" permanently removed.`,
+        };
+      }
+    } catch (err: any) {
+      if (isCallableDomainRejection(err)) {
+        return { success: false, error: err?.message || 'Server rejected election removal.' };
+      }
+      // Fall back to rules-enforced admin Firestore removal when Cloud Functions are unavailable
+    }
+
+    try {
+      const [posSnap, candSnap, assignSnap, resSnap] = await Promise.all([
+        getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
+        getDocs(query(collection(db, 'candidates'), where('electionId', '==', electionId))),
+        getDocs(query(collection(db, 'candidate_assignments'), where('electionId', '==', electionId))),
+        getDoc(doc(db, 'election_results', electionId)).catch(() => null),
+      ]);
+
+      // Final pre-delete safeguard on fresh reads
+      const candHasVotes = candSnap.docs.some((d) => (Number(d.data()?.votesReceived) || 0) > 0);
+      const resPublishedOrCertified =
+        resSnap?.exists() &&
+        (resSnap.data()?.isPublished === true || resSnap.data()?.resultsCertified === true);
+
+      if (candHasVotes || resPublishedOrCertified) {
+        return {
+          success: false,
+          error:
+            'Candidate votes or certified results were detected. Permanent deletion aborted; archive the election instead.',
+          code: 'VOTES_EXIST',
+        };
+      }
+
+      const refsToDelete = [
+        ...posSnap.docs.map((d) => d.ref),
+        ...candSnap.docs.map((d) => d.ref),
+        ...assignSnap.docs.map((d) => d.ref),
+      ];
+      if (resSnap?.exists() && !resPublishedOrCertified) {
+        refsToDelete.push(resSnap.ref);
+      }
+      refsToDelete.push(doc(db, 'elections', electionId));
+
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < refsToDelete.length; i += CHUNK_SIZE) {
+        const batch = writeBatch(db);
+        refsToDelete.slice(i, i + CHUNK_SIZE).forEach((ref) => batch.delete(ref));
+        await batch.commit();
+      }
+
+      await writeAuditLog({
+        adminName: authCheck.actor.name,
+        adminRole: authCheck.actor.role,
+        adminUid: authCheck.actor.uid,
+        electionId,
+        reason: reason?.trim() || 'Draft/unused election permanently removed by administrator',
+        action: 'Permanently Removed Election',
+        target: `${inspection.election.title} (${inspection.election.code})`,
+        status: 'warning',
+      });
+
+      return {
+        success: true,
+        mode: 'deleted',
+        deletedDocumentsCount: refsToDelete.length,
+        message: `Election "${inspection.election.title}" and its ${refsToDelete.length - 1} associated unpublished record(s) were permanently removed.`,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Unable to permanently remove election from Firestore.',
+      };
+    }
+  }
+
+  async archiveElection(
+    electionId: string,
+    reason?: string
+  ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+    if (!isValidElectionId(electionId)) {
+      return { success: false, error: 'Invalid election ID format.' };
+    }
+
+    try {
+      await ensureHistoricalElectionInFirestore(electionId);
+      const eSnap = await getDoc(doc(db, 'elections', electionId));
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election record not found.' };
+      }
+      const currentElection = mapDoc<Election>(eSnap.id, eSnap.data());
+
+      const authCheck = await assertActiveAdminContext(currentElection);
+      if (authCheck.ok === false) {
+        return { success: false, error: authCheck.error };
+      }
+
+      if (currentElection.status === 'live') {
+        return {
+          success: false,
+          error: 'Active (live) elections must be closed or cancelled before archiving.',
+        };
+      }
+      if (currentElection.status === 'archived') {
+        return { success: false, error: 'This election is already archived.' };
+      }
+
+      try {
+        const fn = httpsCallable(functions, 'archiveElection');
+        const res = await fn({ electionId, reason });
+        const data = res.data as any;
+        if (data?.success) {
+          return {
+            success: true,
+            election: data.election as Election,
+            message:
+              data.message ||
+              `Election "${currentElection.title}" archived with ballots and results preserved.`,
+          };
+        }
+      } catch (err: any) {
+        if (isCallableDomainRejection(err)) {
+          return { success: false, error: err?.message || 'Server rejected election archive.' };
+        }
+      }
+
+      const archivedAt = new Date().toISOString();
+      await updateDoc(doc(db, 'elections', electionId), {
+        previousStatus: currentElection.status,
+        status: 'archived',
+        archivedAt,
+        archivedBy: authCheck.actor.name,
+        archivedByUid: authCheck.actor.uid,
+        archiveReason: reason?.trim() || 'Archived by Electoral Commission administrator',
+        updatedAt: serverTimestamp(),
+      });
+
+      await writeAuditLog({
+        adminName: authCheck.actor.name,
+        adminRole: authCheck.actor.role,
+        adminUid: authCheck.actor.uid,
+        electionId,
+        reason: reason?.trim() || 'Archived by Electoral Commission administrator',
+        action: 'Archived Election',
+        target: `${currentElection.title} (${currentElection.code})`,
+        status: 'success',
+      });
+
+      const updated = await getDoc(doc(db, 'elections', electionId));
+      return {
+        success: true,
+        election: updated.exists() ? mapDoc<Election>(updated.id, updated.data()) : undefined,
+        message: `Election "${currentElection.title}" has been archived. All ballots, confirmations, receipts, and results remain preserved.`,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to archive election.' };
+    }
+  }
+
+  async restoreArchivedElection(
+    electionId: string,
+    targetStatus?: ElectionStatus,
+    reason?: string
+  ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+    if (!isValidElectionId(electionId)) {
+      return { success: false, error: 'Invalid election ID format.' };
+    }
+
+    try {
+      const eSnap = await getDoc(doc(db, 'elections', electionId));
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election record not found.' };
+      }
+      const currentElection = mapDoc<Election>(eSnap.id, eSnap.data());
+
+      const authCheck = await assertActiveAdminContext(currentElection);
+      if (authCheck.ok === false) {
+        return { success: false, error: authCheck.error };
+      }
+
+      if (currentElection.isHistorical) {
+        return {
+          success: false,
+          error: 'Built-in historical 2026 archives cannot be restored from archive.',
+        };
+      }
+      if (currentElection.status !== 'archived') {
+        return { success: false, error: 'Only archived elections can be restored.' };
+      }
+
+      try {
+        const fn = httpsCallable(functions, 'restoreArchivedElection');
+        const res = await fn({ electionId, targetStatus, reason });
+        const data = res.data as any;
+        if (data?.success) {
+          return {
+            success: true,
+            election: data.election as Election,
+            message: data.message || 'Archived election restored.',
+          };
+        }
+      } catch (err: any) {
+        if (isCallableDomainRejection(err)) {
+          return { success: false, error: err?.message || 'Server rejected restore request.' };
+        }
+      }
+
+      const safeRestoreStatuses = new Set<ElectionStatus>([
+        'draft',
+        'pending_approval',
+        'scheduled',
+        'suspended',
+        'closed',
+        'cancelled',
+        'results_pending_certification',
+        'results_published',
+      ]);
+      const candidateStatus = (targetStatus || currentElection.previousStatus) as ElectionStatus | undefined;
+      const restoredStatus: ElectionStatus =
+        candidateStatus && safeRestoreStatuses.has(candidateStatus) ? candidateStatus : 'closed';
+
+      await updateDoc(doc(db, 'elections', electionId), {
+        status: restoredStatus,
+        restoredAt: new Date().toISOString(),
+        restoredBy: authCheck.actor.name,
+        updatedAt: serverTimestamp(),
+      });
+
+      await writeAuditLog({
+        adminName: authCheck.actor.name,
+        adminRole: authCheck.actor.role,
+        adminUid: authCheck.actor.uid,
+        electionId,
+        reason: reason?.trim() || `Restored from archive to ${restoredStatus}`,
+        action: `Restored Archived Election -> ${restoredStatus}`,
+        target: `${currentElection.title} (${currentElection.code})`,
+        status: 'success',
+      });
+
+      const updated = await getDoc(doc(db, 'elections', electionId));
+      return {
+        success: true,
+        election: updated.exists() ? mapDoc<Election>(updated.id, updated.data()) : undefined,
+        message: `Election "${currentElection.title}" restored to ${restoredStatus.replace(/_/g, ' ')}.`,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to restore archived election.' };
+    }
+  }
+
+  async cancelElection(
+    electionId: string,
+    reason?: string
+  ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
+    if (!isValidElectionId(electionId)) {
+      return { success: false, error: 'Invalid election ID format.' };
+    }
+
+    try {
+      await ensureHistoricalElectionInFirestore(electionId);
+      const eSnap = await getDoc(doc(db, 'elections', electionId));
+      if (!eSnap.exists()) {
+        return { success: false, error: 'Election record not found.' };
+      }
+      const currentElection = mapDoc<Election>(eSnap.id, eSnap.data());
+
+      const authCheck = await assertActiveAdminContext(currentElection);
+      if (authCheck.ok === false) {
+        return { success: false, error: authCheck.error };
+      }
+
+      if (currentElection.isHistorical) {
+        return { success: false, error: 'Historical 2026 records cannot be cancelled.' };
+      }
+      if (
+        currentElection.status === 'cancelled' ||
+        currentElection.status === 'archived' ||
+        currentElection.status === 'results_published'
+      ) {
+        return {
+          success: false,
+          error: `Elections in "${currentElection.status.replace(/_/g, ' ')}" status cannot be cancelled.`,
+        };
+      }
+
+      try {
+        const fn = httpsCallable(functions, 'cancelElection');
+        const res = await fn({ electionId, reason });
+        const data = res.data as any;
+        if (data?.success) {
+          return {
+            success: true,
+            election: data.election as Election,
+            message: data.message || `Election "${currentElection.title}" cancelled.`,
+          };
+        }
+      } catch (err: any) {
+        if (isCallableDomainRejection(err)) {
+          return { success: false, error: err?.message || 'Server rejected election cancellation.' };
+        }
+      }
+
+      await updateDoc(doc(db, 'elections', electionId), {
+        previousStatus: currentElection.status,
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: authCheck.actor.name,
+        cancellationReason: reason?.trim() || 'Cancelled by Electoral Commission administrator',
+        updatedAt: serverTimestamp(),
+      });
+
+      await writeAuditLog({
+        adminName: authCheck.actor.name,
+        adminRole: authCheck.actor.role,
+        adminUid: authCheck.actor.uid,
+        electionId,
+        reason: reason?.trim() || 'Cancelled by Electoral Commission administrator',
+        action: 'Cancelled Election',
+        target: `${currentElection.title} (${currentElection.code})`,
+        status: 'warning',
+      });
+
+      const updated = await getDoc(doc(db, 'elections', electionId));
+      return {
+        success: true,
+        election: updated.exists() ? mapDoc<Election>(updated.id, updated.data()) : undefined,
+        message: `Election "${currentElection.title}" has been cancelled.`,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to cancel election.' };
     }
   }
 

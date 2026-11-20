@@ -59,17 +59,24 @@ export const ElectionsDirectoryPage: React.FC = () => {
   ];
 
   const statuses: { label: string; value: ElectionStatus | 'All' }[] = [
-    { label: 'All Statuses', value: 'All' },
+    { label: 'All Active & Published', value: 'All' },
     { label: 'Live Polling', value: 'live' },
     { label: 'Scheduled', value: 'scheduled' },
-    { label: 'Pending Approval', value: 'pending_approval' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Closed', value: 'closed' },
     { label: 'Results Published', value: 'results_published' },
     { label: 'Historical Archive (2026)', value: 'archived' }
   ];
 
-  const filteredElections = elections.filter((e) => {
+  const publicVisibleElections = elections.filter(
+    (e) =>
+      e.status !== 'draft' &&
+      e.status !== 'pending_approval' &&
+      e.status !== 'cancelled' &&
+      (e.status !== 'archived' || e.isHistorical === true)
+  );
+
+  const filteredElections = publicVisibleElections.filter((e) => {
     const matchesCategory = categoryFilter === 'All' || e.category === categoryFilter;
     const matchesStatus =
       statusFilter === 'All' ||

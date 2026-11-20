@@ -237,6 +237,24 @@ interface AppContextType {
     newStatus: ElectionStatus,
     justification?: string
   ) => Promise<{ success: boolean; election?: Election; error?: string }>;
+  removeElectionAction: (
+    electionId: string,
+    confirmationText: string,
+    reason?: string
+  ) => Promise<{ success: boolean; message?: string; error?: string; code?: string }>;
+  archiveElectionAction: (
+    electionId: string,
+    reason?: string
+  ) => Promise<{ success: boolean; election?: Election; message?: string; error?: string }>;
+  restoreArchivedElectionAction: (
+    electionId: string,
+    targetStatus?: ElectionStatus,
+    reason?: string
+  ) => Promise<{ success: boolean; election?: Election; message?: string; error?: string }>;
+  cancelElectionAction: (
+    electionId: string,
+    reason?: string
+  ) => Promise<{ success: boolean; election?: Election; message?: string; error?: string }>;
   registerCandidateAction: (
     payload: any
   ) => Promise<{ success: boolean; candidate?: Candidate; error?: string; message?: string }>;
@@ -1083,6 +1101,69 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const removeElectionAction = async (
+    electionId: string,
+    confirmationText: string,
+    reason?: string
+  ) => {
+    try {
+      const res = await adminService.removeElectionPermanently(
+        electionId,
+        confirmationText,
+        reason
+      );
+      if (res.success) {
+        if (selectedElectionId === electionId) {
+          setSelectedElectionId('');
+        }
+        await Promise.all([refreshElections(), refreshCandidates(), refreshDomains()]);
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to remove election.' };
+    }
+  };
+
+  const archiveElectionAction = async (electionId: string, reason?: string) => {
+    try {
+      const res = await adminService.archiveElection(electionId, reason);
+      if (res.success) {
+        await Promise.all([refreshElections(), refreshDomains()]);
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to archive election.' };
+    }
+  };
+
+  const restoreArchivedElectionAction = async (
+    electionId: string,
+    targetStatus?: ElectionStatus,
+    reason?: string
+  ) => {
+    try {
+      const res = await adminService.restoreArchivedElection(electionId, targetStatus, reason);
+      if (res.success) {
+        await Promise.all([refreshElections(), refreshDomains()]);
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to restore archived election.' };
+    }
+  };
+
+  const cancelElectionAction = async (electionId: string, reason?: string) => {
+    try {
+      const res = await adminService.cancelElection(electionId, reason);
+      if (res.success) {
+        await Promise.all([refreshElections(), refreshDomains()]);
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to cancel election.' };
+    }
+  };
+
   const registerCandidateAction = async (payload: any) => {
     try {
       const res = await electionClient.registerCandidate(payload);
@@ -1391,6 +1472,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshCandidates,
         createElectionAction,
         updateElectionStatusAction,
+        removeElectionAction,
+        archiveElectionAction,
+        restoreArchivedElectionAction,
+        cancelElectionAction,
         registerCandidateAction,
         updateCandidateAction,
         createContestantAction,
