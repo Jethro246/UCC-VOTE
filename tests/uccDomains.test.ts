@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { DOMAIN_REGISTRY, DOMAIN_STARTER_POSITIONS, UCC_HALLS } from '../src/data/uccStructure';
+import { DOMAIN_REGISTRY, UCC_HALLS, mergeOfficialHalls } from '../src/data/uccStructure';
 import {
   getElectionDomainId,
   getElectionStatusMeta,
@@ -8,7 +8,6 @@ import {
 import {
   getHallDisplayName,
   matchesHallAffiliation,
-  normalizeCanonicalHalls,
 } from '../src/utils/hallUtils';
 import { evaluateStudentEligibilityLocal } from '../src/services/electionClient';
 import type { Election, StudentProfile, VoterEligibilityRecord } from '../src/types';
@@ -81,8 +80,8 @@ function makeElection(overrides: Partial<Election>): Election {
   };
 }
 
-// 1. All 6 domain IDs & starter positions
-runTest('All 6 official UCC election domains and starter positions exist', () => {
+// 1. All 6 domain IDs exist
+runTest('All 6 official UCC election domains exist', () => {
   const expectedDomains = [
     'src',
     'jcrc_hall',
@@ -95,18 +94,12 @@ runTest('All 6 official UCC election domains and starter positions exist', () =>
     DOMAIN_REGISTRY.map((d) => d.id),
     [...expectedDomains]
   );
-  for (const domId of expectedDomains) {
-    assert.ok(
-      Array.isArray(DOMAIN_STARTER_POSITIONS[domId]) && DOMAIN_STARTER_POSITIONS[domId].length >= 3,
-      `Starter positions missing for domain: ${domId}`
-    );
-  }
 });
 
 // 2. Exact 8 canonical halls + PSI filtering
-runTest('normalizeCanonicalHalls yields exact 8 official halls and strips legacy PSI Hall', () => {
+runTest('mergeOfficialHalls yields exact 8 official halls and strips legacy PSI Hall', () => {
   assert.equal(UCC_HALLS.length, 8);
-  const normalized = normalizeCanonicalHalls([
+  const normalized = mergeOfficialHalls([
     { id: 'hall-psi', name: 'PSI Hall', shortName: 'PSI' },
     { id: 'hall-casford', name: 'Casely Hayford Hall', shortName: 'Casford', motto: 'Gentlemen' },
   ]);

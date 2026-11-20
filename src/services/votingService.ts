@@ -184,7 +184,9 @@ class FirebaseVotingService {
     }
 
     try {
-      const endpoint = (import.meta.env.VITE_SUBMIT_BALLOT_URL || '').trim();
+      const endpoint = (
+        (import.meta.env ? import.meta.env.VITE_SUBMIT_BALLOT_URL : undefined) || ''
+      ).trim();
       if (!endpoint) {
         return {
           success: false,

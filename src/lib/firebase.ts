@@ -11,7 +11,9 @@ import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyDylk64tRY1GhVEfN2UWBTqSIseSOaozug',
+  apiKey:
+    (import.meta.env ? import.meta.env.VITE_FIREBASE_API_KEY : undefined) ||
+    'AIzaSyDylk64tRY1GhVEfN2UWBTqSIseSOaozug',
   authDomain: 'ucc-vote.firebaseapp.com',
   projectId: 'ucc-vote',
   storageBucket: 'ucc-vote.firebasestorage.app',
@@ -50,7 +52,7 @@ try {
   // Ignore if running in a mock harness
 }
 export const FIREBASE_FUNCTIONS_REGION =
-  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1';
+  (import.meta.env ? import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION : undefined) || 'us-central1';
 export const functions: Functions = getFunctions(app, FIREBASE_FUNCTIONS_REGION);
 
 export enum OperationType {
