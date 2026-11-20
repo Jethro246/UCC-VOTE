@@ -19,6 +19,7 @@ import {
   isElectionForHall,
   matchesHallAffiliation
 } from '../../utils/hallUtils';
+import { formatNumber } from '../../utils/numberFormat';
 
 export const CandidateDirectoryPage: React.FC = () => {
   const {
@@ -216,13 +217,13 @@ export const CandidateDirectoryPage: React.FC = () => {
         <div className="flex items-start sm:items-center gap-3.5">
           <Logo variant="default" showWordmark={false} />
           <div>
-            <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+            <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
               Approved Aspirants Registry
             </span>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+            <h1 className="ucc-heading-page text-slate-900 mt-0.5">
               Candidate Directory & Manifestos
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            <p className="ucc-body-secondary text-slate-600 mt-1">
               Accredited candidates organized strictly by election domain, election, and contested portfolio.
             </p>
           </div>
@@ -234,7 +235,7 @@ export const CandidateDirectoryPage: React.FC = () => {
               setCompareInit({});
               setShowCompareModal(true);
             }}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+            className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 ucc-btn font-semibold flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
           >
             <Scale className="w-4 h-4 text-[#123B70]" />
             <span>Compare Manifestos</span>
@@ -243,7 +244,7 @@ export const CandidateDirectoryPage: React.FC = () => {
           {userRole !== 'admin' && (
             <button
               onClick={() => setShowRegisterModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
             >
               <PlusCircle className="w-4 h-4 text-amber-400" />
               <span>Apply for Candidacy</span>
@@ -256,12 +257,12 @@ export const CandidateDirectoryPage: React.FC = () => {
       {myCandidateApplication && (
         <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#123B70] text-white flex items-center justify-center font-bold text-sm shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#123B70] text-white flex items-center justify-center font-semibold text-sm shrink-0">
               {myCandidateApplication.applicationStatus === 'Approved' ? '✓' : 'i'}
             </div>
             <div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-bold text-[#123B70]">
+              <div className="flex items-center gap-2 ucc-label">
+                <span className="font-semibold text-[#123B70]">
                   Your Candidacy Application: {myCandidateApplication.fullName}
                 </span>
                 <span aria-hidden="true">·</span>
@@ -269,7 +270,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                   {myCandidateApplication.applicationStatus}
                 </span>
               </div>
-              <p className="text-xs text-slate-600 mt-0.5">
+              <p className="ucc-body-secondary text-slate-600 mt-0.5">
                 {myCandidateApplication.applicationStatus === 'Approved'
                   ? 'Your nomination is vetted and approved. You are officially on the digital ballot.'
                   : myCandidateApplication.applicationStatus === 'Under review'
@@ -283,7 +284,7 @@ export const CandidateDirectoryPage: React.FC = () => {
 
           <button
             onClick={() => navigateTo('candidate_profile', { candidateId: myCandidateApplication.id })}
-            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap self-start sm:self-auto"
+            className="px-3.5 py-2 rounded-lg bg-white border border-slate-200 ucc-btn font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer whitespace-nowrap self-start sm:self-auto"
           >
             View My Profile
           </button>
@@ -300,7 +301,7 @@ export const CandidateDirectoryPage: React.FC = () => {
               setSelectedElection('All');
               setSelectedPosition('All');
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+            className={`px-3.5 py-2 rounded-lg ucc-btn whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
               selectedDomain === 'All'
                 ? 'bg-[#123B70] text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -317,7 +318,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedElection('All');
                 setSelectedPosition('All');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              className={`px-3.5 py-2 rounded-lg ucc-btn whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                 selectedDomain === dom.id
                   ? 'bg-[#123B70] text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -338,7 +339,7 @@ export const CandidateDirectoryPage: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search candidate by name, student ID, position, department, manifesto..."
-              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-slate-50/50"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-slate-50/50"
             />
           </div>
 
@@ -357,7 +358,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedFaculty('All');
                 setSearch('');
               }}
-              className="text-xs font-semibold text-[#C62828] hover:underline self-start md:self-auto whitespace-nowrap cursor-pointer"
+              className="ucc-btn font-semibold text-[#C62828] hover:underline self-start md:self-auto whitespace-nowrap cursor-pointer"
             >
               Reset Filters
             </button>
@@ -366,7 +367,7 @@ export const CandidateDirectoryPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Hall of Residence / JCR
             </label>
             <select
@@ -376,7 +377,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedElection('All');
                 setSelectedPosition('All');
               }}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All 8 UCC Halls</option>
               {halls.map((h) => (
@@ -388,7 +389,7 @@ export const CandidateDirectoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Election
             </label>
             <select
@@ -397,9 +398,9 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedElection(e.target.value);
                 setSelectedPosition('All');
               }}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
-              <option value="All">All Elections ({electionsForDomain.length})</option>
+              <option value="All">All Elections ({formatNumber(electionsForDomain.length)})</option>
               {electionsForDomain.map((el) => (
                 <option key={el.id} value={el.id}>
                   {el.title}
@@ -409,13 +410,13 @@ export const CandidateDirectoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Contested Portfolio
             </label>
             <select
               value={selectedPosition}
               onChange={(e) => setSelectedPosition(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All Portfolios</option>
               {currentElectionPositions.map((pos) => (
@@ -427,13 +428,13 @@ export const CandidateDirectoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Faculty / School
             </label>
             <select
               value={selectedFaculty}
               onChange={(e) => setSelectedFaculty(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All Faculties</option>
               {allFaculties.map((f) => (
@@ -450,12 +451,12 @@ export const CandidateDirectoryPage: React.FC = () => {
       {groupedSections.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
           <Users className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="text-base font-bold text-slate-800">
+          <h3 className="ucc-heading-card text-slate-800">
             {approvedCandidates.length === 0
               ? 'No candidates have been added yet.'
               : 'No Approved Candidates Found'}
           </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
+          <p className="ucc-body-secondary text-slate-500 max-w-md mx-auto">
             {approvedCandidates.length === 0
               ? 'Approved election candidates will appear here once vetted and published in Firestore.'
               : 'No candidates matched your search criteria. Try modifying your domain, hall, election, or position filters.'}
@@ -470,7 +471,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedFaculty('All');
                 setSearch('');
               }}
-              className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-semibold hover:bg-[#0B1F3A] cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] cursor-pointer"
             >
               Clear All Filters
             </button>
@@ -482,8 +483,8 @@ export const CandidateDirectoryPage: React.FC = () => {
             <section key={group.key} className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
                 <div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="font-bold text-[#123B70] uppercase tracking-wider">
+                  <div className="flex items-center gap-2 ucc-caption text-slate-500">
+                    <span className="font-semibold text-[#123B70] uppercase tracking-wider">
                       {group.category}
                     </span>
                     {group.subdomainLabel && (
@@ -495,10 +496,10 @@ export const CandidateDirectoryPage: React.FC = () => {
                     <span aria-hidden="true">·</span>
                     <span>{group.electionTitle}</span>
                   </div>
-                  <h2 className="text-lg font-extrabold text-slate-900 mt-0.5">
+                  <h2 className="ucc-heading-section text-slate-900 mt-0.5">
                     {group.positionTitle}{' '}
-                    <span className="text-xs font-mono text-slate-400 tabular-nums">
-                      ({group.candidates.length})
+                    <span className="ucc-caption text-slate-400 tabular-nums">
+                      ({formatNumber(group.candidates.length)})
                     </span>
                   </h2>
                 </div>
@@ -508,7 +509,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                     onClick={() =>
                       openRaceComparison(group.electionId, group.positionId, group.candidates)
                     }
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-[#123B70] flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                    className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 ucc-btn font-semibold text-[#123B70] flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
                   >
                     <Scale className="w-3.5 h-3.5" />
                     <span>Compare Candidates in Race</span>
@@ -533,19 +534,19 @@ export const CandidateDirectoryPage: React.FC = () => {
                               alt={cand.fullName}
                               className="w-20 h-20 rounded-2xl object-cover object-center border-2 border-slate-200 shrink-0"
                             />
-                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#123B70] text-white rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white">
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#123B70] text-white rounded-full flex items-center justify-center ucc-caption font-semibold border-2 border-white">
                               ✓
                             </div>
                           </div>
 
                           <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider truncate">
+                              <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider truncate">
                                 {group.positionTitle}
                               </span>
                               {cand.historicalRole && (
                                 <span
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                                  className={`px-2 py-0.5 rounded ucc-caption font-semibold uppercase shrink-0 ${
                                     cand.historicalRole === 'Winner' ||
                                     cand.historicalRole === 'Elected' ||
                                     cand.historicalRole === 'Elected Unopposed'
@@ -557,22 +558,22 @@ export const CandidateDirectoryPage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <h3 className="text-base font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-tight truncate">
+                            <h3 className="ucc-heading-card text-slate-900 group-hover:text-[#123B70] transition-colors truncate">
                               {cand.fullName}
                             </h3>
                             {cand.nickname && (
-                              <p className="text-xs font-bold text-[#C62828] truncate">
+                              <p className="ucc-label font-semibold text-[#C62828] truncate">
                                 "{cand.nickname}"
                               </p>
                             )}
-                            <p className="text-[11px] text-slate-500 font-mono truncate">
+                            <p className="ucc-caption text-slate-500 tabular-nums truncate">
                               {cand.studentId} · {cand.hall}
                             </p>
                           </div>
                         </div>
 
                         <div className="px-5 pb-3">
-                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] space-y-1">
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 ucc-caption space-y-1">
                             <div className="flex justify-between items-center gap-2">
                               <span className="text-slate-500">Department</span>
                               <span
@@ -599,10 +600,10 @@ export const CandidateDirectoryPage: React.FC = () => {
                         </div>
 
                         <div className="px-5 pb-4 space-y-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-400">
                             Policy Vision
                           </span>
-                          <p className="text-xs text-slate-600 line-clamp-2 italic leading-relaxed">
+                          <p className="ucc-body-secondary text-slate-600 line-clamp-2 italic">
                             {cand.campaignStatement || cand.manifestoSummary
                               ? `"${cand.campaignStatement || cand.manifestoSummary}"`
                               : cand.isHistoricalRecord
@@ -615,7 +616,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                       <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
                         <button
                           onClick={() => toggleCompareCandidate(cand.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          className={`px-3 py-1.5 rounded-lg ucc-btn font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                             isComparing
                               ? 'bg-blue-100 text-[#123B70] border border-blue-300'
                               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300'
@@ -633,7 +634,7 @@ export const CandidateDirectoryPage: React.FC = () => {
 
                         <button
                           onClick={() => navigateTo('candidate_profile', { candidateId: cand.id })}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          className="px-3.5 py-1.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
                         >
                           <span>View Profile</span>
                           <ArrowRight className="w-3 h-3" />

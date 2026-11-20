@@ -66,7 +66,7 @@ const EmailLinkVerificationOverlay: React.FC = () => {
     <>
       {emailLinkFeedback && !pendingEmailPrompt && (
         <div
-          className={`border-b px-4 py-2.5 text-xs ${
+          className={`border-b px-4 py-2.5 text-sm ${
             emailLinkFeedback.type === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : emailLinkFeedback.type === 'error'
@@ -105,10 +105,10 @@ const EmailLinkVerificationOverlay: React.FC = () => {
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h3 className="ucc-heading-card text-slate-900">
                     Confirm Your Email Address
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="ucc-caption text-slate-500">
                     Complete Firebase passwordless sign-in
                   </p>
                 </div>
@@ -121,12 +121,12 @@ const EmailLinkVerificationOverlay: React.FC = () => {
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="ucc-body-secondary text-slate-600">
               You opened your UCC VOTE sign-in link in a new browser or device. Re-enter the email address where the link was sent to complete verification.
             </p>
 
             {promptError && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-[#C62828] font-medium">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-[#C62828] font-medium">
                 {promptError}
               </div>
             )}
@@ -138,12 +138,12 @@ const EmailLinkVerificationOverlay: React.FC = () => {
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="Enter your email address"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
               />
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-2.5 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full py-2.5 rounded-lg bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>{submitting ? 'Verifying...' : 'Confirm & Sign In'}</span>
@@ -163,7 +163,7 @@ const FirebaseStatusBanner: React.FC = () => {
   if (!dataError || dismissed) return null;
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-950">
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-950">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-medium">
           <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />

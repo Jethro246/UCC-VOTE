@@ -336,16 +336,16 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
           {/* Header */}
           <div className="px-6 py-4 bg-[#102A43] text-white rounded-t-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
             <div>
-              <div className="flex items-center gap-2 text-[11px] font-bold text-[#14B8A6] uppercase tracking-wider">
+              <div className="flex items-center gap-2 ucc-caption font-semibold text-[#14B8A6] uppercase tracking-wider">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>
                   {election.category} · {election.status.replace(/_/g, ' ')}
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-black tracking-tight mt-0.5">
+              <h2 className="ucc-heading-card text-white mt-0.5">
                 Election Candidates — {election.title}
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5">
+              <p className="ucc-body-secondary text-slate-300 mt-0.5 tabular-nums">
                 {electionCandidates.length} candidate
                 {electionCandidates.length === 1 ? '' : 's'} across {electionPositions.length}{' '}
                 position{electionPositions.length === 1 ? '' : 's'}.
@@ -360,7 +360,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                   setSelectorTab('existing');
                   setSelectorOpen(true);
                 }}
-                className="px-3.5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                className="px-3.5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-600 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Add Existing Contestant</span>
@@ -372,7 +372,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                   setSelectorTab('new');
                   setSelectorOpen(true);
                 }}
-                className="px-3.5 py-2 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                className="px-3.5 py-2 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Register New Contestant</span>
@@ -387,12 +387,12 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
             </div>
           </div>
 
-          <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+          <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 ucc-body-secondary">
             {!addGuard.allowed && (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold">Election Roster Safeguard Active</div>
+                  <div className="font-semibold">Election Roster Safeguard Active</div>
                   <p className="mt-0.5">{addGuard.reason}</p>
                 </div>
               </div>
@@ -413,10 +413,10 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
               >
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div>
-                    <h3 className="text-base font-black text-[#102A43]">
+                    <h3 className="ucc-heading-card text-[#102A43]">
                       Edit Candidate Participation — {editingCandidate.fullName}
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Election-specific fields only update this election; permanent profile changes
                       require explicit confirmation.
                     </p>
@@ -427,7 +427,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       setEditingCandidate(null);
                       setActionError('');
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold hover:bg-slate-50 cursor-pointer"
                   >
                     Back to Roster
                   </button>
@@ -442,21 +442,21 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
 
                 {/* Position & Election-specific fields */}
                 <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-4">
-                  <h4 className="font-bold text-[#102A43] text-sm flex items-center gap-1.5">
+                  <h4 className="font-semibold text-[#102A43] ucc-label flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-[#2563EB]" />
                     <span>Election-Specific Participation Details</span>
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">
                         Assigned Position in {election.title}
                       </label>
                       <select
                         disabled={!posChangeGuard.allowed}
                         value={editPosId}
                         onChange={(e) => setEditPosId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-semibold disabled:bg-slate-100 disabled:text-slate-500"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white font-semibold disabled:bg-slate-100 disabled:text-slate-500"
                       >
                         {electionPositions.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -465,11 +465,11 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         ))}
                       </select>
                       {!posChangeGuard.allowed && (
-                        <p className="text-[10px] text-[#E45757] mt-1">{posChangeGuard.reason}</p>
+                        <p className="ucc-caption text-[#E45757] mt-1">{posChangeGuard.reason}</p>
                       )}
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">
                         Ballot Approval Status
                       </label>
                       <select
@@ -477,7 +477,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         onChange={(e) =>
                           setEditStatus(e.target.value as Candidate['applicationStatus'])
                         }
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-semibold"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white font-semibold"
                       >
                         <option value="Approved">Approved</option>
                         <option value="Submitted">Submitted</option>
@@ -498,12 +498,12 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         className="w-12 h-12 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                       />
                       <div>
-                        <div className="font-bold text-slate-900">
+                        <div className="font-semibold text-slate-900">
                           {editElectionPhotoUrl
                             ? 'Election-Specific Photo Override Active'
                             : 'Using Permanent Default Photo'}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="ucc-caption text-slate-500">
                           Overrides the candidate photo exclusively in {election.title}.
                         </div>
                       </div>
@@ -524,7 +524,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         type="button"
                         disabled={uploadingSlot === 'election'}
                         onClick={() => electionPhotoInputRef.current?.click()}
-                        className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
                         <ImagePlus className="w-3.5 h-3.5" />
                         <span>
@@ -537,7 +537,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         <button
                           type="button"
                           onClick={() => setEditElectionPhotoUrl('')}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold cursor-pointer"
                         >
                           Clear Override
                         </button>
@@ -546,50 +546,50 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">
                       Campaign Statement / Slogan
                     </label>
                     <input
                       type="text"
                       value={editCampaignStatement}
                       onChange={(e) => setEditCampaignStatement(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">
                       Manifesto Summary
                     </label>
                     <textarea
                       rows={2}
                       value={editManifestoSummary}
                       onChange={(e) => setEditManifestoSummary(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">
                         Full Manifesto Points (one per line)
                       </label>
                       <textarea
                         rows={3}
                         value={editFullManifestoText}
                         onChange={(e) => setEditFullManifestoText(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">
                         Key Promises (one per line)
                       </label>
                       <textarea
                         rows={3}
                         value={editKeyPromisesText}
                         onChange={(e) => setEditKeyPromisesText(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       />
                     </div>
                   </div>
@@ -598,7 +598,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                 {/* Permanent Contestant Profile Section */}
                 <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="font-bold text-[#102A43] text-sm flex items-center gap-1.5">
+                    <h4 className="font-semibold text-[#102A43] ucc-label flex items-center gap-1.5">
                       <Edit3 className="w-4 h-4" />
                       <span>Permanent Contestant Profile (Shared Registry)</span>
                     </h4>
@@ -618,7 +618,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         type="button"
                         disabled={uploadingSlot === 'permanent'}
                         onClick={() => permanentPhotoInputRef.current?.click()}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
                         <Upload className="w-3.5 h-3.5" />
                         <span>
@@ -635,18 +635,18 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-[#E45757] shrink-0 mt-0.5" />
                         <div>
-                          <div className="font-bold">
+                          <div className="font-semibold">
                             Warning: Shared Permanent Fields Changed (
                             {modifiedPermanentFields.join(', ')})
                           </div>
-                          <p className="text-[11px] mt-0.5">
+                          <p className="ucc-caption mt-0.5">
                             Saving updates the permanent contestant profile and propagates shared
                             identity fields across UCC VOTE while preserving vote counts and
                             election-specific overrides.
                           </p>
                         </div>
                       </div>
-                      <label className="flex items-center gap-2 font-bold text-[#102A43] cursor-pointer">
+                      <label className="flex items-center gap-2 ucc-label font-semibold text-[#102A43] cursor-pointer">
                         <input
                           type="checkbox"
                           checked={confirmPermanentUpdate}
@@ -662,65 +662,65 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Full Name</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Full Name</label>
                       <input
                         type="text"
                         value={permFullName}
                         onChange={(e) => setPermFullName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Student ID</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Student ID</label>
                       <input
                         type="text"
                         value={permStudentId}
                         onChange={(e) => setPermStudentId(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 tabular-nums"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Nickname</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Nickname</label>
                       <input
                         type="text"
                         value={permNickname}
                         onChange={(e) => setPermNickname(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Department</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Department</label>
                       <input
                         type="text"
                         value={permDepartment}
                         onChange={(e) => setPermDepartment(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Programme</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Programme</label>
                       <input
                         type="text"
                         value={permProgramme}
                         onChange={(e) => setPermProgramme(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Faculty</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Faculty</label>
                       <input
                         type="text"
                         value={permFaculty}
                         onChange={(e) => setPermFaculty(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Level</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Level</label>
                       <select
                         value={permLevel}
                         onChange={(e) => setPermLevel(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       >
                         {UCC_LEVELS.map((l) => (
                           <option key={l} value={l}>
@@ -733,11 +733,11 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Hall</label>
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">Hall</label>
                       <select
                         value={permHall}
                         onChange={(e) => setPermHall(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                       >
                         {halls.map((h) => (
                           <option key={h.id} value={h.name}>
@@ -750,25 +750,25 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-700 mb-1">
                         Phone (Admin PII)
                       </label>
                       <input
                         type="tel"
                         value={permPhone}
                         onChange={(e) => setPermPhone(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 tabular-nums"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Biography</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Biography</label>
                     <textarea
                       rows={2}
                       value={permBiography}
                       onChange={(e) => setPermBiography(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
                     />
                   </div>
                 </div>
@@ -777,14 +777,14 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                   <button
                     type="button"
                     onClick={() => setEditingCandidate(null)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold cursor-pointer"
+                    className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving || Boolean(uploadingSlot)}
-                    className="px-5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     <span>{saving ? 'Saving Changes...' : 'Save Candidate Updates'}</span>
@@ -795,13 +795,13 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
               /* Permanent Profile Drawer */
               <div className="p-5 rounded-2xl bg-[#F5F7FB] border border-slate-200 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                  <h3 className="text-base font-black text-[#102A43]">
+                  <h3 className="ucc-heading-card text-[#102A43]">
                     Permanent Contestant Profile — {viewingProfileEntry.fullName}
                   </h3>
                   <button
                     type="button"
                     onClick={() => setViewingProfileEntry(null)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold hover:bg-slate-50 cursor-pointer"
                   >
                     Back to Roster
                   </button>
@@ -815,23 +815,23 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 flex-1">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                      <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                         Full Name
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-semibold text-slate-900">
                         {viewingProfileEntry.fullName}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                      <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                         Student ID
                       </span>
-                      <span className="font-mono font-bold text-slate-800 tabular-nums">
+                      <span className="font-semibold text-slate-800 tabular-nums">
                         {viewingProfileEntry.studentId}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                      <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                         Programme &amp; Department
                       </span>
                       <span className="text-slate-800">
@@ -839,7 +839,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                      <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                         Faculty &amp; Hall
                       </span>
                       <span className="text-slate-800">
@@ -848,7 +848,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                     </div>
                     {viewingProfileEntry.email && (
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                        <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                           Email (Admin Only)
                         </span>
                         <span className="text-slate-800">{viewingProfileEntry.email}</span>
@@ -856,10 +856,10 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                     )}
                     {viewingProfileEntry.phone && (
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                        <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                           Phone (Admin Only)
                         </span>
-                        <span className="font-mono text-slate-800">
+                        <span className="text-slate-800 tabular-nums">
                           {viewingProfileEntry.phone}
                         </span>
                       </div>
@@ -869,7 +869,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
 
                 {viewingProfileEntry.biography && (
                   <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    <span className="ucc-caption font-semibold text-slate-400 uppercase block">
                       Biography
                     </span>
                     <p className="text-slate-700 leading-relaxed">
@@ -879,7 +879,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                 )}
 
                 <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                  <span className="ucc-caption font-semibold text-slate-400 uppercase block tabular-nums">
                     Election Participation History ({viewingProfileEntry.participations.length})
                   </span>
                   <div className="space-y-1.5">
@@ -889,11 +889,11 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                         className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F5F7FB] border border-slate-200"
                       >
                         <div>
-                          <div className="font-bold text-[#102A43]">{p.electionTitle}</div>
-                          <div className="text-[11px] text-slate-600">{p.positionTitle}</div>
+                          <div className="font-semibold text-[#102A43]">{p.electionTitle}</div>
+                          <div className="ucc-caption text-slate-600">{p.positionTitle}</div>
                         </div>
-                        <div className="text-right font-mono text-[11px]">
-                          <span className="font-bold text-slate-800">{p.applicationStatus}</span>
+                        <div className="text-right ucc-caption tabular-nums">
+                          <span className="font-semibold text-slate-800">{p.applicationStatus}</span>
                           {typeof p.votesReceived === 'number' && (
                             <span className="text-slate-500 ml-2 tabular-nums">
                               · {p.votesReceived} votes
@@ -925,12 +925,12 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                       >
                         <div className="px-4 py-3 bg-[#F5F7FB] border-b border-slate-200 flex items-center justify-between">
                           <div>
-                            <h4 className="font-extrabold text-[#102A43] text-sm">{pos.title}</h4>
+                            <h4 className="font-semibold text-[#102A43] ucc-label">{pos.title}</h4>
                             {pos.description && (
-                              <p className="text-[11px] text-slate-500">{pos.description}</p>
+                              <p className="ucc-caption text-slate-500">{pos.description}</p>
                             )}
                           </div>
-                          <span className="font-mono font-bold text-[11px] text-[#102A43] bg-white px-2.5 py-1 rounded-lg border border-slate-200 tabular-nums">
+                          <span className="font-semibold ucc-caption text-[#102A43] bg-white px-2.5 py-1 rounded-lg border border-slate-200 tabular-nums">
                             {posCandidates.length} candidate
                             {posCandidates.length === 1 ? '' : 's'}
                           </span>
@@ -962,14 +962,14 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                     />
                                     <div className="space-y-0.5 min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-bold text-slate-900 text-sm">
+                                        <span className="font-semibold text-slate-900 ucc-body-secondary">
                                           {cand.fullName}
                                         </span>
-                                        <span className="font-mono text-[11px] text-slate-500 tabular-nums">
+                                        <span className="ucc-caption text-slate-500 tabular-nums">
                                           {cand.studentId}
                                         </span>
                                         <span
-                                          className={`text-[10px] font-bold uppercase ${
+                                          className={`ucc-caption font-semibold uppercase ${
                                             cand.applicationStatus === 'Approved'
                                               ? 'text-[#14B8A6]'
                                               : cand.applicationStatus === 'Rejected'
@@ -980,7 +980,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                           · {cand.applicationStatus}
                                         </span>
                                         {cand.electionPhotoUrl && (
-                                          <span className="text-[10px] font-semibold text-[#2563EB]">
+                                          <span className="ucc-caption font-semibold text-[#2563EB]">
                                             · Election Photo Override
                                           </span>
                                         )}
@@ -989,7 +989,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                         {cand.programme || cand.department} · {cand.hall}
                                       </div>
                                       {(cand.campaignStatement || cand.manifestoSummary) && (
-                                        <p className="text-[11px] text-slate-500 truncate max-w-xl">
+                                        <p className="ucc-caption text-slate-500 truncate max-w-xl">
                                           {cand.campaignStatement || cand.manifestoSummary}
                                         </p>
                                       )}
@@ -999,14 +999,14 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                   <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                     {typeof cand.votesReceived === 'number' &&
                                       cand.votesReceived > 0 && (
-                                        <span className="px-2 py-1 rounded-lg bg-slate-100 font-mono font-bold text-slate-700 tabular-nums mr-1">
+                                        <span className="px-2 py-1 rounded-lg bg-slate-100 ucc-caption font-semibold text-slate-700 tabular-nums mr-1">
                                           {cand.votesReceived} votes
                                         </span>
                                       )}
                                     <button
                                       type="button"
                                       onClick={() => openEditCandidate(cand)}
-                                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold flex items-center gap-1 cursor-pointer"
+                                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 ucc-caption font-semibold flex items-center gap-1 cursor-pointer"
                                     >
                                       <Edit3 className="w-3 h-3" />
                                       <span>Edit Info / Position</span>
@@ -1015,7 +1015,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                       <button
                                         type="button"
                                         onClick={() => setViewingProfileEntry(permEntry)}
-                                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] font-bold flex items-center gap-1 cursor-pointer"
+                                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] ucc-caption font-semibold flex items-center gap-1 cursor-pointer"
                                       >
                                         <Eye className="w-3 h-3" />
                                         <span>Permanent Profile</span>
@@ -1030,7 +1030,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                                         setRemoveReason('');
                                         setCandidateToRemove(cand);
                                       }}
-                                      className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-[#E45757] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                      className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-[#E45757] ucc-caption font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                       <Trash2 className="w-3 h-3" />
                                       <span>Remove</span>
@@ -1054,13 +1054,13 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
       {/* Confirm Removal Modal */}
       {candidateToRemove && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl ucc-body-secondary">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-xl bg-red-50 text-[#E45757]">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="ucc-heading-card text-slate-900">
                   Remove Candidate from Election?
                 </h3>
                 <p className="text-slate-600 mt-1 leading-relaxed">
@@ -1078,7 +1078,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
             )}
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block ucc-label font-semibold text-slate-700 mb-1">
                 Audit Reason (Optional)
               </label>
               <input
@@ -1086,7 +1086,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                 value={removeReason}
                 onChange={(e) => setRemoveReason(e.target.value)}
                 placeholder="e.g. Candidate withdrew prior to ballot opening"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
               />
             </div>
 
@@ -1095,7 +1095,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                 type="button"
                 disabled={removing}
                 onClick={() => setCandidateToRemove(null)}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 ucc-btn font-semibold cursor-pointer"
               >
                 Cancel
               </button>
@@ -1103,7 +1103,7 @@ export const ElectionCandidatesModal: React.FC<ElectionCandidatesModalProps> = (
                 type="button"
                 disabled={removing}
                 onClick={handleConfirmRemove}
-                className="px-4 py-2 rounded-xl bg-[#E45757] hover:bg-red-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#E45757] hover:bg-red-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {removing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>{removing ? 'Removing...' : 'Confirm Remove from Election'}</span>

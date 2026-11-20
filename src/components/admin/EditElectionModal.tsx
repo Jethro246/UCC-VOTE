@@ -202,12 +202,12 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-5 shadow-xl my-8 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between pb-3 border-b border-slate-200">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#123B70] mb-1">
+            <div className="flex items-center gap-1.5 ucc-caption font-semibold text-[#123B70] mb-1">
               <Edit3 className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Edit Election Configuration</span>
             </div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">{election.title}</h3>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">
+            <h3 className="ucc-heading-card text-slate-900">{election.title}</h3>
+            <p className="ucc-caption text-slate-500 font-mono tabular-nums mt-0.5">
               ID: {election.id} · {election.category}
             </p>
           </div>
@@ -221,15 +221,15 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSave} className="space-y-4 text-xs">
+        <form onSubmit={handleSave} className="space-y-4 ucc-body-secondary">
           <div>
-            <label className="block font-bold text-slate-800 mb-1">
+            <label className="block ucc-label font-semibold text-slate-800 mb-1">
               Election Title <span className="text-red-600">*</span>
             </label>
             <input
@@ -237,45 +237,45 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-bold text-slate-800 mb-1">Public Code</label>
+              <label className="block ucc-label font-semibold text-slate-800 mb-1">Public Code</label>
               <input
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono uppercase"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 tabular-nums uppercase"
               />
             </div>
             <div>
-              <label className="block font-bold text-slate-800 mb-1">Academic Year</label>
+              <label className="block ucc-label font-semibold text-slate-800 mb-1">Academic Year</label>
               <input
                 type="text"
                 required
                 value={academicYear}
                 onChange={(e) => setAcademicYear(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 tabular-nums"
               />
             </div>
             <div>
-              <label className="block font-bold text-slate-800 mb-1">Organizing Body</label>
+              <label className="block ucc-label font-semibold text-slate-800 mb-1">Organizing Body</label>
               <input
                 type="text"
                 required
                 value={organizingBody}
                 onChange={(e) => setOrganizingBody(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300"
               />
             </div>
           </div>
 
           {isHallElection && (
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <label className="block font-bold text-slate-800 mb-1">
+              <label className="block ucc-label font-semibold text-slate-800 mb-1">
                 Participating Hall of Residence <span className="text-red-600">*</span>
               </label>
               <select
@@ -288,7 +288,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                     setSelectedHalls([hObj.name]);
                   }
                 }}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
+                className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
               >
                 <option value="">Select Official UCC Hall...</option>
                 {halls.map((h) => (
@@ -297,25 +297,25 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="ucc-caption text-slate-500 mt-1">
                 Updates hall ID, subdomain label, and voter hall eligibility restriction simultaneously.
               </p>
             </div>
           )}
 
           <div>
-            <label className="block font-bold text-slate-800 mb-1">Official Description</label>
+            <label className="block ucc-label font-semibold text-slate-800 mb-1">Official Description</label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
             <div className="space-y-2">
-              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+              <div className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#123B70]" />
                 <span>Poll Opening {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
               </div>
@@ -325,20 +325,20 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                   required={!isHistoricalOrArchived}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
                 <input
                   type="time"
                   required={!isHistoricalOrArchived && Boolean(startDate)}
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+              <div className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-red-600" />
                 <span>Poll Closing {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
               </div>
@@ -348,21 +348,21 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                   required={!isHistoricalOrArchived}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
                 <input
                   type="time"
                   required={!isHistoricalOrArchived && Boolean(endDate)}
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+            <div className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Eligible Academic Levels</span>
             </div>
@@ -375,7 +375,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                     type="button"
                     disabled={isGrasag}
                     onClick={() => toggleItem(selectedLevels, setSelectedLevels, lvl)}
-                    className={`px-3 py-1 rounded-lg border font-bold cursor-pointer disabled:opacity-50 ${
+                    className={`px-3 py-1 rounded-lg border ucc-btn font-semibold cursor-pointer disabled:opacity-50 tabular-nums ${
                       isSelected
                         ? 'bg-[#123B70] text-white border-[#123B70]'
                         : 'bg-white text-slate-700 border-slate-300'
@@ -391,10 +391,10 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
           {election.domainId !== 'src' && election.domainId !== 'grasag' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-800 mb-1">Restricted Halls</label>
+                <label className="block ucc-label font-semibold text-slate-800 mb-1">Restricted Halls</label>
                 <div className="max-h-28 overflow-y-auto p-2 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                   {halls.map((h) => (
-                    <label key={h.id} className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <label key={h.id} className="flex items-center gap-2 ucc-caption cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedHalls.includes(h.name)}
@@ -406,10 +406,10 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
                 </div>
               </div>
               <div>
-                <label className="block font-bold text-slate-800 mb-1">Restricted Faculties</label>
+                <label className="block ucc-label font-semibold text-slate-800 mb-1">Restricted Faculties</label>
                 <div className="max-h-28 overflow-y-auto p-2 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                   {faculties.map((f) => (
-                    <label key={f.id} className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <label key={f.id} className="flex items-center gap-2 ucc-caption cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedFaculties.includes(f.name)}
@@ -428,14 +428,14 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+              className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 ucc-btn font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white font-bold cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold cursor-pointer disabled:opacity-50"
             >
               {saving ? 'Saving Changes...' : 'Save Election Updates'}
             </button>

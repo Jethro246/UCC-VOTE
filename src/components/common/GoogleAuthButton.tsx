@@ -50,7 +50,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
         type="button"
         onClick={onClick}
         disabled={disabled || isLoading}
-        className="w-full py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#123B70]/25 focus:border-[#123B70]"
+        className="w-full py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-sm sm:text-base font-semibold flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#123B70]/25 focus:border-[#123B70]"
       >
         {isLoading ? (
           <>
@@ -65,7 +65,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
         )}
       </button>
       {sublabel && (
-        <p className="text-[11px] text-slate-500 text-center">{sublabel}</p>
+        <p className="ucc-caption text-slate-500 text-center font-normal">{sublabel}</p>
       )}
     </div>
   );

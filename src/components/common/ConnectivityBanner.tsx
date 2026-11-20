@@ -14,7 +14,7 @@ export const ConnectivityBanner: React.FC = () => {
       <div
         role="status"
         aria-live="polite"
-        className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-950"
+        className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-950"
       >
         <div className="max-w-7xl mx-auto flex items-center gap-2.5 font-medium">
           <WifiOff className="w-4 h-4 text-amber-700 shrink-0" />
@@ -30,7 +30,7 @@ export const ConnectivityBanner: React.FC = () => {
     <div
       role="status"
       aria-live="polite"
-      className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 text-xs text-emerald-900"
+      className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 text-sm text-emerald-900"
     >
       <div className="max-w-7xl mx-auto flex items-center gap-2.5 font-semibold">
         <Wifi className="w-4 h-4 text-emerald-600 shrink-0" />

@@ -213,25 +213,25 @@ export const StudentRegisterPage: React.FC = () => {
           <div className="space-y-6">
             <Logo theme="dark" variant="compact" />
             <div className="space-y-2 pt-2">
-              <span className="inline-block px-2.5 py-0.5 rounded bg-blue-950 border border-blue-700/50 text-[10px] font-bold uppercase tracking-wider text-sky-300">
+              <span className="inline-block px-2.5 py-0.5 rounded bg-blue-950 border border-blue-700/50 ucc-caption font-semibold uppercase tracking-wider text-sky-300">
                 First-Time Activation
               </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug">
+              <h2 className="ucc-heading-section text-white">
                 Activate Your UCC Student Account
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="ucc-body-secondary text-slate-300">
                 Sign up with Google in one click or register your UCC credentials via Firebase passwordless email verification.
               </p>
             </div>
           </div>
 
-          <div className="space-y-4 pt-8 text-xs text-slate-300">
+          <div className="space-y-4 pt-8 ucc-body-secondary text-slate-300">
             <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-amber-300">
+              <div className="flex items-center gap-2 font-semibold text-amber-300">
                 <Info className="w-4 h-4 shrink-0" />
                 <span>Verification vs Voter Eligibility</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-300">
+              <p className="ucc-body-secondary text-slate-300">
                 Google or email verification confirms that you own the account. Official UCC voter eligibility is verified separately on the UCC Electoral Commission roll.
               </p>
             </div>
@@ -249,12 +249,12 @@ export const StudentRegisterPage: React.FC = () => {
         <div className="lg:col-span-8 p-6 sm:p-8 space-y-5">
           <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+              <h1 className="ucc-heading-page text-slate-900">
                 {firebaseUser && needsProfileCompletion
                   ? 'Complete Student Profile'
                   : 'Student Account Activation'}
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="ucc-body-secondary text-slate-500 mt-1">
                 {firebaseUser && needsProfileCompletion
                   ? 'Enter your official University of Cape Coast registration details below.'
                   : 'Create your account instantly with Google or activate using your UCC student details.'}
@@ -276,7 +276,7 @@ export const StudentRegisterPage: React.FC = () => {
 
               <div className="relative flex items-center py-0.5">
                 <div className="flex-grow border-t border-slate-200" />
-                <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span className="shrink mx-3 ucc-caption font-semibold uppercase tracking-wider text-slate-400">
                   or activate with email verification
                 </span>
                 <div className="flex-grow border-t border-slate-200" />
@@ -285,14 +285,14 @@ export const StudentRegisterPage: React.FC = () => {
           )}
 
           {googleSuccessMessage && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 ucc-body-secondary text-emerald-900">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="font-bold">{googleSuccessMessage}</span>
+              <span className="font-semibold">{googleSuccessMessage}</span>
             </div>
           )}
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 ucc-body-secondary text-[#C62828]">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-medium">{error}</span>
             </div>
@@ -303,11 +303,11 @@ export const StudentRegisterPage: React.FC = () => {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="space-y-1.5">
-                  <h3 className="text-base font-bold text-emerald-950">
+                  <h3 className="ucc-heading-card text-emerald-950">
                     Check Your Email Inbox to Complete Activation
                   </h3>
-                  <p className="text-xs text-emerald-800 leading-relaxed">{sentMessage}</p>
-                  <p className="text-[11px] text-emerald-700 pt-1">
+                  <p className="ucc-body-secondary text-emerald-800">{sentMessage}</p>
+                  <p className="ucc-caption font-normal text-emerald-700 pt-1">
                     Note: After clicking the link, your email will be verified and your profile will be saved to Cloud Firestore with status{' '}
                     <strong>Pending Electoral Roll Verification</strong> until confirmed by the UCC Electoral Commission.
                   </p>
@@ -318,14 +318,14 @@ export const StudentRegisterPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSentMessage(null)}
-                  className="px-4 py-2 rounded-lg border border-emerald-300 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                  className="px-4 py-2 rounded-lg border border-emerald-300 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
                 >
                   Use Another Email
                 </button>
                 <button
                   type="button"
                   onClick={() => navigateTo('student_login')}
-                  className="px-4 py-2 rounded-lg bg-[#123B70] text-white text-xs font-bold hover:bg-[#0B1F3A] cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-[#123B70] text-white text-sm font-semibold hover:bg-[#0B1F3A] cursor-pointer"
                 >
                   Back to Student Sign In
                 </button>
@@ -335,7 +335,7 @@ export const StudentRegisterPage: React.FC = () => {
             <form onSubmit={handleActivate} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     UCC Student ID *
                   </label>
                   <input
@@ -344,12 +344,12 @@ export const StudentRegisterPage: React.FC = () => {
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
                     placeholder="e.g. PS/CSC/22/0041"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono uppercase focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base uppercase focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Index / Reference Number *
                   </label>
                   <input
@@ -358,14 +358,14 @@ export const StudentRegisterPage: React.FC = () => {
                     value={indexNumber}
                     onChange={(e) => setIndexNumber(e.target.value)}
                     placeholder="e.g. 10945120"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Full Legal Name *
                   </label>
                   <input
@@ -374,12 +374,12 @@ export const StudentRegisterPage: React.FC = () => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="As shown on student ID card"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Phone Number
                   </label>
                   <input
@@ -387,13 +387,13 @@ export const StudentRegisterPage: React.FC = () => {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="e.g. +233 24 000 0000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Email Address *
                 </label>
                 <div className="relative">
@@ -405,20 +405,20 @@ export const StudentRegisterPage: React.FC = () => {
                     value={firebaseUser?.email && needsProfileCompletion ? firebaseUser.email : email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email (@stu.ucc.edu.gh, Gmail, or any valid email)"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none disabled:bg-slate-100"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none disabled:bg-slate-100"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Faculty / School *
                   </label>
                   <select
                     value={faculty}
                     onChange={(e) => handleFacultyChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   >
                     {faculties.map((f) => (
                       <option key={f.id} value={f.name}>
@@ -429,13 +429,13 @@ export const StudentRegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Academic Department *
                   </label>
                   <select
                     value={department}
                     onChange={(e) => handleDepartmentChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   >
                     {(filteredDepartments.length > 0 ? filteredDepartments : departments).map(
                       (d) => (
@@ -450,14 +450,14 @@ export const StudentRegisterPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Programme
                   </label>
                   {selectedDeptObj && selectedDeptObj.programmes.length > 0 ? (
                     <select
                       value={programme}
                       onChange={(e) => setProgramme(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                     >
                       {selectedDeptObj.programmes.map((p) => (
                         <option key={p} value={p}>
@@ -471,19 +471,19 @@ export const StudentRegisterPage: React.FC = () => {
                       value={programme}
                       onChange={(e) => setProgramme(e.target.value)}
                       placeholder="Programme of study"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base outline-none"
                     />
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Academic Level *
                   </label>
                   <select
                     value={level}
                     onChange={(e) => setLevel(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   >
                     <option value="100">Level 100</option>
                     <option value="200">Level 200</option>
@@ -494,13 +494,13 @@ export const StudentRegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Hall of Residence *
                   </label>
                   <select
                     value={hall}
                     onChange={(e) => setHall(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   >
                     {halls.map((h) => (
                       <option key={h.id} value={h.name}>
@@ -517,7 +517,7 @@ export const StudentRegisterPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 rounded-xl bg-[#C62828] hover:bg-[#A61E1E] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+                className="w-full py-3 rounded-xl bg-[#C62828] hover:bg-[#A61E1E] text-white text-sm sm:text-base font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
@@ -542,13 +542,13 @@ export const StudentRegisterPage: React.FC = () => {
             </form>
           )}
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between ucc-body-secondary">
             <span className="text-slate-500">
               Already activated?{' '}
               <button
                 type="button"
                 onClick={() => navigateTo('student_login')}
-                className="font-bold text-[#123B70] hover:underline cursor-pointer"
+                className="font-semibold text-[#123B70] hover:underline cursor-pointer"
               >
                 Sign In with Email Link
               </button>

@@ -556,10 +556,10 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               <UserPlus className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+              <h2 className="ucc-heading-card text-white">
                 {candidateToEdit ? 'Edit Candidate Dossier' : 'Candidate Nomination & Application Form'}
               </h2>
-              <p className="text-xs text-blue-100">
+              <p className="ucc-body-secondary text-blue-100">
                 Official Electoral Commission Aspirant Registry · University of Cape Coast
               </p>
             </div>
@@ -577,14 +577,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
           
           {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2.5">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 ucc-body-secondary flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -592,14 +592,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
           {/* SECTION 1: Personal & Student Identity */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+            <h3 className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5" />
               <span>1. Aspirant Identity & Academic Credentials</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -607,13 +607,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="e.g. Nana Akua Afriyie Osei"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Student ID <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -621,13 +621,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
                   placeholder="e.g. ED/EPS/21/0034"
-                  className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm tabular-nums rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Campaign Nickname / Moniker
                 </label>
                 <input
@@ -635,12 +635,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="e.g. Iron Lady of Cape Coast"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   University Email <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -648,18 +648,18 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. name@st.ucc.edu.gh"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Faculty or School <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={faculty}
                   onChange={(e) => setFaculty(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
                   {faculty === 'Not verified' && <option value="Not verified">Not verified</option>}
                   {facultyOptions.map((f) => (
@@ -669,7 +669,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Department <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -677,12 +677,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                   placeholder="e.g. Educational Foundations"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Programme of Study <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -690,18 +690,18 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={programme}
                   onChange={(e) => setProgramme(e.target.value)}
                   placeholder="e.g. B.Ed. Psychology and Foundations"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Academic Level <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={level}
                   onChange={(e) => setLevel(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
                   {(level as string) === 'Not verified' && (
                     <option value="Not verified">Not verified</option>
@@ -715,13 +715,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Hall of Residence <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={hall}
                   onChange={(e) => setHall(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
                   {halls.map((h) => (
                     <option key={h.id} value={h.name}>
@@ -739,13 +739,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             {candidateToEdit?.isHistoricalRecord && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Historical Outcome Designation
                   </label>
                   <select
                     value={historicalRole}
                     onChange={(e) => setHistoricalRole(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                   >
                     <option value="">None specified</option>
                     <option value="Winner">Winner</option>
@@ -755,7 +755,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">
                     Historical Outcome Note
                   </label>
                   <input
@@ -763,7 +763,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                     value={historicalOutcomeNote}
                     onChange={(e) => setHistoricalOutcomeNote(e.target.value)}
                     placeholder="Optional historical record note"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   />
                 </div>
               </div>
@@ -772,14 +772,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
           {/* SECTION 2: Election & Contested Portfolio */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+            <h3 className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5" />
               <span>2. Election Target & Position Contested</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Target Election <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -793,7 +793,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                       if (nextHall) setHall(nextHall.name);
                     }
                   }}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                 >
                   {selectableElections.map((el) => (
                     <option key={el.id} value={el.id}>
@@ -804,13 +804,13 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Position Being Contested <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedPositionId}
                   onChange={(e) => setSelectedPositionId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white"
                   disabled={availablePositions.length === 0}
                 >
                   {availablePositions.length === 0 && (
@@ -828,7 +828,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
           {/* SECTION 3: Profile Photograph */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+            <h3 className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <ImageIcon className="w-3.5 h-3.5" />
               <span>3. Candidate Profile Photograph (Firebase Storage)</span>
             </h3>
@@ -840,19 +840,19 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   alt={fullName || 'Candidate preview'}
                   className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-[#123B70] shadow-sm"
                 />
-                <span className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-[#123B70] text-white text-[9px] font-bold rounded-full">
+                <span className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-[#123B70] text-white ucc-caption font-semibold rounded-full">
                   {uploadingPhoto ? 'UPLOADING' : 'PREVIEW'}
                 </span>
               </div>
 
               <div className="space-y-3 flex-1 min-w-0 w-full">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1.5">
                     Upload Official Candidate Portrait (JPEG, PNG or WebP, max 5 MB):
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <label
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border ucc-btn font-semibold transition-colors ${
                         uploadingPhoto
                           ? 'border-[#123B70]/50 bg-[#EAF2FA] text-[#123B70] cursor-wait'
                           : 'border-[#123B70] bg-[#EAF2FA]/60 hover:bg-[#EAF2FA] text-[#123B70] cursor-pointer'
@@ -888,7 +888,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                       <button
                         type="button"
                         onClick={handleCancelPhotoUpload}
-                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 ucc-btn font-semibold cursor-pointer transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                         <span>Cancel Upload</span>
@@ -898,7 +898,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
                   {uploadingPhoto && uploadProgress !== null && (
                     <div className="mt-2.5 space-y-1">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-[#123B70]">
+                      <div className="flex items-center justify-between ucc-caption font-semibold text-[#123B70] tabular-nums">
                         <span>Uploading to Firebase Storage...</span>
                         <span>{uploadProgress}%</span>
                       </div>
@@ -912,7 +912,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   )}
 
                   {!uploadingPhoto && uploadStatus === 'success' && photoUrl && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                    <div className="mt-2 inline-flex items-center gap-1.5 ucc-caption font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
                       <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                       <span>
                         {uploadProgress === 100
@@ -923,7 +923,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   )}
 
                   {!uploadingPhoto && uploadStatus === 'error' && uploadError && (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-start gap-2">
                         <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                         <span>{uploadError}</span>
@@ -932,7 +932,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                         <button
                           type="button"
                           onClick={() => handlePhotoFileUpload(lastSelectedFile)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold shrink-0 cursor-pointer transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white ucc-caption font-semibold shrink-0 cursor-pointer transition-colors"
                         >
                           <RotateCcw className="w-3 h-3" />
                           <span>Retry Upload</span>
@@ -943,7 +943,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-600 mb-1">
                     Or Paste Verified Image URL:
                   </label>
                   <input
@@ -959,7 +959,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                       setUploadStatus(val.trim().startsWith('http') ? 'success' : 'idle');
                     }}
                     placeholder="https://firebasestorage.googleapis.com/..."
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                    className="w-full px-3 py-1.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                   />
                 </div>
               </div>
@@ -968,14 +968,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
           {/* SECTION 4: Biography & Leadership Experience */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+            <h3 className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
               <span>4. Biography & Track Record</span>
             </h3>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Candidate Biography (Overview & Background)
                 </label>
                 <textarea
@@ -983,12 +983,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={biography}
                   onChange={(e) => setBiography(e.target.value)}
                   placeholder="Provide a comprehensive academic, leadership, and personal background summary..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Leadership Experience & Accomplishments (One per line)
                 </label>
                 <textarea
@@ -996,7 +996,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={leadershipExpText}
                   onChange={(e) => setLeadershipExpText(e.target.value)}
                   placeholder="SRC Welfare Committee Chairperson (2024/2025)&#10;Adehye Hall Academic Secretary (2023/2024)&#10;UCC Debate Lead Delegate"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
             </div>
@@ -1004,14 +1004,14 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
           {/* SECTION 5: Manifesto & Promises */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+            <h3 className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5" />
               <span>5. Manifesto, Pledges & Campaign Media</span>
             </h3>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Campaign Statement / Tagline
                 </label>
                 <input
@@ -1019,12 +1019,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={campaignStatement}
                   onChange={(e) => setCampaignStatement(e.target.value)}
                   placeholder="Optional concise election tagline or vision statement"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Manifesto Elevator Summary <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1032,12 +1032,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={manifestoSummary}
                   onChange={(e) => setManifestoSummary(e.target.value)}
                   placeholder="A concise 1-2 sentence core campaign message or slogan"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Full Manifesto Pillars & Policy Proposals (One per line) <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -1045,12 +1045,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={fullManifestoText}
                   onChange={(e) => setFullManifestoText(e.target.value)}
                   placeholder="Overhaul and expansion of the intra-campus shuttle network with real-time tracking&#10;Solar-powered study pavilions across Old Site and New Site&#10;Establishing the GH₵250,000 UCC Student Enterprise Seed Grant"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Concrete Campaign Promises (Pledges to Students - One per line)
                 </label>
                 <textarea
@@ -1058,12 +1058,12 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={keyPromisesText}
                   onChange={(e) => setKeyPromisesText(e.target.value)}
                   placeholder="24/7 charging zones in lecture theatres&#10;Direct Dean-Student quarterly open town halls&#10;Free digital textbook and recorded lecture repository"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                   <Video className="w-3.5 h-3.5 text-[#123B70]" />
                   <span>Optional Campaign Video URL (YouTube, Vimeo or MP4 stream)</span>
                 </label>
@@ -1072,7 +1072,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                   placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
             </div>
@@ -1089,8 +1089,8 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
             programme.trim() !== (candidateToEdit.programme || '').trim() ||
             level !== (candidateToEdit.level || '') ||
             hall !== (candidateToEdit.hall || '')) && (
-            <div className="mx-6 mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950">
-              <label className="flex items-center gap-2 font-bold cursor-pointer">
+            <div className="mx-6 mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 ucc-body-secondary text-amber-950">
+              <label className="flex items-center gap-2 font-semibold cursor-pointer">
                 <input
                   type="checkbox"
                   checked={confirmPermanentSync}
@@ -1106,7 +1106,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="text-xs text-slate-500">
+          <div className="ucc-body-secondary text-slate-500">
             {candidateToEdit ? (
               <span>Status: <strong className="text-[#123B70]">{candidateToEdit.applicationStatus}</strong></span>
             ) : (
@@ -1119,7 +1119,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="px-4 py-2 ucc-btn font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -1129,7 +1129,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+                className="px-4 py-2 ucc-btn font-semibold rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
               >
                 Save as Draft
               </button>
@@ -1139,7 +1139,7 @@ export const CandidateRegistrationModal: React.FC<CandidateRegistrationModalProp
               type="button"
               onClick={() => handleSubmit(false)}
               disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-5 py-2 ucc-btn font-semibold rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               {isSubmitting ? (
                 <span>Processing...</span>

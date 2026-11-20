@@ -181,14 +181,14 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between pb-3 border-b border-slate-200">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#123B70] mb-1">
+            <div className="flex items-center gap-1.5 ucc-caption font-semibold text-[#123B70] mb-1">
               <Award className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Ballot Portfolios & Contested Offices</span>
             </div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">
+            <h3 className="ucc-heading-card text-slate-900">
               Manage Positions: {election.title}
             </h3>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">
+            <p className="ucc-caption text-slate-500 tabular-nums mt-0.5">
               {election.id} · {election.category}
               {election.subdomainLabel ? ` · ${election.subdomainLabel}` : ''}
             </p>
@@ -202,7 +202,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
         </div>
 
         {(isLocalNugs || isJcrcHall) && (
-          <div className="p-3 rounded-xl bg-[#EAF2FA] border border-blue-200 text-xs text-[#123B70] leading-relaxed">
+          <div className="p-3 rounded-xl bg-[#EAF2FA] border border-blue-200 ucc-body-secondary text-[#123B70]">
             {isLocalNugs
               ? 'Local NUGS Policy: Positions are dynamically configurable by authorized administrators—add, rename, edit, or remove portfolios freely before polls go live.'
               : 'Hall Constitution Policy: Each residential hall maintains its own independent JCRC portfolios according to its approved hall constitution.'}
@@ -210,21 +210,21 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
         )}
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 ucc-body-secondary flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>{successMsg}</span>
           </div>
         )}
 
         {isLiveOrClosed && (
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 ucc-body-secondary flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
             <span>
               This election is {getElectionStatusMeta(election).label.toUpperCase()}. Position structures are locked to preserve ballot integrity.
@@ -234,15 +234,15 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
 
         {/* Existing Positions List */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+          <div className="flex items-center justify-between ucc-label font-semibold text-slate-700">
             <span>Configured Contested Portfolios ({positions.length})</span>
-            <span className="text-slate-400 font-mono">Order of Appearance</span>
+            <span className="ucc-caption text-slate-400">Order of Appearance</span>
           </div>
 
           {loading ? (
-            <div className="p-6 text-center text-xs text-slate-500">Loading portfolios...</div>
+            <div className="p-6 text-center ucc-body-secondary text-slate-500">Loading portfolios...</div>
           ) : positions.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="p-6 text-center ucc-body-secondary text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
               No positions configured yet for this election. Add portfolios below.
             </div>
           ) : (
@@ -250,63 +250,63 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
               {positions.map((pos) => (
                 <div
                   key={pos.id}
-                  className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 text-xs space-y-2.5"
+                  className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5"
                 >
                   {editingPosId === pos.id ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Portfolio Title</label>
+                          <label className="block ucc-label font-semibold text-slate-700 mb-1">Portfolio Title</label>
                           <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Max Selections</label>
+                          <label className="block ucc-label font-semibold text-slate-700 mb-1">Max Selections</label>
                           <input
                             type="number"
                             min={1}
                             max={5}
                             value={editMaxSelections}
                             onChange={(e) => setEditMaxSelections(parseInt(e.target.value, 10) || 1)}
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm tabular-nums text-slate-900"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block font-bold text-slate-700 mb-1">Description</label>
+                        <label className="block ucc-label font-semibold text-slate-700 mb-1">Description</label>
                         <input
                           type="text"
                           value={editDescription}
                           onChange={(e) => setEditDescription(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Qualification Rule</label>
+                          <label className="block ucc-label font-semibold text-slate-700 mb-1">Qualification Rule</label>
                           <input
                             type="text"
                             value={editEligibilityRules}
                             onChange={(e) => setEditEligibilityRules(e.target.value)}
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Voting Rule</label>
+                          <label className="block ucc-label font-semibold text-slate-700 mb-1">Voting Rule</label>
                           <input
                             type="text"
                             value={editVotingRules}
                             onChange={(e) => setEditVotingRules(e.target.value)}
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
                           />
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+                        <label className="flex items-center gap-2 cursor-pointer ucc-body-secondary text-slate-700">
                           <input
                             type="checkbox"
                             checked={editAllowsSkip}
@@ -319,14 +319,14 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setEditingPosId(null)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer"
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 ucc-caption font-semibold cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             type="button"
                             onClick={() => handleSaveEdit(pos.id)}
-                            className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white ucc-caption font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>Save Update</span>
@@ -338,17 +338,17 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-[#123B70] text-white flex items-center justify-center font-mono font-bold text-[11px] shrink-0">
+                          <span className="w-6 h-6 rounded-lg bg-[#123B70] text-white flex items-center justify-center ucc-caption font-semibold tabular-nums shrink-0">
                             {pos.order}
                           </span>
-                          <h4 className="font-bold text-slate-900 text-sm">{pos.title}</h4>
+                          <h4 className="ucc-label font-semibold text-slate-900">{pos.title}</h4>
                           <span className="text-slate-400">·</span>
-                          <span className="text-slate-600 text-[11px] font-mono tabular-nums">
+                          <span className="text-slate-600 ucc-caption tabular-nums">
                             Max {pos.maxSelections} {pos.maxSelections > 1 ? 'votes' : 'vote'}
                           </span>
                         </div>
-                        <p className="text-slate-600 text-[11px]">{pos.description}</p>
-                        <div className="text-[10px] text-slate-500 font-mono pt-0.5">
+                        <p className="text-slate-600 ucc-body-secondary">{pos.description}</p>
+                        <div className="ucc-caption text-slate-500 pt-0.5">
                           Rule: {pos.candidateEligibilityRules || 'Accredited student'} · Abstain allowed: {pos.allowsSkip ? 'YES' : 'NO'}
                         </div>
                       </div>
@@ -383,15 +383,15 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
 
         {/* Add New Position Form (if not locked) */}
         {!isLiveOrClosed && (
-          <form onSubmit={handleAddPosition} className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 text-xs">
-            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+          <form onSubmit={handleAddPosition} className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3">
+            <h4 className="ucc-label font-semibold text-slate-900 flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Add New Contested Office</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Portfolio Title <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -400,12 +400,12 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                   placeholder="e.g. Women's Commissioner or Treasurer"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Max Candidate Selections
                 </label>
                 <input
@@ -414,13 +414,13 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                   max={5}
                   value={maxSelections}
                   onChange={(e) => setMaxSelections(parseInt(e.target.value, 10) || 1)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm tabular-nums text-slate-900"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block ucc-label font-semibold text-slate-700 mb-1">
                 Portfolio Description & Mandate
               </label>
               <input
@@ -428,38 +428,38 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
                 placeholder="Official constitutional responsibilities..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Candidate Qualification Rule
                 </label>
                 <input
                   type="text"
                   value={candidateEligibilityRules}
                   onChange={(e) => setCandidateEligibilityRules(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1">
                   Voting Rule
                 </label>
                 <input
                   type="text"
                   value={votingRules}
                   onChange={(e) => setVotingRules(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900"
                 />
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer ucc-body-secondary text-slate-700">
                 <input
                   type="checkbox"
                   checked={allowsSkip}
@@ -471,7 +471,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
 
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                className="px-4 py-2 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 Add Portfolio
               </button>
@@ -483,7 +483,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-900 cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-slate-800 text-white ucc-btn font-semibold hover:bg-slate-900 cursor-pointer"
           >
             Done
           </button>

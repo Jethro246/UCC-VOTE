@@ -165,19 +165,19 @@ export const StudentLoginPage: React.FC = () => {
           <div className="space-y-6 relative">
             <Logo theme="dark" variant="compact" />
             <div className="space-y-2 pt-2">
-              <span className="inline-block px-2.5 py-0.5 rounded bg-blue-950 border border-blue-700/50 text-[10px] font-bold uppercase tracking-wider text-sky-300">
+              <span className="inline-block px-2.5 py-0.5 rounded bg-blue-950 border border-blue-700/50 ucc-caption font-semibold uppercase tracking-wider text-sky-300">
                 UCC Student Authentication
               </span>
-              <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
+              <h2 className="ucc-heading-section text-white">
                 Verified Student Sign-In
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="ucc-body-secondary text-slate-300">
                 Authenticate securely using your Google account, a passwordless email sign-in link, or your configured account password.
               </p>
             </div>
           </div>
 
-          <div className="space-y-3 pt-8 text-xs text-slate-300 relative">
+          <div className="space-y-3 pt-8 ucc-body-secondary text-slate-300 relative">
             <div className="flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <p>Gmail, @stu.ucc.edu.gh, and other valid email accounts are all supported.</p>
@@ -194,8 +194,8 @@ export const StudentLoginPage: React.FC = () => {
         {/* Right Form Panel */}
         <div className="lg:col-span-7 p-6 sm:p-10 space-y-5">
           <div className="space-y-1.5">
-            <h1 className="text-2xl font-extrabold text-slate-900">Student Portal Sign In</h1>
-            <p className="text-xs text-slate-500">
+            <h1 className="ucc-heading-page text-slate-900">Student Portal Sign In</h1>
+            <p className="ucc-body-secondary text-slate-500">
               Sign in with Google, a one-time email link, or your configured password.
             </p>
           </div>
@@ -211,7 +211,7 @@ export const StudentLoginPage: React.FC = () => {
 
           <div className="relative flex items-center py-1">
             <div className="flex-grow border-t border-slate-200" />
-            <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="shrink mx-3 ucc-caption font-semibold uppercase tracking-wider text-slate-400">
               or sign in with email
             </span>
             <div className="flex-grow border-t border-slate-200" />
@@ -225,14 +225,14 @@ export const StudentLoginPage: React.FC = () => {
                 setAuthMethod('email_link');
                 setError(null);
               }}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                 authMethod === 'email_link'
                   ? 'bg-[#123B70] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Mail className="w-3.5 h-3.5" />
-              <span>Email Link (Passwordless)</span>
+              <Mail className="w-4 h-4 shrink-0" />
+              <span>Email Link</span>
             </button>
             <button
               type="button"
@@ -241,45 +241,45 @@ export const StudentLoginPage: React.FC = () => {
                 setError(null);
                 setLinkSentMessage(null);
               }}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                 authMethod === 'password'
                   ? 'bg-[#123B70] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <KeyRound className="w-3.5 h-3.5" />
+              <KeyRound className="w-4 h-4 shrink-0" />
               <span>Email & Password</span>
             </button>
           </div>
 
           {sessionExpiredReason && (
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 ucc-body-secondary text-amber-900">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>{sessionExpiredReason}</span>
             </div>
           )}
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 ucc-body-secondary text-[#C62828]">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-medium">{error}</span>
             </div>
           )}
 
           {googleSuccessMessage && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 ucc-body-secondary text-emerald-900">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="font-bold">{googleSuccessMessage}</span>
+              <span className="font-semibold">{googleSuccessMessage}</span>
             </div>
           )}
 
           {linkSentMessage && (
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2 text-xs text-emerald-950">
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2 ucc-body-secondary text-emerald-950">
               <div className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-bold">Sign-In Link Dispatched</p>
-                  <p className="leading-relaxed text-emerald-800">{linkSentMessage}</p>
+                  <p className="font-semibold">Sign-In Link Dispatched</p>
+                  <p className="text-emerald-800">{linkSentMessage}</p>
                 </div>
               </div>
             </div>
@@ -288,7 +288,7 @@ export const StudentLoginPage: React.FC = () => {
           {authMethod === 'email_link' ? (
             <form onSubmit={handleSendEmailLink} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1.5">
                   Email Address
                 </label>
                 <div className="relative">
@@ -299,10 +299,10 @@ export const StudentLoginPage: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email address (e.g. name@stu.ucc.edu.gh or Gmail)"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1.5">
+                <p className="ucc-caption font-normal text-slate-500 mt-1.5">
                   We accept @stu.ucc.edu.gh, Gmail, and any valid email address. Check your spam/junk folder if you do not see the email within a minute.
                 </p>
               </div>
@@ -310,7 +310,7 @@ export const StudentLoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading || resendCooldown > 0}
-                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm sm:text-base font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
@@ -330,7 +330,7 @@ export const StudentLoginPage: React.FC = () => {
           ) : (
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block ucc-label font-semibold text-slate-700 mb-1.5">
                   Registered Email Address
                 </label>
                 <div className="relative">
@@ -341,18 +341,18 @@ export const StudentLoginPage: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your registered email"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700">Password</label>
+                  <label className="ucc-label font-semibold text-slate-700">Password</label>
                   <button
                     type="button"
                     onClick={() => navigateTo('forgot_password')}
-                    className="text-xs font-semibold text-[#123B70] hover:underline cursor-pointer"
+                    className="ucc-label font-semibold text-[#123B70] hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -365,7 +365,7 @@ export const StudentLoginPage: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                   />
                   <button
                     type="button"
@@ -380,7 +380,7 @@ export const StudentLoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+                className="w-full py-3 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-sm sm:text-base font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
@@ -397,13 +397,13 @@ export const StudentLoginPage: React.FC = () => {
             </form>
           )}
 
-          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 ucc-body-secondary">
             <span className="text-slate-500">
               First time on UCC VOTE?{' '}
               <button
                 type="button"
                 onClick={() => navigateTo('student_register')}
-                className="font-bold text-[#123B70] hover:underline cursor-pointer"
+                className="font-semibold text-[#123B70] hover:underline cursor-pointer"
               >
                 Activate Student Account
               </button>

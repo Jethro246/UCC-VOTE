@@ -15,6 +15,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { ComplaintTicket } from '../../types';
+import { formatNumber, formatPercentage } from '../../utils/numberFormat';
 
 export const HelpSupportPage: React.FC = () => {
   const { complaints, domains, submitComplaint, userRole, firebaseUser, navigateTo } = useApp();
@@ -89,13 +90,13 @@ export const HelpSupportPage: React.FC = () => {
         <div className="flex items-start sm:items-center gap-3.5">
           <Logo variant="default" showWordmark={false} />
           <div>
-            <span className="text-xs font-bold text-[#C62828] uppercase tracking-wider">
+            <span className="ucc-caption font-semibold text-[#C62828] uppercase tracking-wider">
               Student Support & Grievances
             </span>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+            <h1 className="ucc-heading-page text-slate-900 mt-0.5">
               Electoral Complaint & Support Desk
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            <p className="ucc-body-secondary text-slate-600 mt-1">
               Submit inquiries, report technical ballot difficulties, or file formal irregularity petitions to the Commission.
             </p>
           </div>
@@ -104,7 +105,7 @@ export const HelpSupportPage: React.FC = () => {
         <div className="flex items-center gap-1.5 self-start md:self-auto">
           <button
             onClick={() => setActiveTab('submit')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl ucc-btn font-semibold transition-colors cursor-pointer ${
               activeTab === 'submit'
                 ? 'bg-[#123B70] text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -114,13 +115,13 @@ export const HelpSupportPage: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('track')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl ucc-btn font-semibold transition-colors cursor-pointer tabular-nums ${
               activeTab === 'track'
                 ? 'bg-[#123B70] text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Track Status ({complaints.length})
+            Track Status ({formatNumber(complaints.length)})
           </button>
         </div>
       </div>
@@ -131,16 +132,16 @@ export const HelpSupportPage: React.FC = () => {
           {userRole !== 'student' ? (
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
               <Lock className="w-8 h-8 text-[#123B70] mx-auto" />
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="ucc-heading-card text-slate-900">
                 Sign In Required to File a Support Ticket
               </h3>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
+              <p className="ucc-body-secondary text-slate-600 max-w-md mx-auto">
                 Sign in with your activated UCC VOTE student account so your ticket is securely linked to your profile for Commission follow-up.
               </p>
               <button
                 type="button"
                 onClick={() => navigateTo('student_login')}
-                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold cursor-pointer"
               >
                 Sign In to File Ticket
               </button>
@@ -150,19 +151,19 @@ export const HelpSupportPage: React.FC = () => {
               <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="ucc-heading-card text-slate-900">
                 Complaint Successfully Saved
               </h3>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
+              <p className="ucc-body-secondary text-slate-600 max-w-md mx-auto">
                 Your petition has been saved to Cloud Firestore and routed to the Electoral Commission Support Desk.
               </p>
-              <div className="p-3 bg-white rounded-xl border border-emerald-300 inline-block font-mono font-bold text-sm text-[#123B70]">
+              <div className="p-3 bg-white rounded-xl border border-emerald-300 inline-block font-mono tabular-nums font-semibold text-sm text-[#123B70]">
                 Tracking Number: {generatedTicketNumber}
               </div>
               <div className="pt-2">
                 <button
                   onClick={() => setGeneratedTicketNumber('')}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                  className="px-4 py-2 rounded-lg ucc-btn font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"
                 >
                   File Another Inquiry
                 </button>
@@ -170,15 +171,15 @@ export const HelpSupportPage: React.FC = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="p-3 bg-[#EAF2FA] rounded-xl text-xs text-[#123B70] flex items-start gap-2.5">
+              <div className="p-3 bg-[#EAF2FA] rounded-xl ucc-body-secondary text-[#123B70] flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 shrink-0 text-[#123B70] mt-0.5" />
-                <p className="leading-relaxed">
+                <p>
                   All election petitions are recorded with your authenticated student identity and reviewed directly by the UCC Electoral Commission.
                 </p>
               </div>
 
               {submitError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-[#C62828] flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 ucc-body-secondary text-[#C62828] flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{submitError}</span>
                 </div>
@@ -186,13 +187,13 @@ export const HelpSupportPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  <label className="block ucc-caption font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                     Complaint / Inquiry Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
                   >
                     <option value="technical">Technical Difficulty</option>
                     <option value="eligibility">Voter Roll Eligibility Query</option>
@@ -202,13 +203,13 @@ export const HelpSupportPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  <label className="block ucc-caption font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                     Related Election Domain
                   </label>
                   <select
                     value={domainId}
                     onChange={(e) => setDomainId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70] bg-white font-medium"
                   >
                     {domains.map((dom) => (
                       <option key={dom.id} value={dom.id}>
@@ -220,7 +221,7 @@ export const HelpSupportPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block ucc-caption font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                   Subject Headline
                 </label>
                 <input
@@ -229,12 +230,12 @@ export const HelpSupportPage: React.FC = () => {
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Describe the issue briefly"
                   required
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block ucc-caption font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                   Detailed Description & Evidence
                 </label>
                 <textarea
@@ -243,19 +244,19 @@ export const HelpSupportPage: React.FC = () => {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Provide precise details, error messages, portfolio involved, and timestamps..."
                   required
-                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:border-[#123B70]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block ucc-caption font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                   Supporting Evidence Attachment (Optional — PDF / Image up to 10 MB)
                 </label>
-                <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed border-slate-300 hover:border-[#123B70] bg-slate-50 text-xs text-slate-600 cursor-pointer">
+                <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed border-slate-300 hover:border-[#123B70] bg-slate-50 ucc-body-secondary text-slate-600 cursor-pointer">
                   <Paperclip className="w-4 h-4 text-[#123B70]" />
                   <span>
                     {attachmentFile
-                      ? `${attachmentFile.name} (${Math.round(attachmentFile.size / 1024)} KB)`
+                      ? `${attachmentFile.name} (${formatNumber(Math.round(attachmentFile.size / 1024))} KB)`
                       : 'Attach screenshot or supporting PDF document'}
                   </span>
                   <input
@@ -266,8 +267,8 @@ export const HelpSupportPage: React.FC = () => {
                   />
                 </label>
                 {uploadProgress !== null && (
-                  <p className="text-[11px] font-mono text-[#123B70] mt-1">
-                    Uploading to Firebase Storage: {uploadProgress}%
+                  <p className="ucc-caption tabular-nums text-[#123B70] mt-1">
+                    Uploading to Firebase Storage: {formatPercentage(uploadProgress)}
                   </p>
                 )}
               </div>
@@ -275,7 +276,7 @@ export const HelpSupportPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-[#C62828] hover:bg-red-700 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
+                className="w-full py-3 px-4 rounded-xl font-semibold ucc-btn text-white bg-[#C62828] hover:bg-red-700 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
               >
                 {submitting ? (
                   <>
@@ -304,11 +305,11 @@ export const HelpSupportPage: React.FC = () => {
                 value={searchTicket}
                 onChange={(e) => setSearchTicket(e.target.value)}
                 placeholder="Search your submitted ticket number"
-                className="flex-1 px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 font-mono focus:outline-none focus:border-[#123B70]"
+                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-300 font-mono tabular-nums focus:outline-none focus:border-[#123B70]"
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-[#123B70] text-white text-xs font-bold rounded-xl hover:bg-[#0B1F3A] cursor-pointer"
+                className="px-4 py-2 bg-[#123B70] text-white ucc-btn font-semibold rounded-xl hover:bg-[#0B1F3A] cursor-pointer"
               >
                 Track Ticket
               </button>
@@ -317,18 +318,18 @@ export const HelpSupportPage: React.FC = () => {
             {searchedTicket && (
               <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-xs text-[#123B70]">
+                  <span className="font-mono tabular-nums font-semibold ucc-caption text-[#123B70]">
                     {searchedTicket.ticketNumber}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                  <span className="px-2 py-0.5 rounded ucc-caption font-semibold uppercase bg-emerald-100 text-emerald-800">
                     {searchedTicket.status}
                   </span>
                 </div>
-                <h4 className="text-sm font-bold text-slate-900">{searchedTicket.subject}</h4>
-                <p className="text-xs text-slate-600">{searchedTicket.description}</p>
+                <h4 className="ucc-body-secondary font-semibold text-slate-900">{searchedTicket.subject}</h4>
+                <p className="ucc-body-secondary text-slate-600">{searchedTicket.description}</p>
                 {searchedTicket.response && (
-                  <div className="mt-2 p-2.5 bg-white rounded border border-slate-200 text-xs text-slate-700">
-                    <strong className="text-slate-900 block mb-0.5">Commission Response:</strong>
+                  <div className="mt-2 p-2.5 bg-white rounded border border-slate-200 ucc-body-secondary text-slate-700">
+                    <strong className="text-slate-900 font-semibold block mb-0.5">Commission Response:</strong>
                     {searchedTicket.response}
                   </div>
                 )}
@@ -337,9 +338,9 @@ export const HelpSupportPage: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Your Submitted Tickets</h3>
+            <h3 className="ucc-heading-card text-slate-900">Your Submitted Tickets</h3>
             {complaints.length === 0 ? (
-              <p className="text-xs text-slate-500 py-6 text-center">
+              <p className="ucc-body-secondary text-slate-500 py-6 text-center">
                 No support tickets have been submitted yet.
               </p>
             ) : (
@@ -349,10 +350,10 @@ export const HelpSupportPage: React.FC = () => {
                     key={c.id}
                     className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2"
                   >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono font-bold text-[#123B70]">{c.ticketNumber}</span>
+                    <div className="flex items-center justify-between ucc-caption">
+                      <span className="font-mono tabular-nums font-semibold text-[#123B70]">{c.ticketNumber}</span>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        className={`px-2 py-0.5 rounded ucc-caption font-semibold uppercase ${
                           c.status === 'resolved'
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-900'
@@ -361,22 +362,22 @@ export const HelpSupportPage: React.FC = () => {
                         {c.status}
                       </span>
                     </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">{c.subject}</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">{c.description}</p>
+                    <h4 className="ucc-body-secondary font-semibold text-slate-900">{c.subject}</h4>
+                    <p className="ucc-body-secondary text-slate-600">{c.description}</p>
                     {c.attachmentUrl && (
                       <a
                         href={c.attachmentUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#123B70] hover:underline"
+                        className="inline-flex items-center gap-1 ucc-caption font-semibold text-[#123B70] hover:underline"
                       >
                         <Paperclip className="w-3.5 h-3.5" />
                         <span>View Uploaded Attachment</span>
                       </a>
                     )}
                     {c.response && (
-                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs text-slate-700 mt-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 ucc-body-secondary text-slate-700 mt-2">
+                        <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-400 block mb-1">
                           Commission Resolution
                         </span>
                         {c.response}
@@ -391,14 +392,14 @@ export const HelpSupportPage: React.FC = () => {
       )}
 
       {/* Commission Contact Desk */}
-      <div className="bg-[#0B1F3A] text-white p-6 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+      <div className="bg-[#0B1F3A] text-white p-6 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-amber-400 shrink-0">
             <Phone className="w-4 h-4" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] uppercase font-bold">Election Hotline</p>
-            <p className="font-semibold text-white mt-0.5">+233 3321 32440</p>
+            <p className="text-slate-400 ucc-caption uppercase font-semibold">Election Hotline</p>
+            <p className="ucc-body-secondary font-semibold text-white tabular-nums mt-0.5">+233 3321 32440</p>
           </div>
         </div>
 
@@ -407,8 +408,8 @@ export const HelpSupportPage: React.FC = () => {
             <Mail className="w-4 h-4" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] uppercase font-bold">Email Desk</p>
-            <p className="font-semibold text-white mt-0.5">elections@ucc.edu.gh</p>
+            <p className="text-slate-400 ucc-caption uppercase font-semibold">Email Desk</p>
+            <p className="ucc-body-secondary font-semibold text-white mt-0.5">elections@ucc.edu.gh</p>
           </div>
         </div>
 
@@ -417,8 +418,8 @@ export const HelpSupportPage: React.FC = () => {
             <MapPin className="w-4 h-4" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] uppercase font-bold">Physical Secretariat</p>
-            <p className="font-semibold text-white mt-0.5">Students' Centre, Room 14</p>
+            <p className="text-slate-400 ucc-caption uppercase font-semibold">Physical Secretariat</p>
+            <p className="ucc-body-secondary font-semibold text-white mt-0.5">Students' Centre, Room 14</p>
           </div>
         </div>
       </div>

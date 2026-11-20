@@ -809,20 +809,20 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 bg-[#102A43] text-white rounded-t-2xl flex items-start justify-between gap-4 shrink-0">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-bold text-[#14B8A6] uppercase tracking-wider">
+            <div className="flex items-center gap-2 ucc-caption font-semibold text-[#14B8A6] uppercase tracking-wider">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>
                 {electionCategory} · {electionTitle || 'New Election'}
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-black tracking-tight mt-0.5">
+            <h2 className="ucc-heading-card text-white mt-0.5">
               {step === 'select'
                 ? 'Select or Register Election Contestants'
                 : step === 'configure'
                 ? 'Assign Position & Review Candidate Information'
                 : 'Preview & Confirm Election Candidates'}
             </h2>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="ucc-body-secondary text-slate-300 mt-0.5">
               {step === 'select'
                 ? 'Search registered UCC contestants across campus records or register a new contestant profile.'
                 : step === 'configure'
@@ -840,7 +840,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
         </div>
 
         {/* Step Bar */}
-        <div className="px-6 py-3 bg-[#F5F7FB] border-b border-slate-200 grid grid-cols-3 gap-2 text-xs shrink-0">
+        <div className="px-6 py-3 bg-[#F5F7FB] border-b border-slate-200 grid grid-cols-3 gap-2 ucc-label shrink-0">
           {[
             { id: 'select', label: '1. Select Contestant' },
             { id: 'configure', label: '2. Position & Edit Info' },
@@ -850,7 +850,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
             return (
               <div
                 key={s.id}
-                className={`py-2 px-3 rounded-xl font-bold text-center transition-colors ${
+                className={`py-2 px-3 rounded-xl font-semibold text-center transition-colors ${
                   active
                     ? 'bg-[#2563EB] text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200'
@@ -865,31 +865,31 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
         {/* Scrollable Content */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {!liveAddGuard.allowed && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs flex items-start gap-2.5">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 ucc-body-secondary flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 text-[#E45757] mt-0.5" />
               <div>
-                <p className="font-bold">Adding candidates is blocked for this election</p>
+                <p className="font-semibold">Adding candidates is blocked for this election</p>
                 <p className="mt-0.5">{liveAddGuard.reason}</p>
               </div>
             </div>
           )}
 
           {liveAddGuard.allowed && liveAddGuard.warning && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 ucc-body-secondary flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
               <span>{liveAddGuard.warning}</span>
             </div>
           )}
 
           {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-[#E45757] mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {uploadError && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-[#E45757] mt-0.5" />
               <span>{uploadError}</span>
             </div>
@@ -897,25 +897,25 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
           {/* STEP 1: SELECT EXISTING OR REGISTER NEW */}
           {step === 'select' && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="inline-flex rounded-xl bg-[#F5F7FB] p-1 border border-slate-200">
                   <button
                     type="button"
                     onClick={() => setSourceTab('existing')}
-                    className={`px-3.5 py-2 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                       sourceTab === 'existing'
                         ? 'bg-[#102A43] text-white'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <Users className="w-3.5 h-3.5" />
-                    <span>Existing Contestants ({contestants.length})</span>
+                    <span className="tabular-nums">Existing Contestants ({contestants.length})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setSourceTab('new')}
-                    className={`px-3.5 py-2 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    className={`px-3.5 py-2 rounded-lg ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                       sourceTab === 'new'
                         ? 'bg-[#2563EB] text-white'
                         : 'text-slate-600 hover:text-slate-900'
@@ -927,13 +927,13 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                 </div>
 
                 {sourceTab === 'existing' && selectedExistingIds.length > 0 && (
-                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-[#102A43] font-bold">
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-[#102A43] font-semibold">
                     <UserCheck className="w-3.5 h-3.5 text-[#2563EB]" />
                     <span className="tabular-nums">{selectedExistingIds.length} selected</span>
                     <button
                       type="button"
                       onClick={() => setSelectedExistingIds([])}
-                      className="text-[11px] text-[#E45757] hover:underline ml-1 cursor-pointer"
+                      className="ucc-caption font-semibold text-[#E45757] hover:underline ml-1 cursor-pointer"
                     >
                       Clear
                     </button>
@@ -950,7 +950,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Search by full name, Student ID, department, programme, faculty, hall, email, or previous election..."
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB] text-slate-900"
+                      className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB] text-slate-900"
                     />
                   </div>
 
@@ -962,7 +962,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         return (
                           <span
                             key={id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 font-semibold"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 ucc-caption font-semibold"
                           >
                             <span>{c.fullName}</span>
                             <button
@@ -993,7 +993,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                               setNewFullName(searchTerm.trim());
                             }
                           }}
-                          className="px-3.5 py-1.5 rounded-lg bg-[#2563EB] text-white font-bold cursor-pointer inline-flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 rounded-lg bg-[#2563EB] text-white ucc-btn font-semibold cursor-pointer inline-flex items-center gap-1.5"
                         >
                           <UserPlus className="w-3.5 h-3.5" />
                           <span>Register New Contestant Instead</span>
@@ -1025,30 +1025,30 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                             />
                             <div className="min-w-0 flex-1 space-y-1">
                               <div className="flex items-start justify-between gap-2">
-                                <div className="font-bold text-slate-900 text-xs truncate">
+                                <div className="font-semibold text-slate-900 ucc-body-secondary truncate">
                                   {entry.fullName}
                                 </div>
                                 {entry.participations.length > 0 && (
-                                  <span className="text-[10px] font-bold text-[#102A43] bg-slate-100 px-1.5 py-0.5 rounded shrink-0 tabular-nums">
+                                  <span className="ucc-caption font-semibold text-[#102A43] bg-slate-100 px-1.5 py-0.5 rounded shrink-0 tabular-nums">
                                     {entry.participations.length} race
                                     {entry.participations.length === 1 ? '' : 's'}
                                   </span>
                                 )}
                               </div>
-                              <div className="font-mono text-[11px] text-slate-600 tabular-nums">
+                              <div className="ucc-caption text-slate-600 tabular-nums">
                                 {entry.studentId || 'ID Not Verified'}
                                 {entry.nickname ? ` · "${entry.nickname}"` : ''}
                               </div>
-                              <div className="text-[11px] text-slate-600 truncate">
+                              <div className="ucc-caption text-slate-600 truncate">
                                 <GraduationCap className="w-3 h-3 inline mr-1 text-slate-400" />
                                 {entry.programme || entry.department}
                               </div>
-                              <div className="text-[10px] text-slate-500 truncate">
+                              <div className="ucc-caption text-slate-500 truncate">
                                 <Building2 className="w-3 h-3 inline mr-1 text-slate-400" />
                                 {entry.faculty} · {entry.hall} · Level {entry.level}
                               </div>
                               {existingInElection.length > 0 && (
-                                <div className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                <div className="ucc-caption font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                                   Already in this election:{' '}
                                   {existingInElection.map((x) => x.positionTitle).join(', ')}
                                 </div>
@@ -1086,7 +1086,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           type="button"
                           disabled={uploadingTarget === 'new_permanent'}
                           onClick={() => newFileInputRef.current?.click()}
-                          className="px-3 py-1.5 rounded-lg bg-[#102A43] hover:bg-[#0B1F3A] text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg bg-[#102A43] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                         >
                           {uploadingTarget === 'new_permanent' ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1101,7 +1101,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                               : 'Upload Portrait Photo *'}
                           </span>
                         </button>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="ucc-caption text-slate-500">
                           Uploaded to Firebase Storage (JPEG/PNG/WebP, max 5MB).
                         </p>
                       </div>
@@ -1113,10 +1113,10 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       <div className="flex items-start gap-2.5">
                         <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                         <div>
-                          <div className="font-bold">
+                          <div className="font-semibold ucc-body-secondary">
                             Duplicate Student ID Detected: {duplicateNewStudentMatch.fullName}
                           </div>
-                          <div className="text-[11px] text-amber-800">
+                          <div className="ucc-caption text-amber-800">
                             {duplicateNewStudentMatch.department} · {duplicateNewStudentMatch.hall}
                           </div>
                         </div>
@@ -1133,7 +1133,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           setSearchTerm(duplicateNewStudentMatch.studentId || '');
                           setErrorMsg('');
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-[#102A43] text-white font-bold whitespace-nowrap cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-[#102A43] text-white ucc-btn font-semibold whitespace-nowrap cursor-pointer"
                       >
                         Select Existing Contestant Instead
                       </button>
@@ -1142,7 +1142,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">
                         Full Name <span className="text-[#E45757]">*</span>
                       </label>
                       <input
@@ -1150,11 +1150,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         value={newFullName}
                         onChange={(e) => setNewFullName(e.target.value)}
                         placeholder="e.g. Kwame Boateng Mensah"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">
                         UCC Student ID <span className="text-[#E45757]">*</span>
                       </label>
                       <input
@@ -1162,17 +1162,17 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         value={newStudentId}
                         onChange={(e) => setNewStudentId(e.target.value.toUpperCase())}
                         placeholder="e.g. PS/CSC/22/0041"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">
                         Faculty / School
                       </label>
                       <select
                         value={newFaculty}
                         onChange={(e) => setNewFaculty(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       >
                         {faculties.map((f) => (
                           <option key={f.id} value={f.name}>
@@ -1182,11 +1182,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">Department</label>
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">Department</label>
                       <select
                         value={newDepartment}
                         onChange={(e) => setNewDepartment(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       >
                         {departments.map((d) => (
                           <option key={d.id} value={d.name}>
@@ -1196,22 +1196,22 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">Programme</label>
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">Programme</label>
                       <input
                         type="text"
                         value={newProgramme}
                         onChange={(e) => setNewProgramme(e.target.value)}
                         placeholder="e.g. B.Sc. Computer Science"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block font-bold text-slate-800 mb-1">Level</label>
+                        <label className="block ucc-label font-semibold text-slate-800 mb-1">Level</label>
                         <select
                           value={newLevel}
                           onChange={(e) => setNewLevel(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                         >
                           {UCC_LEVELS.map((l) => (
                             <option key={l} value={l}>
@@ -1221,11 +1221,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         </select>
                       </div>
                       <div>
-                        <label className="block font-bold text-slate-800 mb-1">Hall</label>
+                        <label className="block ucc-label font-semibold text-slate-800 mb-1">Hall</label>
                         <select
                           value={newHall}
                           onChange={(e) => setNewHall(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                         >
                           {halls.map((h) => (
                             <option key={h.id} value={h.name}>
@@ -1236,7 +1236,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       </div>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">
                         Nickname / Popular Name
                       </label>
                       <input
@@ -1244,22 +1244,22 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         value={newNickname}
                         onChange={(e) => setNewNickname(e.target.value)}
                         placeholder="Optional campaign nickname"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block font-bold text-slate-800 mb-1">Email</label>
+                        <label className="block ucc-label font-semibold text-slate-800 mb-1">Email</label>
                         <input
                           type="email"
                           value={newEmail}
                           onChange={(e) => setNewEmail(e.target.value)}
                           placeholder="student@stu.ucc.edu.gh"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                         />
                       </div>
                       <div>
-                        <label className="block font-bold text-slate-800 mb-1">
+                        <label className="block ucc-label font-semibold text-slate-800 mb-1">
                           Phone (Admin Only)
                         </label>
                         <input
@@ -1267,7 +1267,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           value={newPhone}
                           onChange={(e) => setNewPhone(e.target.value)}
                           placeholder="024 XXX XXXX"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                         />
                       </div>
                     </div>
@@ -1279,7 +1279,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
           {/* STEP 2: ASSIGN POSITION & EDIT ELECTION-SPECIFIC + PERMANENT INFO */}
           {step === 'configure' && activeItem && (
-            <div className="space-y-5 text-xs">
+            <div className="space-y-5 ucc-body-secondary">
               {queuedItems.length > 1 && (
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {queuedItems.map((item, idx) => {
@@ -1297,9 +1297,9 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                         }`}
                       >
-                        <div className="font-bold">{item.fullName}</div>
+                        <div className="font-semibold ucc-label">{item.fullName}</div>
                         <div
-                          className={`text-[10px] ${
+                          className={`ucc-caption ${
                             idx === activeQueueIdx ? 'text-slate-300' : 'text-slate-500'
                           }`}
                         >
@@ -1314,11 +1314,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
               {/* Explicit Target Position Binding */}
               <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="font-bold text-[#102A43] text-sm">
+                  <label className="font-semibold text-[#102A43] ucc-label">
                     Target Contested Position in {electionTitle}{' '}
                     <span className="text-[#E45757]">*</span>
                   </label>
-                  <span className="text-[11px] font-semibold text-[#2563EB]">
+                  <span className="ucc-caption font-semibold text-[#2563EB]">
                     Positions scoped exclusively to this election
                   </span>
                 </div>
@@ -1328,7 +1328,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                   onChange={(e) =>
                     updateQueueItem(activeQueueIdx, { selectedPositionKey: e.target.value })
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-blue-300 bg-white font-bold text-slate-900 focus:outline-none focus:border-[#2563EB]"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-blue-300 bg-white font-semibold text-slate-900 focus:outline-none focus:border-[#2563EB]"
                 >
                   {positionOptions.map((pos) => (
                     <option key={pos.key} value={pos.key}>
@@ -1342,11 +1342,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
               <div className="p-4 sm:p-5 rounded-2xl bg-[#F5F7FB] border border-slate-200 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
                   <div>
-                    <h3 className="font-extrabold text-[#102A43] text-sm flex items-center gap-1.5">
+                    <h3 className="ucc-label font-semibold text-[#102A43] flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-[#2563EB]" />
                       <span>Election-Specific Campaign &amp; Participation Details</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Applies strictly to <strong>{electionTitle}</strong>. Does not alter other
                       elections or the permanent contestant record.
                     </p>
@@ -1362,12 +1362,12 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       className="w-12 h-12 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                     />
                     <div>
-                      <div className="font-bold text-slate-900">
+                      <div className="font-semibold text-slate-900 ucc-body-secondary">
                         {activeItem.electionPhotoUrl
                           ? 'Using Election-Specific Portrait Override'
                           : 'Using Permanent Contestant Portrait'}
                       </div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="ucc-caption text-slate-500">
                         Optional: upload a dedicated campaign photo solely for this election.
                       </div>
                     </div>
@@ -1388,7 +1388,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       type="button"
                       disabled={uploadingTarget === 'edit_election'}
                       onClick={() => electionFileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <ImagePlus className="w-3.5 h-3.5" />
                       <span>
@@ -1401,7 +1401,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       <button
                         type="button"
                         onClick={() => updateQueueItem(activeQueueIdx, { electionPhotoUrl: '' })}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 ucc-btn font-semibold cursor-pointer"
                       >
                         Reset to Default
                       </button>
@@ -1411,7 +1411,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-800 mb-1">
                       Campaign Statement / Slogan
                     </label>
                     <input
@@ -1421,11 +1421,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         updateQueueItem(activeQueueIdx, { campaignStatement: e.target.value })
                       }
                       placeholder="e.g. Putting Students First Through Transparent Governance"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-800 mb-1">
                       Initial Approval Status
                     </label>
                     <select
@@ -1435,7 +1435,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           applicationStatus: e.target.value as QueuedContestantItem['applicationStatus'],
                         })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-semibold"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white font-semibold"
                     >
                       <option value="Approved">Approved (Appear on Ballot)</option>
                       <option value="Submitted">Submitted (Pending Review)</option>
@@ -1446,7 +1446,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">Manifesto Summary</label>
+                  <label className="block ucc-label font-semibold text-slate-800 mb-1">Manifesto Summary</label>
                   <textarea
                     rows={2}
                     value={activeItem.manifestoSummary}
@@ -1454,13 +1454,13 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       updateQueueItem(activeQueueIdx, { manifestoSummary: e.target.value })
                     }
                     placeholder="Concise summary shown on candidate directory cards and comparison views..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-800 mb-1">
                       Full Manifesto Points (one per line)
                     </label>
                     <textarea
@@ -1470,11 +1470,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         updateQueueItem(activeQueueIdx, { fullManifestoText: e.target.value })
                       }
                       placeholder="Reform hall welfare budgeting&#10;Digitize clearance approvals"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-800 mb-1">
                       Key Actionable Promises (one per line)
                     </label>
                     <textarea
@@ -1484,7 +1484,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         updateQueueItem(activeQueueIdx, { keyPromisesText: e.target.value })
                       }
                       placeholder="100-day Wi-Fi reliability audit&#10;Monthly open town hall"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                 </div>
@@ -1494,11 +1494,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
                   <div>
-                    <h3 className="font-extrabold text-[#102A43] text-sm flex items-center gap-1.5">
+                    <h3 className="ucc-label font-semibold text-[#102A43] flex items-center gap-1.5">
                       <Edit3 className="w-4 h-4 text-[#102A43]" />
                       <span>Permanent Contestant Profile (Shared Registry)</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Shared identity, academic, and contact information stored in the permanent
                       contestants registry.
                     </p>
@@ -1520,7 +1520,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       type="button"
                       disabled={uploadingTarget === 'edit_permanent'}
                       onClick={() => permanentFileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>
@@ -1538,11 +1538,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-[#E45757] shrink-0 mt-0.5" />
                         <div>
-                          <div className="font-bold">
+                          <div className="font-semibold ucc-body-secondary">
                             Warning: Permanent Profile Fields Modified (
                             {activeChangedPermanentFields.join(', ')})
                           </div>
-                          <p className="text-[11px] text-amber-900 mt-0.5">
+                          <p className="ucc-caption text-amber-900 mt-0.5">
                             Saving these edits will update this contestant&apos;s permanent UCC VOTE
                             profile and synchronize shared identity fields across linked records
                             (recorded vote tallies are never modified).
@@ -1552,13 +1552,13 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                       <button
                         type="button"
                         onClick={() => handleRevertPermanentEdits(activeQueueIdx)}
-                        className="px-2.5 py-1 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 font-bold text-[11px] whitespace-nowrap cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 ucc-caption font-semibold whitespace-nowrap cursor-pointer"
                       >
                         Revert Edits
                       </button>
                     </div>
 
-                    <label className="flex items-center gap-2 pt-1 font-bold text-[#102A43] cursor-pointer">
+                    <label className="flex items-center gap-2 pt-1 ucc-label font-semibold text-[#102A43] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={activeItem.confirmPermanentUpdate}
@@ -1578,18 +1578,18 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Full Name</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Full Name</label>
                     <input
                       type="text"
                       value={activeItem.fullName}
                       onChange={(e) =>
                         updateQueueItem(activeQueueIdx, { fullName: e.target.value })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Student ID</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Student ID</label>
                     <input
                       type="text"
                       value={activeItem.studentId}
@@ -1598,59 +1598,59 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           studentId: e.target.value.toUpperCase(),
                         })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Nickname</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Nickname</label>
                     <input
                       type="text"
                       value={activeItem.nickname}
                       onChange={(e) =>
                         updateQueueItem(activeQueueIdx, { nickname: e.target.value })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Department</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Department</label>
                     <input
                       type="text"
                       value={activeItem.department}
                       onChange={(e) =>
                         updateQueueItem(activeQueueIdx, { department: e.target.value })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Programme</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Programme</label>
                     <input
                       type="text"
                       value={activeItem.programme}
                       onChange={(e) =>
                         updateQueueItem(activeQueueIdx, { programme: e.target.value })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Faculty / School</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Faculty / School</label>
                     <input
                       type="text"
                       value={activeItem.faculty}
                       onChange={(e) =>
                         updateQueueItem(activeQueueIdx, { faculty: e.target.value })
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Level</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Level</label>
                     <select
                       value={activeItem.level}
                       onChange={(e) => updateQueueItem(activeQueueIdx, { level: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     >
                       {UCC_LEVELS.map((l) => (
                         <option key={l} value={l}>
@@ -1663,11 +1663,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                     </select>
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Hall</label>
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">Hall</label>
                     <select
                       value={activeItem.hall}
                       onChange={(e) => updateQueueItem(activeQueueIdx, { hall: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     >
                       {halls.map((h) => (
                         <option key={h.id} value={h.name}>
@@ -1680,27 +1680,27 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                     </select>
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-700 mb-1">
                       Phone (Admin Only PII)
                     </label>
                     <input
                       type="tel"
                       value={activeItem.phone}
                       onChange={(e) => updateQueueItem(activeQueueIdx, { phone: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Biography</label>
+                  <label className="block ucc-label font-semibold text-slate-700 mb-1">Biography</label>
                   <textarea
                     rows={2}
                     value={activeItem.biography}
                     onChange={(e) =>
                       updateQueueItem(activeQueueIdx, { biography: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
               </div>
@@ -1709,11 +1709,11 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
 
           {/* STEP 3: PREVIEW & CONFIRM */}
           {step === 'preview' && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#14B8A6] shrink-0" />
                 <span>
-                  Review the {queuedItems.length} staged candidate
+                  Review the <span className="tabular-nums">{queuedItems.length}</span> staged candidate
                   {queuedItems.length === 1 ? '' : 's'} below. Click{' '}
                   <strong>Confirm and Add Candidate</strong> to persist.
                 </span>
@@ -1741,17 +1741,17 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                         />
                         <div className="space-y-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-black text-slate-900 text-sm">{item.fullName}</h4>
-                            <span className="font-mono text-[11px] text-slate-500 tabular-nums">
+                            <h4 className="font-semibold text-slate-900 ucc-body">{item.fullName}</h4>
+                            <span className="ucc-caption text-slate-500 tabular-nums">
                               {item.studentId}
                             </span>
                             {item.electionPhotoUrl && (
-                              <span className="text-[10px] font-bold text-[#2563EB] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                              <span className="ucc-caption font-semibold text-[#2563EB] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                                 Election Photo Override
                               </span>
                             )}
                             {changedFields.length > 0 && (
-                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                              <span className="ucc-caption font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                                 Updates Permanent Profile
                               </span>
                             )}
@@ -1759,7 +1759,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                           <div className="text-slate-700 font-semibold">
                             <span className="text-[#102A43]">{electionCategory}</span> ·{' '}
                             <span>{electionTitle}</span> ·{' '}
-                            <span className="text-[#2563EB] font-bold">
+                            <span className="text-[#2563EB] font-semibold">
                               {posObj?.title || 'Unassigned Position'}
                             </span>
                           </div>
@@ -1782,7 +1782,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                             setActiveQueueIdx(idx);
                             setStep('configure');
                           }}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold cursor-pointer whitespace-nowrap"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-800 ucc-caption font-semibold cursor-pointer whitespace-nowrap"
                         >
                           Edit Information
                         </button>
@@ -1793,7 +1793,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                             setStep('configure');
                             setTimeout(() => positionSelectRef.current?.focus(), 60);
                           }}
-                          className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-bold cursor-pointer whitespace-nowrap"
+                          className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2563EB] ucc-caption font-semibold cursor-pointer whitespace-nowrap"
                         >
                           Change Position
                         </button>
@@ -1807,7 +1807,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                               setActiveQueueIdx(next.length - 1);
                             }
                           }}
-                          className="px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-[#E45757] font-bold cursor-pointer whitespace-nowrap flex items-center gap-1"
+                          className="px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-[#E45757] ucc-caption font-semibold cursor-pointer whitespace-nowrap flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>Remove from Election</span>
@@ -1822,13 +1822,13 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-[#F5F7FB] rounded-b-2xl flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
+        <div className="px-6 py-4 border-t border-slate-200 bg-[#F5F7FB] rounded-b-2xl flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2">
             {step === 'select' ? (
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1840,7 +1840,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                   setErrorMsg('');
                   setStep(step === 'preview' ? 'configure' : 'select');
                 }}
-                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 ucc-btn font-semibold hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
@@ -1854,7 +1854,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                 type="button"
                 disabled={!liveAddGuard.allowed || uploadingTarget === 'new_permanent'}
                 onClick={handleContinueFromSelect}
-                className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <span>
                   {sourceTab === 'existing'
@@ -1870,7 +1870,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                 type="button"
                 disabled={Boolean(uploadingTarget)}
                 onClick={handleGoToPreview}
-                className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <span>Preview &amp; Confirm</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1882,7 +1882,7 @@ export const ContestantSelectorModal: React.FC<ContestantSelectorModalProps> = (
                 type="button"
                 disabled={saving || queuedItems.length === 0 || !liveAddGuard.allowed}
                 onClick={handleConfirmAndAdd}
-                className="px-5 py-2.5 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

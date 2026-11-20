@@ -43,16 +43,16 @@ export const LandingPage: React.FC = () => {
 
         <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16 lg:py-20">
           <div className="max-w-xl lg:max-w-[540px] space-y-5 sm:space-y-6">
-            <div className="flex items-center gap-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-[0.16em] text-sky-200">
+            <div className="flex items-center gap-2.5 ucc-caption font-semibold uppercase tracking-[0.14em] text-sky-200">
               <span className="inline-block w-7 h-0.5 bg-[#C62828] shrink-0" aria-hidden="true" />
               <span>University of Cape Coast · Official E-Voting</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl lg:text-[3.35rem] font-black tracking-tight text-white leading-[1.08] text-balance drop-shadow-sm">
+            <h1 className="ucc-heading-hero text-white text-balance drop-shadow-sm">
               YOUR VOTE. YOUR POWER.
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-100 leading-relaxed max-w-lg drop-shadow-xs">
+            <p className="ucc-body sm:text-lg text-slate-100 max-w-lg drop-shadow-xs">
               Make your voice count. Participate in student elections, choose your leaders, and help shape the future of our university.
             </p>
 
@@ -60,7 +60,7 @@ export const LandingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigateTo(userRole === 'student' ? 'student_dashboard' : 'student_register')}
-                className="group min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-bold text-white bg-[#C62828] hover:bg-[#A61E1E] rounded-xl transition-all duration-200 shadow-lg shadow-black/30 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
+                className="group min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-semibold text-white bg-[#C62828] hover:bg-[#A61E1E] rounded-xl transition-all duration-200 shadow-lg shadow-black/30 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Get Started</span>
                 <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -69,7 +69,7 @@ export const LandingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigateTo('elections_directory')}
-                className="min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-bold text-white bg-white/10 hover:bg-white hover:text-[#123B70] border-2 border-white backdrop-blur-xs rounded-xl transition-all duration-200 shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
+                className="min-h-[48px] px-7 py-3.5 text-sm sm:text-base font-semibold text-white bg-white/10 hover:bg-white hover:text-[#123B70] border-2 border-white backdrop-blur-xs rounded-xl transition-all duration-200 shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Vote className="w-4 h-4" />
                 <span>Explore Elections</span>

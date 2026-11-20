@@ -30,9 +30,9 @@ const WORDMARK_SIZES: Record<LogoVariant, string> = {
 };
 
 const SUBTITLE_SIZES: Record<LogoVariant, string> = {
-  compact: 'text-[9px]',
-  default: 'text-[10px]',
-  large: 'text-xs',
+  compact: 'text-xs',
+  default: 'text-xs',
+  large: 'text-xs sm:text-sm',
 };
 
 export const Logo: React.FC<LogoProps> = ({
@@ -73,14 +73,14 @@ export const Logo: React.FC<LogoProps> = ({
       {showWordmark && (
         <div className={`flex flex-col leading-tight ${isStacked ? 'items-center' : 'items-start'}`}>
           <span
-            className={`font-extrabold tracking-tight ${WORDMARK_SIZES[variant]} ${
+            className={`font-bold tracking-tight ${WORDMARK_SIZES[variant]} ${
               isDark ? 'text-white' : 'text-[#0B1F3A]'
             }`}
           >
             UCC<span className="text-[#C62828] ml-0.5">VOTE</span>
           </span>
           <span
-            className={`tracking-wider uppercase font-semibold ${SUBTITLE_SIZES[variant]} ${
+            className={`tracking-wider uppercase font-medium ${SUBTITLE_SIZES[variant]} ${
               isDark ? 'text-blue-100' : 'text-slate-500'
             }`}
           >
@@ -88,7 +88,7 @@ export const Logo: React.FC<LogoProps> = ({
           </span>
           {showTagline && (
             <span
-              className={`mt-1 text-[10px] font-bold tracking-widest uppercase ${
+              className={`mt-1 text-xs font-semibold tracking-widest uppercase ${
                 isDark ? 'text-amber-300' : 'text-[#123B70]'
               }`}
             >
@@ -124,8 +124,8 @@ export const BrandedLoadingScreen: React.FC<{
           <div className="w-40 h-1.5 bg-slate-100 rounded-full mx-auto overflow-hidden">
             <div className="h-full w-1/2 bg-[#123B70] rounded-full animate-pulse" />
           </div>
-          <h2 className="text-base font-bold text-slate-900 pt-1">{title}</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">{subtitle}</p>
+          <h2 className="ucc-heading-card text-slate-900 pt-1">{title}</h2>
+          <p className="ucc-body-secondary text-slate-600">{subtitle}</p>
         </div>
       </div>
     </div>

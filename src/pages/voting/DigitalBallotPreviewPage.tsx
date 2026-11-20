@@ -319,14 +319,14 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2">
                 <Logo variant="compact" showWordmark={false} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                <span className="ucc-caption font-semibold uppercase tracking-wider text-amber-700">
                   Online Verification Required
                 </span>
               </div>
-              <h1 className="text-xl font-extrabold text-slate-900">
+              <h1 className="ucc-heading-section text-slate-900">
                 Internet Connection Required to Vote
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              <p className="ucc-body-secondary text-slate-600">
                 For electoral security and ballot secrecy, digital ballots are never cached or queued offline. Please reconnect to mobile data or campus Wi-Fi to verify your eligibility and cast your vote directly on the UCC VOTE server.
               </p>
             </div>
@@ -338,7 +338,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               onClick={() => {
                 if (navigator.onLine) loadAuthorizedBallot();
               }}
-              className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
               <span>Retry Connection</span>
@@ -346,7 +346,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigateTo('elections_directory')}
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 ucc-btn font-semibold cursor-pointer"
             >
               Back to Elections Directory
             </button>
@@ -390,43 +390,43 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               <Logo variant="default" layout="stacked" showTagline subtitle="Electoral Commission" />
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 ucc-caption font-semibold uppercase tracking-wider">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>{alreadyVotedReceipt ? 'Official Participation Record' : 'Submission Verified'}</span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="ucc-heading-section text-slate-900">
               YOUR VOTE HAS BEEN SUCCESSFULLY SUBMITTED.
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto">
+            <p className="ucc-body-secondary text-slate-600 max-w-lg mx-auto">
               Your participation has been recorded for the University of Cape Coast election listed below. No candidate selections are stored on this receipt or linked to your student profile.
             </p>
           </div>
 
           {/* Official Confirmation Details */}
-          <div className="p-5 rounded-xl bg-[#F4F6F9] border border-slate-200 space-y-3 text-xs">
+          <div className="p-5 rounded-xl bg-[#F4F6F9] border border-slate-200 space-y-3 ucc-body-secondary">
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-200">
-              <span className="text-[11px] uppercase font-bold text-[#123B70] tracking-wider">
+              <span className="ucc-caption uppercase font-semibold text-[#123B70] tracking-wider">
                 Ballot Submission Confirmation
               </span>
-              <span className="font-mono font-bold text-emerald-700">RECORDED</span>
+              <span className="ucc-caption font-semibold text-emerald-700">RECORDED</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <span className="text-[11px] text-slate-500 block">Election Name</span>
-                <span className="font-bold text-slate-900">{activeReceipt.electionTitle}</span>
+                <span className="ucc-caption text-slate-500 block">Election Name</span>
+                <span className="font-semibold text-slate-900">{activeReceipt.electionTitle}</span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-500 block">Submission Confirmation Reference</span>
-                <span className="font-mono font-bold text-[#123B70] bg-white px-2 py-0.5 rounded border border-slate-200 inline-block mt-0.5">
+                <span className="ucc-caption text-slate-500 block">Submission Confirmation Reference</span>
+                <span className="font-mono font-semibold text-[#123B70] bg-white px-2 py-0.5 rounded border border-slate-200 inline-block mt-0.5 tabular-nums">
                   {activeReceipt.confirmationRef}
                 </span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-500 block">Submission Date & Time</span>
-                <span className="font-mono text-slate-800">
+                <span className="ucc-caption text-slate-500 block">Submission Date & Time</span>
+                <span className="text-slate-800 tabular-nums">
                   {new Date(activeReceipt.submittedAt).toLocaleString('en-GB', {
                     dateStyle: 'medium',
                     timeStyle: 'medium',
@@ -436,15 +436,15 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-500 block">Receipt Verification Digest</span>
-                <span className="font-mono text-slate-700">{activeReceipt.receiptHash}</span>
+                <span className="ucc-caption text-slate-500 block">Receipt Verification Digest</span>
+                <span className="font-mono text-slate-700 tabular-nums">{activeReceipt.receiptHash}</span>
               </div>
             </div>
           </div>
 
           {/* Positions Completed (No Candidates Revealed!) */}
           <div className="space-y-2.5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <h2 className="ucc-label font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Positions Successfully Completed</span>
             </h2>
@@ -452,11 +452,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               {activeReceipt.positionsCompleted.map((pos) => (
                 <div
                   key={pos.id}
-                  className="px-4 py-2.5 bg-white flex items-center justify-between text-xs"
+                  className="px-4 py-2.5 bg-white flex items-center justify-between ucc-body-secondary"
                 >
                   <span className="font-semibold text-slate-800">{pos.title}</span>
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    className={`px-2.5 py-0.5 rounded-full ucc-caption font-semibold ${
                       pos.status === 'VOTED'
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-100 text-slate-600'
@@ -470,34 +470,34 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           </div>
 
           {/* Ballot Secrecy & Governance Notice */}
-          <div className="p-4 rounded-xl bg-[#EAF2FA] border border-blue-200 text-xs text-[#123B70] space-y-2">
+          <div className="p-4 rounded-xl bg-[#EAF2FA] border border-blue-200 ucc-body-secondary text-[#123B70] space-y-2">
             <div className="flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
-              <p className="text-[11px] leading-relaxed">
-                <strong>Ballot Secrecy Protection:</strong> Your selected candidates are stored separately from your student identity and cannot be viewed in your profile, voting history, or by Electoral Commission administrators.
+              <p className="ucc-caption leading-relaxed">
+                <strong className="font-semibold">Ballot Secrecy Protection:</strong> Your selected candidates are stored separately from your student identity and cannot be viewed in your profile, voting history, or by Electoral Commission administrators.
               </p>
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-700 border-t border-blue-200/70 pt-2">
-              <strong>Security & Governance Notice:</strong> Do not use this platform for an actual UCC election until it has undergone independent security review, election governance approval, and full operational testing.
+            <p className="ucc-caption leading-relaxed text-slate-700 border-t border-blue-200/70 pt-2">
+              <strong className="font-semibold">Security & Governance Notice:</strong> Do not use this platform for an actual UCC election until it has undergone independent security review, election governance approval, and full operational testing.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 no-print">
             <button
               onClick={() => window.print()}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 ucc-btn font-semibold transition-colors cursor-pointer"
             >
               Print Official Receipt
             </button>
             <button
               onClick={() => navigateTo('student_dashboard')}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 ucc-btn font-semibold transition-colors cursor-pointer"
             >
               Return to Dashboard
             </button>
             <button
               onClick={() => navigateTo('election_results', { electionId: activeReceipt.electionId })}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold transition-colors cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold transition-colors cursor-pointer"
             >
               View Turnout & Results
             </button>
@@ -561,11 +561,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="space-y-1.5 flex-1">
               <div className="flex items-center gap-2">
                 <Logo variant="compact" showWordmark={false} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                   {election?.title || 'Digital Ballot Access'} · {ballotError.code || 'NOTICE'}
                 </span>
               </div>
-              <h1 className="text-xl font-extrabold text-slate-900">
+              <h1 className="ucc-heading-section text-slate-900">
                 {isSessionExpired
                   ? 'Your Session Has Expired'
                   : isAuthRequired
@@ -590,14 +590,14 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   ? 'Connection Interrupted'
                   : 'Ballot Currently Unavailable'}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              <p className="ucc-body-secondary text-slate-600">
                 {isSessionExpired
                   ? 'Your session has expired. Please log in again to continue.'
                   : ballotError.message}
               </p>
 
               {isNotOpenYet && formattedOpening && (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAF2FA] border border-blue-200 text-xs text-[#123B70] font-semibold">
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAF2FA] border border-blue-200 ucc-label text-[#123B70] font-semibold">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span>Scheduled Opening: {formattedOpening}</span>
                 </div>
@@ -607,20 +607,20 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
           {/* Detailed Eligibility Verification Checks if Ineligible */}
           {eligibilityInfo && !eligibilityInfo.isEligible && (
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-              <div className="font-bold text-slate-800">Server Eligibility Verification Breakdown</div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 ucc-body-secondary">
+              <div className="font-semibold text-slate-800">Server Eligibility Verification Breakdown</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Object.entries(eligibilityInfo.checks).map(([key, passed]) => (
                   <div
                     key={key}
-                    className={`px-2.5 py-1.5 rounded-lg border flex items-center justify-between ${
+                    className={`px-2.5 py-1.5 rounded-lg border flex items-center justify-between ucc-caption ${
                       passed
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                        : 'bg-red-50 border-red-200 text-red-800 font-bold'
+                        : 'bg-red-50 border-red-200 text-red-800 font-semibold'
                     }`}
                   >
                     <span className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span>{passed ? 'PASS' : 'FAIL'}</span>
+                    <span className="font-semibold">{passed ? 'PASS' : 'FAIL'}</span>
                   </div>
                 ))}
               </div>
@@ -634,7 +634,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   setPostLoginView('digital_ballot');
                   navigateTo('student_login');
                 }}
-                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 <span>{isSessionExpired ? 'Log In Again' : 'Sign In as Verified Student'}</span>
@@ -644,7 +644,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             {isTransientIssue && (
               <button
                 onClick={loadAuthorizedBallot}
-                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Retry Loading Ballot</span>
@@ -655,7 +655,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               onClick={() =>
                 navigateTo(userRole === 'admin' ? 'admin_dashboard' : 'elections_directory')
               }
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 ucc-btn font-semibold cursor-pointer"
             >
               {userRole === 'admin' ? 'Return to Admin Console' : 'Back to Elections Directory'}
             </button>
@@ -663,7 +663,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             {election && (isClosed || election.status === 'closed' || election.status === 'results_published') && (
               <button
                 onClick={() => navigateTo('election_results', { electionId: election.id })}
-                className="px-4 py-2.5 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Award className="w-4 h-4 text-amber-400" />
                 <span>View Election Results</span>
@@ -683,13 +683,13 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       <div className="max-w-2xl mx-auto py-12 px-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-4">
           <Users className="w-10 h-10 text-slate-400 mx-auto" />
-          <h2 className="text-lg font-bold text-slate-900">No Contested Positions Available</h2>
-          <p className="text-xs text-slate-600 max-w-md mx-auto">
+          <h2 className="ucc-heading-card text-slate-900">No Contested Positions Available</h2>
+          <p className="ucc-body-secondary text-slate-600 max-w-md mx-auto">
             This election does not currently have configured positions or approved candidates ready for ballot rendering.
           </p>
           <button
             onClick={() => navigateTo('elections_directory')}
-            className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold cursor-pointer"
           >
             Back to Elections Directory
           </button>
@@ -709,20 +709,20 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="flex items-start sm:items-center gap-3.5">
               <Logo variant="default" showWordmark={false} />
               <div>
-                <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+                <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
                   Ballot Review · {election.category}
                 </span>
-                <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                <h1 className="ucc-heading-section text-slate-900 mt-0.5">
                   Review Your Selections
                 </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  Verify your selections for <strong>{election.title}</strong> before confirming final submission.
+                <p className="ucc-body-secondary text-slate-500 mt-1">
+                  Verify your selections for <strong className="font-semibold">{election.title}</strong> before confirming final submission.
                 </p>
               </div>
             </div>
             <button
               onClick={() => setCurrentStep(1)}
-              className="text-xs font-semibold text-[#123B70] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+              className="ucc-btn font-semibold text-[#123B70] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Modify Ballot</span>
@@ -730,10 +730,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           </div>
 
           {missingRequiredPositions.length > 0 && (
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 ucc-body-secondary text-red-900 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-[#C62828] shrink-0 mt-0.5" />
               <div>
-                <strong className="block">Required Portfolio Selection Missing</strong>
+                <strong className="block font-semibold">Required Portfolio Selection Missing</strong>
                 <span>
                   Please select a candidate for:{' '}
                   {missingRequiredPositions.map((p) => p.position.title).join(', ')}.
@@ -743,7 +743,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           )}
 
           {totalSelectedCount === 0 && !election.allowsEmptyBallot && (
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 ucc-body-secondary text-amber-900 flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
                 Empty ballots are not permitted under the rules of this election. Please select at least one approved candidate.
@@ -770,16 +770,16 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 >
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider">
+                      <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
                         {position.order}. {position.title}
                       </span>
                       {!position.allowsSkip && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-[#EAF2FA] text-[#123B70] font-bold">
+                        <span className="ucc-caption px-2 py-0.5 rounded bg-[#EAF2FA] text-[#123B70] font-semibold">
                           Required
                         </span>
                       )}
                       {position.maxSelections > 1 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
+                        <span className="ucc-caption px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
                           Up to {position.maxSelections}
                         </span>
                       )}
@@ -795,8 +795,8 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                               className="w-10 h-10 rounded-lg object-cover border border-slate-300 shrink-0"
                             />
                             <div>
-                              <p className="text-sm font-bold text-slate-900">{cand.fullName}</p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-sm font-semibold text-slate-900">{cand.fullName}</p>
+                              <p className="ucc-caption text-slate-500">
                                 {cand.programme || cand.department} · {cand.department}
                               </p>
                             </div>
@@ -804,15 +804,15 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         ))}
                       </div>
                     ) : candidates.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic">
+                      <p className="ucc-body-secondary text-slate-500 italic">
                         No approved candidates on ballot for this position.
                       </p>
                     ) : isMissingRequired ? (
-                      <p className="text-xs text-red-700 font-bold">
+                      <p className="ucc-body-secondary text-red-700 font-semibold">
                         Selection required before submission.
                       </p>
                     ) : (
-                      <p className="text-xs text-amber-700 italic font-medium">
+                      <p className="ucc-body-secondary text-amber-700 italic font-medium">
                         Skipped (Abstained from voting for this position)
                       </p>
                     )}
@@ -823,7 +823,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                       setActivePositionIndex(idx);
                       setCurrentStep(1);
                     }}
-                    className="text-xs font-bold text-[#123B70] hover:underline self-start sm:self-center cursor-pointer"
+                    className="ucc-btn font-semibold text-[#123B70] hover:underline self-start sm:self-center cursor-pointer"
                   >
                     {isMissingRequired ? 'Select Now' : 'Change'}
                   </button>
@@ -833,7 +833,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           </div>
 
           {submitError && (
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 ucc-body-secondary text-red-900 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-[#C62828] shrink-0 mt-0.5" />
               <span>{submitError}</span>
             </div>
@@ -843,7 +843,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
             <button
               onClick={() => setCurrentStep(1)}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               Back to Ballot Positions
             </button>
@@ -854,7 +854,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 setShowFinalConfirmModal(true);
               }}
               disabled={!canProceedToSubmit || isSubmitting}
-              className="px-6 py-3 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-semibold ucc-btn transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Vote className="w-4 h-4" />
               <span>Proceed to Final Confirmation</span>
@@ -872,10 +872,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                     <Lock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900">
+                    <h3 className="ucc-heading-card text-slate-900">
                       Confirm Final Ballot Submission
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Irreversible Official Action
                     </p>
                   </div>
@@ -889,9 +889,9 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-slate-800 space-y-2">
-                <p className="leading-relaxed">
-                  You are about to submit your official ballot for <strong>{election.title}</strong>. Once submitted, votes cannot be changed, retracted, or inspected.
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 ucc-body-secondary text-slate-800 space-y-2">
+                <p>
+                  You are about to submit your official ballot for <strong className="font-semibold">{election.title}</strong>. Once submitted, votes cannot be changed, retracted, or inspected.
                 </p>
                 <label className="flex items-start gap-2.5 cursor-pointer pt-1">
                   <input
@@ -908,7 +908,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               </div>
 
               {submitError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 ucc-body-secondary text-red-800 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-[#C62828] shrink-0 mt-0.5" />
                   <span>{submitError}</span>
                 </div>
@@ -918,14 +918,14 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                 <button
                   onClick={() => setShowFinalConfirmModal(false)}
                   disabled={isSubmitting}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
                 >
                   Cancel & Review
                 </button>
                 <button
                   onClick={handleConfirmVoteSubmission}
                   disabled={!confirmNoticeAgreed || isSubmitting}
-                  className="px-5 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white text-xs font-bold shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white ucc-btn font-semibold shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -961,31 +961,31 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <Logo variant="default" showWordmark={false} className="mt-0.5 hidden sm:inline-flex" />
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] text-[10px] font-bold uppercase tracking-wider">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EAF2FA] text-[#123B70] ucc-caption font-semibold uppercase tracking-wider">
                   {election.category}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 ucc-caption font-semibold uppercase">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                   {election.status === 'live' ? 'Polling Live' : election.status}
                 </span>
-                <span className="text-[11px] font-mono text-slate-500">{election.code}</span>
+                <span className="ucc-caption text-slate-500 tabular-nums">{election.code}</span>
               </div>
 
-              <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="ucc-heading-page text-slate-900">
                 {election.title}
               </h1>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+              <p className="ucc-body-secondary text-slate-600 max-w-2xl">
                 {election.description}
               </p>
             </div>
           </div>
 
-          <div className="shrink-0 p-3.5 rounded-xl bg-[#F4F6F9] border border-slate-200 text-xs space-y-1 min-w-[210px]">
-            <div className="flex items-center gap-1.5 text-[#123B70] font-bold">
+          <div className="shrink-0 p-3.5 rounded-xl bg-[#F4F6F9] border border-slate-200 ucc-caption space-y-1 min-w-[210px]">
+            <div className="flex items-center gap-1.5 text-[#123B70] font-semibold">
               <Clock className="w-3.5 h-3.5" />
               <span>Voting Deadline</span>
             </div>
-            <div className="font-mono font-bold text-slate-900 text-[11px]">
+            <div className="font-semibold text-slate-900 tabular-nums">
               {new Date(election.endDate).toLocaleString('en-GB', {
                 dateStyle: 'medium',
                 timeStyle: 'short',
@@ -993,7 +993,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               })}{' '}
               GMT
             </div>
-            <div className="text-[11px] font-semibold text-[#C62828]">{countdownText}</div>
+            <div className="font-semibold text-[#C62828]">{countdownText}</div>
           </div>
         </div>
 
@@ -1002,7 +1002,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowInstructions(!showInstructions)}
-            className="text-xs font-bold text-[#123B70] flex items-center gap-1.5 cursor-pointer"
+            className="ucc-btn font-semibold text-[#123B70] flex items-center gap-1.5 cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>
@@ -1011,9 +1011,9 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           </button>
 
           {showInstructions && (
-            <div className="mt-2.5 p-3.5 rounded-xl bg-[#EAF2FA]/60 border border-blue-100 text-xs text-slate-700 space-y-1.5">
-              <p className="font-bold text-[#123B70]">Official Voting Instructions:</p>
-              <ul className="list-disc pl-4 space-y-1 text-[11px]">
+            <div className="mt-2.5 p-3.5 rounded-xl bg-[#EAF2FA]/60 border border-blue-100 ucc-body-secondary text-slate-700 space-y-1.5">
+              <p className="font-semibold text-[#123B70]">Official Voting Instructions:</p>
+              <ul className="list-disc pl-4 space-y-1 ucc-caption">
                 <li>Select your preferred approved candidate(s) for each position listed below.</li>
                 <li>Use &quot;View Manifesto&quot; on any candidate card to read their full platform without losing your selections.</li>
                 <li>Required positions must have a selection before submitting; optional positions allow abstaining.</li>
@@ -1036,7 +1036,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               <button
                 key={position.id}
                 onClick={() => setActivePositionIndex(idx)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg ucc-btn font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   isCurrent
                     ? 'bg-[#123B70] text-white shadow-xs'
                     : isFilled
@@ -1044,10 +1044,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <span>{idx + 1}.</span>
+                <span className="tabular-nums">{idx + 1}.</span>
                 <span>{position.title}</span>
                 {candidates.length > 0 && !position.allowsSkip && !isFilled && (
-                  <span className="text-[10px] text-[#C62828] font-black">*</span>
+                  <span className="ucc-caption text-[#C62828] font-bold">*</span>
                 )}
                 {isFilled && <Check className="w-3 h-3 text-emerald-600" />}
               </button>
@@ -1062,11 +1062,11 @@ export const DigitalBallotPreviewPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#123B70] uppercase tracking-wider">
+                <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
                   Position {activePositionIndex + 1} of {ballotPositions.length} · {election.category}
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  className={`px-2 py-0.5 rounded ucc-caption font-semibold uppercase ${
                     activePosition.allowsSkip
                       ? 'bg-slate-100 text-slate-600'
                       : 'bg-red-50 text-[#C62828]'
@@ -1075,20 +1075,20 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   {activePosition.allowsSkip ? 'Optional (Skip Allowed)' : 'Required Selection'}
                 </span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
+              <h2 className="ucc-heading-section text-slate-900 mt-1">
                 {activePosition.title}
               </h2>
-              <p className="text-xs text-slate-600 mt-1 max-w-xl">{activePosition.description}</p>
+              <p className="ucc-body-secondary text-slate-600 mt-1 max-w-xl">{activePosition.description}</p>
             </div>
 
-            <div className="text-xs bg-[#F4F6F9] px-3 py-2 rounded-xl border border-slate-200 shrink-0 text-slate-700">
+            <div className="ucc-caption bg-[#F4F6F9] px-3.5 py-2 rounded-xl border border-slate-200 shrink-0 text-slate-700 tabular-nums">
               {maxForPos > 1 ? (
                 <span>
-                  Multi-choice: Select up to <strong>{maxForPos}</strong> ({currentSelectionsForPos.length}/{maxForPos} selected)
+                  Multi-choice: Select up to <strong className="font-semibold">{maxForPos}</strong> ({currentSelectionsForPos.length}/{maxForPos} selected)
                 </span>
               ) : (
                 <span>
-                  Single-choice: Select <strong>1</strong> approved candidate
+                  Single-choice: Select <strong className="font-semibold">1</strong> approved candidate
                 </span>
               )}
             </div>
@@ -1096,7 +1096,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
           {/* Approved Candidates Grid */}
           {positionCandidates.length === 0 ? (
-            <div className="p-8 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+            <div className="p-8 rounded-xl bg-slate-50 border border-slate-200 text-center ucc-body-secondary text-slate-500">
               No approved candidates are currently assigned to this position.
             </div>
           ) : (
@@ -1135,13 +1135,13 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                           className="w-16 h-16 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                         />
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-base font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-tight">
+                          <h3 className="ucc-heading-card text-slate-900 group-hover:text-[#123B70] transition-colors">
                             {cand.fullName}
                           </h3>
-                          <p className="text-[11px] font-semibold text-[#123B70] mt-0.5">
+                          <p className="ucc-caption font-semibold text-[#123B70] mt-0.5">
                             {cand.programme || cand.department}
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="ucc-caption text-slate-500">
                             {cand.department} · Level {cand.level}
                           </p>
                         </div>
@@ -1161,25 +1161,25 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                       </div>
 
                       {/* Candidate Campaign Statement / Biography */}
-                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                      <p className="ucc-body-secondary text-slate-600 line-clamp-3">
                         {cand.campaignStatement || cand.biography || cand.manifestoSummary}
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                    <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setManifestoCandidate(cand);
                         }}
-                        className="text-xs font-bold text-[#123B70] hover:underline cursor-pointer"
+                        className="ucc-btn font-semibold text-[#123B70] hover:underline cursor-pointer"
                       >
                         View Manifesto →
                       </button>
 
                       <span
-                        className={`font-bold text-xs ${
+                        className={`ucc-caption font-semibold ${
                           isSelected ? 'text-[#123B70]' : 'text-slate-500'
                         }`}
                       >
@@ -1202,7 +1202,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSkipPosition}
-                className="text-xs text-slate-600 hover:text-[#123B70] underline cursor-pointer font-medium"
+                className="ucc-btn text-slate-600 hover:text-[#123B70] underline cursor-pointer font-medium"
               >
                 Skip this position (Abstain from voting for {activePosition.title})
               </button>
@@ -1214,7 +1214,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <button
               onClick={handlePrevPosition}
               disabled={activePositionIndex === 0}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Previous Position</span>
@@ -1227,7 +1227,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                     setCurrentStep(2);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="px-4 py-2.5 rounded-xl border border-[#123B70]/30 text-[#123B70] hover:bg-[#EAF2FA] text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-[#123B70]/30 text-[#123B70] hover:bg-[#EAF2FA] ucc-btn font-semibold transition-colors cursor-pointer tabular-nums"
                 >
                   Review Ballot ({totalSelectedCount})
                 </button>
@@ -1235,7 +1235,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
               <button
                 onClick={handleNextPosition}
-                className="px-6 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs sm:text-sm font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <span>
                   {activePositionIndex === ballotPositions.length - 1
@@ -1250,10 +1250,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       )}
 
       {/* Ballot Secrecy & Governance Notice */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 ucc-body-secondary text-slate-600 flex items-start gap-3">
         <Lock className="w-4 h-4 text-[#123B70] shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong>Ballot Secrecy Architecture:</strong> Your voter participation record is separated from your anonymous ballot selections on the server. Do not use this system for an actual UCC election until it has undergone independent security review, election governance approval, and operational testing.
+        <p>
+          <strong className="font-semibold">Ballot Secrecy Architecture:</strong> Your voter participation record is separated from your anonymous ballot selections on the server. Do not use this system for an actual UCC election until it has undergone independent security review, election governance approval, and operational testing.
         </p>
       </div>
 
@@ -1269,14 +1269,14 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   className="w-14 h-14 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                 />
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900">
+                  <h3 className="ucc-heading-card text-slate-900">
                     {manifestoCandidate.fullName}
                   </h3>
-                  <p className="text-xs text-[#123B70] font-semibold">
+                  <p className="ucc-label text-[#123B70] font-semibold">
                     {manifestoCandidate.programme || manifestoCandidate.department} · Level{' '}
                     {manifestoCandidate.level}
                   </p>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="ucc-caption text-slate-500">
                     {manifestoCandidate.department} · {manifestoCandidate.hall}
                   </p>
                 </div>
@@ -1291,23 +1291,23 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
             {manifestoCandidate.biography && (
               <div className="space-y-1">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                   Biography
                 </h4>
-                <p className="text-xs text-slate-700 leading-relaxed">
+                <p className="ucc-body-secondary text-slate-700">
                   {manifestoCandidate.biography}
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              <h4 className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                 Manifesto & Vision
               </h4>
-              <p className="text-xs font-semibold text-[#123B70] italic">
+              <p className="ucc-body-secondary font-semibold text-[#123B70] italic">
                 "{manifestoCandidate.manifestoSummary}"
               </p>
-              <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-700">
+              <ul className="list-disc pl-4 space-y-1.5 ucc-body-secondary text-slate-700">
                 {(manifestoCandidate.fullManifesto || []).map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -1316,10 +1316,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
             {manifestoCandidate.keyPromises && manifestoCandidate.keyPromises.length > 0 && (
               <div className="space-y-1.5">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                   Key Campaign Promises
                 </h4>
-                <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
+                <ul className="list-disc pl-4 space-y-1 ucc-body-secondary text-slate-700">
                   {manifestoCandidate.keyPromises.map((p, i) => (
                     <li key={i}>{p}</li>
                   ))}
@@ -1330,10 +1330,10 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             {manifestoCandidate.leadershipExperience &&
               manifestoCandidate.leadershipExperience.length > 0 && (
                 <div className="space-y-1.5">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <h4 className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                     Leadership Experience
                   </h4>
-                  <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
+                  <ul className="list-disc pl-4 space-y-1 ucc-body-secondary text-slate-700">
                     {manifestoCandidate.leadershipExperience.map((exp, i) => (
                       <li key={i}>{exp}</li>
                     ))}
@@ -1344,7 +1344,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setManifestoCandidate(null)}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Close
               </button>
@@ -1355,7 +1355,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                   }
                   setManifestoCandidate(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold cursor-pointer"
               >
                 {currentSelectionsForPos.includes(manifestoCandidate.id)
                   ? 'Keep Selected'

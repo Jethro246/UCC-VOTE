@@ -32,7 +32,7 @@ export const CandidateAvatar: React.FC<CandidateAvatarProps> = ({
       <div
         role="img"
         aria-label={alt}
-        className={`${className} bg-[#EAF2FA] text-[#123B70] font-extrabold flex items-center justify-center select-none tracking-tight`}
+        className={`${className} bg-[#EAF2FA] text-[#123B70] font-bold flex items-center justify-center select-none tracking-tight`}
       >
         <span>{getInitials(alt)}</span>
       </div>

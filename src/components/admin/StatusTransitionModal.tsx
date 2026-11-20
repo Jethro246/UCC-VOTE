@@ -148,15 +148,15 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between pb-3 border-b border-slate-200">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold mb-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] ucc-caption font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Election Lifecycle State Machine</span>
             </div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">
+            <h3 className="ucc-heading-card text-slate-900">
               Change Status: {election.title}
             </h3>
-            <p className="text-xs text-slate-500 font-mono">
-              Current State: <span className="font-bold text-[#123B70] uppercase">{election.status}</span>
+            <p className="ucc-caption text-slate-500">
+              Current State: <span className="font-semibold text-[#123B70] uppercase">{election.status}</span>
             </p>
           </div>
           <button
@@ -168,21 +168,21 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {availableTransitions.length === 0 ? (
-          <div className="p-4 rounded-xl bg-slate-100 text-slate-600 text-xs text-center">
+          <div className="p-4 rounded-xl bg-slate-100 text-slate-600 ucc-body-secondary text-center">
             This election has reached the terminal status of <strong>{election.status}</strong>. No further state transitions are permitted.
           </div>
         ) : (
-          <form onSubmit={handleTransition} className="space-y-4 text-xs">
+          <form onSubmit={handleTransition} className="space-y-4">
             
             <div>
-              <label className="block font-bold text-slate-800 mb-2">
+              <label className="block ucc-label font-semibold text-slate-800 mb-2">
                 Permitted Target Status Transitions:
               </label>
               <div className="space-y-2">
@@ -204,13 +204,13 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
                       className="mt-0.5 text-[#123B70]"
                     />
                     <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <div className="ucc-label font-semibold text-slate-900 flex items-center gap-2">
                         <span>{opt.label}</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 uppercase">
+                        <span className="ucc-caption px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
                           {opt.status}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</p>
+                      <p className="ucc-caption text-slate-500 mt-0.5">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -218,7 +218,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-slate-800 mb-1">
+              <label className="block ucc-label font-semibold text-slate-800 mb-1">
                 Official Commission Justification / Gazette Order <span className="text-red-600">*</span>
               </label>
               <textarea
@@ -227,7 +227,7 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
                 placeholder="State the formal constitutional or administrative rationale for this transition (logged to permanent tamper-evident audit records)..."
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-sm text-slate-900"
               />
             </div>
 
@@ -235,14 +235,14 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 ucc-btn font-semibold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting || !targetStatus}
-                className="px-5 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50"
               >
                 {submitting ? 'Executing Transition...' : 'Confirm Status Change'}
               </button>

@@ -184,19 +184,19 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Approved':
-        return <span className="text-emerald-700 font-bold text-xs uppercase">Approved for Ballot</span>;
+        return <span className="text-emerald-700 font-semibold ucc-caption uppercase">Approved for Ballot</span>;
       case 'Rejected':
-        return <span className="text-red-700 font-bold text-xs uppercase">Application Rejected</span>;
+        return <span className="text-red-700 font-semibold ucc-caption uppercase">Application Rejected</span>;
       case 'Submitted':
-        return <span className="text-blue-700 font-bold text-xs uppercase">Awaiting Vetting</span>;
+        return <span className="text-blue-700 font-semibold ucc-caption uppercase">Awaiting Vetting</span>;
       case 'Under review':
-        return <span className="text-amber-700 font-bold text-xs uppercase">Under Active Review</span>;
+        return <span className="text-amber-700 font-semibold ucc-caption uppercase">Under Active Review</span>;
       case 'Draft':
-        return <span className="text-slate-600 font-bold text-xs uppercase">Draft Application</span>;
+        return <span className="text-slate-600 font-semibold ucc-caption uppercase">Draft Application</span>;
       case 'Withdrawn':
-        return <span className="text-slate-600 font-bold text-xs uppercase">Nomination Withdrawn</span>;
+        return <span className="text-slate-600 font-semibold ucc-caption uppercase">Nomination Withdrawn</span>;
       default:
-        return <span className="text-slate-600 font-bold text-xs uppercase">{status}</span>;
+        return <span className="text-slate-600 font-semibold ucc-caption uppercase">{status}</span>;
     }
   };
 
@@ -219,10 +219,10 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               <ShieldCheck className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+              <h2 className="ucc-heading-card text-white">
                 Vetting Committee Dossier Review
               </h2>
-              <p className="text-xs text-blue-200">
+              <p className="ucc-body-secondary text-blue-200">
                 Official Electoral Commission Candidate Scrutiny Panel
               </p>
             </div>
@@ -246,17 +246,17 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
             />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-900">{candidate.fullName}</h3>
+                <h3 className="ucc-heading-card text-slate-900">{candidate.fullName}</h3>
                 {candidate.nickname && (
-                  <span className="text-xs font-bold text-[#C62828]">"{candidate.nickname}"</span>
+                  <span className="ucc-label font-semibold text-[#C62828]">"{candidate.nickname}"</span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5">
-                <span className="font-mono text-slate-700 font-semibold">{candidate.studentId}</span>
+              <div className="flex flex-wrap items-center gap-2 ucc-body-secondary text-slate-500 mt-0.5">
+                <span className="tabular-nums text-slate-700 font-semibold">{candidate.studentId}</span>
                 <span>·</span>
                 <span>{candidate.department}</span>
                 <span>·</span>
-                <span>Level {candidate.level}</span>
+                <span className="tabular-nums">Level {candidate.level}</span>
                 <span>·</span>
                 <span>{candidate.hall}</span>
               </div>
@@ -265,7 +265,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
           <div className="flex items-center gap-3 self-start sm:self-auto">
             <div className="text-right sm:block hidden">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Application Status</span>
+              <span className="ucc-caption text-slate-400 uppercase tracking-wider block">Application Status</span>
               {getStatusBadge(candidate.applicationStatus)}
             </div>
             <button
@@ -273,7 +273,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                 onClose();
                 onEditCandidate(candidate);
               }}
-              className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 hover:bg-white text-slate-700 flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 ucc-btn font-semibold rounded-xl border border-slate-300 hover:bg-white text-slate-700 flex items-center gap-1.5 cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Edit Record</span>
@@ -285,7 +285,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
         <div className="px-6 border-b border-slate-200 bg-white flex items-center gap-2 shrink-0">
           <button
             onClick={() => setActiveTab('dossier')}
-            className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`px-4 py-3 ucc-nav-item font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'dossier'
                 ? 'border-[#123B70] text-[#123B70]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -295,7 +295,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('eligibility')}
-            className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-3 ucc-nav-item font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'eligibility'
                 ? 'border-[#123B70] text-[#123B70]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -308,7 +308,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('actions')}
-            className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`px-4 py-3 ucc-nav-item font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'actions'
                 ? 'border-[#123B70] text-[#123B70]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -320,7 +320,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
         {/* Feedback Message */}
         {feedbackMsg && (
-          <div className={`mx-6 mt-4 p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+          <div className={`mx-6 mt-4 p-3.5 rounded-xl border ucc-body-secondary flex items-start gap-2.5 ${
             feedbackMsg.type === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : 'bg-red-50 border-red-200 text-red-800'
@@ -344,13 +344,13 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Election & Portfolio Card */}
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider block">
+                  <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider block">
                     Portfolio Contested
                   </span>
-                  <h4 className="text-sm font-extrabold text-slate-900 mt-0.5">
+                  <h4 className="ucc-body font-bold text-slate-900 mt-0.5">
                     {resolvedPosition?.title || candidate.positionId}
                   </h4>
-                  <p className="text-xs text-slate-600 mt-0.5">
+                  <p className="ucc-body-secondary text-slate-600 mt-0.5">
                     Election: {electionTitle || targetElection?.title || candidate.electionId}
                     {targetElection?.subdomainLabel ? ` · ${targetElection.subdomainLabel}` : ''}
                   </p>
@@ -358,7 +358,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
                 <button
                   onClick={() => setIsReassigning(!isReassigning)}
-                  className="text-xs font-semibold text-[#123B70] hover:underline self-start sm:self-auto cursor-pointer"
+                  className="ucc-btn font-semibold text-[#123B70] hover:underline self-start sm:self-auto cursor-pointer"
                 >
                   {isReassigning ? 'Cancel Reassignment' : 'Reassign Portfolio'}
                 </button>
@@ -367,7 +367,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Reassignment Dropdown if active */}
               {isReassigning && (
                 <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3">
-                  <span className="text-xs font-bold text-[#123B70] block">
+                  <span className="ucc-label font-semibold text-[#123B70] block">
                     Reassign Candidate to Another Position in {targetElection?.title || candidate.electionId}:
                   </span>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -375,7 +375,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                       <select
                         value={selectedPositionId}
                         onChange={(e) => setSelectedPositionId(e.target.value)}
-                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white flex-1"
+                        className="px-3 py-1.5 text-sm rounded-xl border border-slate-300 bg-white flex-1"
                       >
                         {electionPositions.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -389,13 +389,13 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                         value={selectedPositionId}
                         onChange={(e) => setSelectedPositionId(e.target.value)}
                         placeholder="Enter target Position ID"
-                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white flex-1"
+                        className="px-3 py-1.5 text-sm rounded-xl border border-slate-300 bg-white flex-1"
                       />
                     )}
                     <button
                       onClick={handleReassignPosition}
                       disabled={isProcessing}
-                      className="px-4 py-1.5 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer hover:bg-[#0B1F3A] whitespace-nowrap"
+                      className="px-4 py-1.5 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold cursor-pointer hover:bg-[#0B1F3A] whitespace-nowrap"
                     >
                       Confirm Reassignment
                     </button>
@@ -406,10 +406,10 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Biography */}
               {candidate.biography && (
                 <div className="space-y-1.5">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider">
                     Candidate Biography
                   </h4>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <p className="ucc-body-secondary text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                     {candidate.biography}
                   </p>
                 </div>
@@ -417,13 +417,13 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
               {/* Leadership Track Record */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5 text-[#123B70]" />
                   <span>Leadership Experience & Past Portfolios</span>
                 </h4>
                 <ul className="space-y-1.5">
                   {candidate.leadershipExperience.map((item, idx) => (
-                    <li key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                    <li key={idx} className="ucc-body-secondary text-slate-700 flex items-start gap-2">
                       <span className="text-[#123B70] font-bold">·</span>
                       <span>{item}</span>
                     </li>
@@ -433,29 +433,29 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
               {/* Manifesto Summary */}
               <div className="space-y-1.5">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-[#123B70]" />
                   <span>Manifesto Pillar Summary</span>
                 </h4>
                 {candidate.campaignStatement && (
-                  <p className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl">
+                  <p className="ucc-body-secondary font-semibold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl">
                     Campaign Statement: {candidate.campaignStatement}
                   </p>
                 )}
-                <div className="p-3.5 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 text-xs font-medium text-[#123B70]">
+                <div className="p-3.5 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 ucc-body-secondary font-medium text-[#123B70]">
                   "{candidate.manifestoSummary}"
                 </div>
               </div>
 
               {/* Full Manifesto Points */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider">
                   Detailed Manifesto Proposals
                 </h4>
                 <div className="space-y-2">
                   {candidate.fullManifesto.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2.5">
-                      <span className="font-bold text-[#123B70] shrink-0">{idx + 1}.</span>
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white ucc-body-secondary text-slate-700 flex items-start gap-2.5">
+                      <span className="font-semibold text-[#123B70] shrink-0 tabular-nums">{idx + 1}.</span>
                       <span>{item}</span>
                     </div>
                   ))}
@@ -464,12 +464,12 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
               {/* Key Campaign Promises */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider">
                   Campaign Promises & Commitments
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {candidate.keyPromises.map((promise, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 flex items-start gap-2">
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 ucc-body-secondary text-slate-700 flex items-start gap-2">
                       <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                       <span>{promise}</span>
                     </div>
@@ -480,17 +480,17 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Campaign Video */}
               {candidate.videoUrl && (
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Video className="w-3.5 h-3.5 text-[#123B70]" />
                     <span>Campaign Video Broadcast</span>
                   </h4>
-                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3 text-xs">
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3 ucc-body-secondary">
                     <span className="text-slate-600 truncate">{candidate.videoUrl}</span>
                     <a
                       href={candidate.videoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-1 rounded-lg bg-[#123B70] text-white text-xs font-semibold flex items-center gap-1 shrink-0"
+                      className="px-3 py-1 rounded-lg bg-[#123B70] text-white ucc-btn font-semibold flex items-center gap-1 shrink-0"
                     >
                       <span>Watch</span>
                       <ExternalLink className="w-3 h-3" />
@@ -500,7 +500,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               )}
 
               {/* Audit history */}
-              <div className="pt-2 text-[11px] text-slate-500 border-t border-slate-200 flex flex-wrap gap-4">
+              <div className="pt-2 ucc-caption text-slate-500 border-t border-slate-200 flex flex-wrap gap-4 tabular-nums">
                 {candidate.submittedAt && (
                   <span>Submitted: {new Date(candidate.submittedAt).toLocaleDateString()}</span>
                 )}
@@ -519,17 +519,17 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">
+                  <h4 className="ucc-label font-semibold text-slate-900">
                     Official Student Information System (SIS) Automated Check
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="ucc-body-secondary text-slate-500 mt-0.5">
                     Cross-references candidate credentials with the UCC Academic Affairs and Hall Registry.
                   </p>
                 </div>
                 <button
                   onClick={handleVerify}
                   disabled={isProcessing}
-                  className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                  className="px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
                 >
                   <UserCheck className="w-4 h-4 text-amber-400" />
                   <span>{isProcessing ? 'Verifying...' : 'Re-run SIS Registry Verification'}</span>
@@ -538,7 +538,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
               {/* Vetting Checklist Breakdown */}
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider">
                   Mandatory Statutory Vetting Checklist
                 </h4>
 
@@ -546,18 +546,18 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                   {/* Gate 1 */}
                   <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">1. Active Semester Enrollment</span>
+                      <span className="ucc-label font-semibold text-slate-800">1. Active Semester Enrollment</span>
                       {candidate.eligibilityDetails?.isEnrolled !== false ? (
-                        <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-emerald-700 font-semibold ucc-caption flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Enrolled
                         </span>
                       ) : (
-                        <span className="text-red-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-red-700 font-semibold ucc-caption flex items-center gap-1">
                           <XCircle className="w-3.5 h-3.5" /> Not Enrolled
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Confirmed registered student status for the 2025/2026 academic term.
                     </p>
                   </div>
@@ -565,18 +565,18 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                   {/* Gate 2 */}
                   <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">2. Academic CGPA Standing</span>
+                      <span className="ucc-label font-semibold text-slate-800">2. Academic CGPA Standing</span>
                       {candidate.eligibilityDetails?.cgpaQualified !== false ? (
-                        <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-emerald-700 font-semibold ucc-caption flex items-center gap-1 tabular-nums">
                           <CheckCircle2 className="w-3.5 h-3.5" /> CGPA &ge; 3.00
                         </span>
                       ) : (
-                        <span className="text-red-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-red-700 font-semibold ucc-caption flex items-center gap-1 tabular-nums">
                           <XCircle className="w-3.5 h-3.5" /> Below 3.00
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Minimum CGPA 3.00 required by Article 14 of UCC Electoral Regulations.
                     </p>
                   </div>
@@ -584,18 +584,18 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                   {/* Gate 3 */}
                   <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">3. Academic Level Alignment</span>
+                      <span className="ucc-label font-semibold text-slate-800">3. Academic Level Alignment</span>
                       {candidate.eligibilityDetails?.levelMatch !== false ? (
-                        <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-emerald-700 font-semibold ucc-caption flex items-center gap-1 tabular-nums">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Level {candidate.level} Eligible
                         </span>
                       ) : (
-                        <span className="text-red-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-red-700 font-semibold ucc-caption flex items-center gap-1">
                           <XCircle className="w-3.5 h-3.5" /> Level Mismatch
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Validates that candidate level matches executive portfolio rules.
                     </p>
                   </div>
@@ -603,25 +603,25 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                   {/* Gate 4 */}
                   <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">4. Faculty & Hall Constituency</span>
+                      <span className="ucc-label font-semibold text-slate-800">4. Faculty & Hall Constituency</span>
                       {candidate.eligibilityDetails?.hallMatch !== false && candidate.eligibilityDetails?.facultyMatch !== false ? (
-                        <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-emerald-700 font-semibold ucc-caption flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Constituency Match
                         </span>
                       ) : (
-                        <span className="text-red-700 font-bold text-[11px] flex items-center gap-1">
+                        <span className="text-red-700 font-semibold ucc-caption flex items-center gap-1">
                           <XCircle className="w-3.5 h-3.5" /> Non-Resident / Ineligible
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ucc-caption text-slate-500">
                       Affiliated hall ({candidate.hall}) and faculty ({candidate.faculty}) verified.
                     </p>
                   </div>
                 </div>
 
                 {candidate.eligibilityDetails?.summary && (
-                  <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 text-xs text-[#123B70]">
+                  <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 ucc-body-secondary text-[#123B70]">
                     <strong>Audit Summary:</strong> {candidate.eligibilityDetails.summary}
                   </div>
                 )}
@@ -633,10 +633,10 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
           {activeTab === 'actions' && (
             <div className="space-y-6">
               <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
+                <h4 className="ucc-caption font-semibold text-slate-900 uppercase tracking-wider mb-2">
                   Electoral Commission Vetting Determinations
                 </h4>
-                <p className="text-xs text-slate-600">
+                <p className="ucc-body-secondary text-slate-600">
                   Approved candidates will be instantly added to official digital ballots. Rejections and correction requests are automatically audited and archived.
                 </p>
               </div>
@@ -644,16 +644,16 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Status info box */}
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-600">Current Application Status:</span>
+                  <span className="ucc-body-secondary text-slate-600">Current Application Status:</span>
                   {getStatusBadge(candidate.applicationStatus)}
                 </div>
                 {candidate.rejectionReason && (
-                  <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-200">
+                  <div className="ucc-body-secondary text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-200">
                     <strong>Rejection Notice:</strong> {candidate.rejectionReason}
                   </div>
                 )}
                 {candidate.correctionNotes && (
-                  <div className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                  <div className="ucc-body-secondary text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
                     <strong>Correction Notes:</strong> {candidate.correctionNotes}
                   </div>
                 )}
@@ -665,40 +665,40 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                 <button
                   onClick={handleApprove}
                   disabled={isProcessing || candidate.applicationStatus === 'Approved'}
-                  className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                  className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold ucc-btn flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
                 >
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                   <span>Approve Application</span>
-                  <span className="text-[10px] font-normal text-emerald-700">Assign to Official Ballot</span>
+                  <span className="ucc-caption font-normal text-emerald-700">Assign to Official Ballot</span>
                 </button>
 
                 {/* Reject Button */}
                 <button
                   onClick={() => setShowRejectInput(!showRejectInput)}
                   disabled={isProcessing}
-                  className="p-4 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                  className="p-4 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 text-red-800 font-semibold ucc-btn flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
                 >
                   <XCircle className="w-5 h-5 text-red-600" />
                   <span>Reject Application</span>
-                  <span className="text-[10px] font-normal text-red-700">Disqualify with Stated Reason</span>
+                  <span className="ucc-caption font-normal text-red-700">Disqualify with Stated Reason</span>
                 </button>
 
                 {/* Request Corrections Button */}
                 <button
                   onClick={() => setShowCorrectionInput(!showCorrectionInput)}
                   disabled={isProcessing}
-                  className="p-4 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                  className="p-4 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold ucc-btn flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
                 >
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                   <span>Request Corrections</span>
-                  <span className="text-[10px] font-normal text-amber-700">Return for Clarification</span>
+                  <span className="ucc-caption font-normal text-amber-700">Return for Clarification</span>
                 </button>
               </div>
 
               {/* Sub-Panel: Reject with Reason */}
               {showRejectInput && (
                 <div className="p-4 rounded-xl border border-red-200 bg-red-50/50 space-y-3">
-                  <span className="text-xs font-bold text-red-900 block">
+                  <span className="ucc-label font-semibold text-red-900 block">
                     Specify Rejection Ground (Constitutional / Vetting Requirement):
                   </span>
                   <textarea
@@ -706,19 +706,19 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     placeholder="e.g. Failure to satisfy Article 14(2) minimum CGPA clearance, or disciplinary record with Dean of Students..."
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-red-300 bg-white focus:outline-none"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-red-300 bg-white focus:outline-none"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowRejectInput(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-white rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 ucc-btn text-slate-600 hover:bg-white rounded-lg cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleReject}
                       disabled={isProcessing}
-                      className="px-4 py-1.5 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                      className="px-4 py-1.5 ucc-btn font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
                     >
                       Confirm Rejection
                     </button>
@@ -729,7 +729,7 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
               {/* Sub-Panel: Request Corrections */}
               {showCorrectionInput && (
                 <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3">
-                  <span className="text-xs font-bold text-amber-900 block">
+                  <span className="ucc-label font-semibold text-amber-900 block">
                     Correction Notice to Aspirant:
                   </span>
                   <textarea
@@ -737,19 +737,19 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
                     value={correctionNotes}
                     onChange={(e) => setCorrectionNotes(e.target.value)}
                     placeholder="e.g. Please upload certified clearance slip from the Directorate of Academic Affairs and update campaign promises..."
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-amber-300 bg-white focus:outline-none"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-amber-300 bg-white focus:outline-none"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowCorrectionInput(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-white rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 ucc-btn text-slate-600 hover:bg-white rounded-lg cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleRequestCorrections}
                       disabled={isProcessing}
-                      className="px-4 py-1.5 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                      className="px-4 py-1.5 ucc-btn font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
                     >
                       Send Revision Request
                     </button>
@@ -762,12 +762,12 @@ export const CandidateReviewModal: React.FC<CandidateReviewModalProps> = ({
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
-          <span className="text-[11px] text-slate-500 font-mono">
+          <span className="ucc-caption text-slate-500 font-mono tabular-nums">
             Candidate ID: {candidate.id}
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
+            className="px-4 py-2 ucc-btn font-semibold rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
           >
             Close Review
           </button>

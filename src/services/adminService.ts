@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
+import { formatNumber } from '../utils/numberFormat';
 import {
   UCC_HALLS,
   categoryToDomainId,
@@ -2719,7 +2720,7 @@ class FirebaseAdminService {
             `"${c.department.replace(/"/g, '""')}"`,
             `"${c.hall.replace(/"/g, '""')}"`,
             r.tallyAvailable === false ? 'Not tallied' : c.votesReceived,
-            r.tallyAvailable === false ? 'Not tallied' : c.percentageOfValidVotes.toFixed(1),
+            r.tallyAvailable === false ? 'Not tallied' : formatNumber(c.percentageOfValidVotes, { maximumFractionDigits: 1, useGrouping: false }),
             `"${outcomeLabel.replace(/"/g, '""')}"`,
           ].join(',')
         );

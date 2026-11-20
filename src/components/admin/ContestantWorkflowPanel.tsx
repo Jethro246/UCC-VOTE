@@ -53,6 +53,7 @@ import {
   searchContestants,
 } from '../../utils/contestantUtils';
 import { NON_RESIDENT_HALL_LABEL, getHallDisplayName } from '../../utils/hallUtils';
+import { formatPercentage } from '../../utils/numberFormat';
 
 export interface ElectionPositionOption {
   id: string;
@@ -692,18 +693,18 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
   const currentAssignedPosition = positions.find((p) => p.id === currentItem?.positionKey);
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="space-y-4 ucc-body-secondary">
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-[#E45757]/10 border border-[#E45757]/40 text-[#9B1C1C] flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-[#E45757] shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-medium">{errorMsg}</span>
+          <span className="font-medium">{errorMsg}</span>
         </div>
       )}
 
       {successMsg && (
         <div className="p-3.5 rounded-xl bg-[#14B8A6]/10 border border-[#14B8A6]/40 text-[#0F766E] flex items-start gap-2.5">
           <CheckCircle2 className="w-4 h-4 text-[#14B8A6] shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-semibold">{successMsg}</span>
+          <span className="font-semibold">{successMsg}</span>
         </div>
       )}
 
@@ -712,13 +713,13 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-[#F5F7FB] border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#102A43] font-extrabold text-sm">
+              <div className="flex items-center gap-2 text-[#102A43] ucc-heading-card">
                 <Users className="w-4 h-4 text-[#2563EB]" />
                 <span>Candidate &amp; Contestant Assignment</span>
               </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed max-w-xl">
+              <p className="ucc-body-secondary text-slate-600 max-w-xl">
                 Select existing contestants already registered in UCC VOTE or register a new contestant profile, assign them to a specific position in{' '}
-                <strong className="text-[#102A43]">{electionContext.title || 'this election'}</strong>, and review their details before confirming.
+                <strong className="text-[#102A43] font-semibold">{electionContext.title || 'this election'}</strong>, and review their details before confirming.
               </p>
             </div>
 
@@ -731,7 +732,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                   setView('search_existing');
                 }}
                 disabled={positions.length === 0}
-                className="px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs whitespace-nowrap"
+                className="px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs whitespace-nowrap"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>Add Existing Contestant</span>
@@ -741,7 +742,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 type="button"
                 onClick={startNewRegistration}
                 disabled={positions.length === 0}
-                className="px-4 py-2.5 rounded-xl bg-[#102A43] hover:bg-slate-900 text-white font-bold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs whitespace-nowrap"
+                className="px-4 py-2.5 rounded-xl bg-[#102A43] hover:bg-slate-900 text-white ucc-btn font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs whitespace-nowrap"
               >
                 <UserPlus className="w-3.5 h-3.5 text-[#14B8A6]" />
                 <span>Register New Contestant</span>
@@ -759,11 +760,11 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
           {mode === 'staged' && (
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h4 className="font-bold text-[#102A43] uppercase tracking-wider text-[11px]">
+                <h4 className="font-semibold text-[#102A43] uppercase tracking-wider ucc-caption tabular-nums">
                   Staged Candidates Ready to Provision ({stagedCandidates.length})
                 </h4>
                 {stagedCandidates.length === 0 && (
-                  <span className="text-[11px] text-slate-500">
+                  <span className="ucc-caption text-slate-500">
                     Optional during initial creation — you can also add candidates anytime afterward.
                   </span>
                 )}
@@ -790,23 +791,23 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="font-bold text-[#102A43] truncate">
+                              <span className="font-semibold text-[#102A43] truncate">
                                 {sc.permanentProfile.fullName}
                               </span>
-                              <span className="px-2 py-0.5 rounded-md bg-[#2563EB]/10 text-[#2563EB] font-bold text-[10px]">
+                              <span className="px-2 py-0.5 rounded-md bg-[#2563EB]/10 text-[#2563EB] font-semibold ucc-caption">
                                 {pos ? pos.title : 'Position Unassigned'}
                               </span>
-                              <span className="px-2 py-0.5 rounded-md bg-[#14B8A6]/15 text-[#0F766E] font-bold text-[10px]">
+                              <span className="px-2 py-0.5 rounded-md bg-[#14B8A6]/15 text-[#0F766E] font-semibold ucc-caption">
                                 {sc.electionSpecific.applicationStatus}
                               </span>
                               {sc.permanentProfileEdited && (
-                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-semibold text-[10px]">
+                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-semibold ucc-caption">
                                   Permanent Profile Update Confirmed
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              <span className="font-mono">{sc.permanentProfile.studentId}</span> ·{' '}
+                            <p className="ucc-caption text-slate-500 truncate mt-0.5">
+                              <span className="tabular-nums">{sc.permanentProfile.studentId}</span> ·{' '}
                               {sc.permanentProfile.department}
                               {sc.permanentProfile.hall ? ` · ${sc.permanentProfile.hall}` : ''}
                             </p>
@@ -817,7 +818,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           <button
                             type="button"
                             onClick={() => startEditStaged(sc)}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[#102A43] font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[#102A43] ucc-caption font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <Edit3 className="w-3 h-3" />
                             <span>Edit</span>
@@ -825,7 +826,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           <button
                             type="button"
                             onClick={() => onRemoveStagedCandidate?.(sc.draftId)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#E45757]/10 hover:bg-[#E45757]/20 text-[#E45757] font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg bg-[#E45757]/10 hover:bg-[#E45757]/20 text-[#E45757] ucc-caption font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>Remove</span>
@@ -844,7 +845,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               <button
                 type="button"
                 onClick={onCloseFlow}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 ucc-btn font-semibold hover:bg-slate-50 cursor-pointer"
               >
                 Back to Election Candidate Roster
               </button>
@@ -863,17 +864,17 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 setView('hub');
                 setErrorMsg('');
               }}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#102A43] hover:text-[#2563EB] cursor-pointer"
+              className="inline-flex items-center gap-1.5 ucc-btn font-semibold text-[#102A43] hover:text-[#2563EB] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
             </button>
 
             <div className="text-right">
-              <h4 className="font-extrabold text-[#102A43] text-sm">
+              <h4 className="ucc-heading-card text-[#102A43] tabular-nums">
                 Select Existing Contestants ({contestants.length} in database)
               </h4>
-              <p className="text-[11px] text-slate-500">
+              <p className="ucc-caption text-slate-500">
                 Select one or multiple contestants without re-registering them.
               </p>
             </div>
@@ -886,14 +887,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by full name, student ID, department, programme, faculty, or hall..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 bg-[#F5F7FB] focus:bg-white focus:outline-none focus:border-[#2563EB] text-slate-900"
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 bg-[#F5F7FB] focus:bg-white focus:outline-none focus:border-[#2563EB] text-slate-900"
             />
           </div>
 
           {selectedExistingIds.length > 0 && (
             <div className="p-3 rounded-xl bg-[#2563EB]/5 border border-[#2563EB]/30 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-bold text-[#102A43] mr-1">
+                <span className="font-semibold text-[#102A43] mr-1 tabular-nums">
                   Selected ({selectedExistingIds.length}):
                 </span>
                 {selectedExistingIds.map((id) => {
@@ -902,7 +903,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                   return (
                     <span
                       key={id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2563EB] text-white font-semibold text-[11px]"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2563EB] text-white font-semibold ucc-caption"
                     >
                       <span>{found.fullName}</span>
                       <button
@@ -921,7 +922,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               <button
                 type="button"
                 onClick={() => proceedWithSelectedExisting()}
-                className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
               >
                 <span>Assign &amp; Configure Selected</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -933,14 +934,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
             {filteredExistingContestants.length === 0 ? (
               <div className="col-span-full p-8 text-center rounded-2xl bg-[#F5F7FB] border border-slate-200 space-y-2">
                 <Users className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="font-bold text-[#102A43]">No matching contestants found</p>
-                <p className="text-[11px] text-slate-500">
+                <p className="font-semibold text-[#102A43]">No matching contestants found</p>
+                <p className="ucc-caption text-slate-500">
                   Adjust your search terms or register a brand new contestant profile.
                 </p>
                 <button
                   type="button"
                   onClick={startNewRegistration}
-                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#102A43] text-white font-bold cursor-pointer"
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#102A43] text-white ucc-btn font-semibold cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Register New Contestant</span>
@@ -986,23 +987,23 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h5 className="font-bold text-[#102A43] truncate">{c.fullName}</h5>
-                          <div className="font-mono text-[10px] text-slate-500">
+                          <h5 className="font-semibold text-[#102A43] truncate">{c.fullName}</h5>
+                          <div className="ucc-caption tabular-nums text-slate-500">
                             {c.studentId || 'Student ID not verified'}
                           </div>
                         </div>
                         {alreadyAdded && (
-                          <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 font-bold text-[10px] shrink-0">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 font-semibold ucc-caption shrink-0">
                             Already Added
                           </span>
                         )}
                       </div>
 
-                      <div className="text-[11px] text-slate-600 truncate">
+                      <div className="ucc-caption text-slate-600 truncate">
                         {c.programme ? `${c.programme} · ` : ''}
                         {c.department}
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate">
+                      <div className="ucc-caption text-slate-500 truncate">
                         {c.faculty} · {c.hall || 'Hall not specified'}
                       </div>
 
@@ -1014,14 +1015,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                             return (
                               <span
                                 key={p.candidateId}
-                                className="px-1.5 py-0.5 rounded bg-[#F5F7FB] border border-slate-200 text-[10px] text-slate-700 truncate max-w-[220px]"
+                                className="px-1.5 py-0.5 rounded bg-[#F5F7FB] border border-slate-200 ucc-caption text-slate-700 truncate max-w-[220px]"
                               >
                                 {el?.code || p.electionId}: {posName}
                               </span>
                             );
                           })}
                           {c.participations.length > 2 && (
-                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-600 font-semibold">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 ucc-caption text-slate-600 font-semibold">
                               +{c.participations.length - 2} more
                             </span>
                           )}
@@ -1047,7 +1048,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 setErrorMsg('');
                 setView(currentItem.mode === 'existing' ? 'search_existing' : 'hub');
               }}
-              className="inline-flex items-center gap-1.5 font-bold text-[#102A43] hover:text-[#2563EB] cursor-pointer"
+              className="inline-flex items-center gap-1.5 ucc-btn font-semibold text-[#102A43] hover:text-[#2563EB] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>
@@ -1058,7 +1059,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
             </button>
 
             {queue.length > 1 && (
-              <div className="flex items-center gap-2 text-[11px] font-bold text-[#2563EB] bg-[#2563EB]/10 px-3 py-1 rounded-lg">
+              <div className="flex items-center gap-2 ucc-caption font-semibold tabular-nums text-[#2563EB] bg-[#2563EB]/10 px-3 py-1 rounded-lg">
                 <span>
                   Configuring {queueIdx + 1} of {queue.length}: {currentItem.permanent.fullName}
                 </span>
@@ -1072,13 +1073,13 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               <div className="flex items-start gap-2.5">
                 <ShieldAlert className="w-5 h-5 text-[#E45757] shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h5 className="font-extrabold text-[#9B1C1C]">
+                  <h5 className="font-semibold text-[#9B1C1C]">
                     Duplicate Contestant Profile Detected
                   </h5>
-                  <p className="text-[11px] text-[#9B1C1C]/90 leading-relaxed">
+                  <p className="ucc-body-secondary text-[#9B1C1C]/90">
                     A permanent contestant record already exists for{' '}
-                    <strong>{duplicateForNewProfile.fullName}</strong> (
-                    <code className="font-mono">{duplicateForNewProfile.studentId}</code> ·{' '}
+                    <strong className="font-semibold">{duplicateForNewProfile.fullName}</strong> (
+                    <code className="tabular-nums">{duplicateForNewProfile.studentId}</code> ·{' '}
                     {duplicateForNewProfile.department}). Select their existing record instead of creating a duplicate contestant.
                   </p>
                 </div>
@@ -1086,7 +1087,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               <button
                 type="button"
                 onClick={() => switchNewToExisting(duplicateForNewProfile)}
-                className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold cursor-pointer inline-flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold cursor-pointer inline-flex items-center gap-1.5"
               >
                 <UserCheck className="w-3.5 h-3.5" />
                 <span>Switch to Existing Profile ({duplicateForNewProfile.fullName})</span>
@@ -1097,11 +1098,11 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
           {/* CARD A: ELECTION-SPECIFIC POSITION & CAMPAIGN DETAILS */}
           <div className="rounded-2xl border border-[#2563EB]/30 bg-white overflow-hidden shadow-xs">
             <div className="bg-[#2563EB] text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 font-bold">
+              <div className="flex items-center gap-2 font-semibold">
                 <Award className="w-4 h-4" />
                 <span>1. Election Assignment &amp; Election-Specific Details</span>
               </div>
-              <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded font-semibold">
+              <span className="ucc-caption bg-white/15 px-2 py-0.5 rounded font-semibold">
                 Applies ONLY to {electionContext.title || 'this election'}
               </span>
             </div>
@@ -1109,7 +1110,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Assigned Position in This Election <span className="text-[#E45757]">*</span>
                   </label>
                   <select
@@ -1117,7 +1118,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                     onChange={(e) =>
                       updateCurrentItem((prev) => ({ ...prev, positionKey: e.target.value }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-semibold text-[#102A43] focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white font-medium text-[#102A43] focus:outline-none focus:border-[#2563EB]"
                   >
                     {positions.map((pos) => (
                       <option key={pos.id} value={pos.id}>
@@ -1128,7 +1129,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Ballot Approval Status
                   </label>
                   <select
@@ -1139,7 +1140,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                         applicationStatus: e.target.value as CandidateApplicationStatus,
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-semibold text-[#102A43] focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white font-medium text-[#102A43] focus:outline-none focus:border-[#2563EB]"
                   >
                     <option value="Approved">Approved (Active on Digital Ballot)</option>
                     <option value="Submitted">Submitted (Pending Vetting Review)</option>
@@ -1151,7 +1152,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               {/* Election-Specific Portrait Option */}
               <div className="p-3 rounded-xl bg-[#F5F7FB] border border-slate-200 space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-bold text-[#102A43] flex items-center gap-1.5">
+                  <span className="ucc-label font-semibold text-[#102A43] flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-[#2563EB]" />
                     <span>Portrait for This Election</span>
                   </span>
@@ -1194,7 +1195,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                     />
                     <div className="flex-1 space-y-1.5 w-full">
                       <div className="flex flex-wrap items-center gap-2">
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2563EB] text-white font-bold cursor-pointer hover:bg-blue-700">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2563EB] text-white ucc-btn font-semibold cursor-pointer hover:bg-blue-700">
                           {uploadingTarget === 'election' ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
@@ -1202,7 +1203,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           )}
                           <span>
                             {uploadingTarget === 'election'
-                              ? `Uploading ${uploadProgress ?? 0}%...`
+                              ? `Uploading ${formatPercentage(uploadProgress ?? 0)}...`
                               : 'Choose Election Portrait'}
                           </span>
                           <input
@@ -1228,7 +1229,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           }))
                         }
                         placeholder="Or paste election-specific image URL..."
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px]"
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm"
                       />
                     </div>
                   </div>
@@ -1237,7 +1238,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Campaign Statement (Election-Specific)
                   </label>
                   <input
@@ -1250,12 +1251,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="e.g. Putting Student Welfare & Digital Innovation First"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Manifesto Summary / Core Slogan
                   </label>
                   <input
@@ -1268,14 +1269,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="1-2 sentence vision statement for this race"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Detailed Manifesto Pillars (One per line)
                   </label>
                   <textarea
@@ -1288,12 +1289,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Expand shuttle access across campus&#10;Launch academic peer tutoring hubs"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Key Promises (One per line)
                   </label>
                   <textarea
@@ -1306,13 +1307,13 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Quarterly open budget townhalls&#10;24/7 reading room Wi-Fi upgrade"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#102A43] mb-1 flex items-center gap-1.5">
+                <label className="block ucc-label font-semibold text-[#102A43] mb-1 flex items-center gap-1.5">
                   <Video className="w-3.5 h-3.5 text-[#2563EB]" />
                   <span>Campaign Video URL (Optional)</span>
                 </label>
@@ -1323,7 +1324,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                     updateCurrentItem((prev) => ({ ...prev, videoUrl: e.target.value }))
                   }
                   placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#2563EB]"
                 />
               </div>
             </div>
@@ -1332,11 +1333,11 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
           {/* CARD B: PERMANENT CONTESTANT PROFILE */}
           <div className="rounded-2xl border border-[#102A43]/25 bg-white overflow-hidden shadow-xs">
             <div className="bg-[#102A43] text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 font-bold">
+              <div className="flex items-center gap-2 font-semibold">
                 <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
                 <span>2. Permanent Contestant Profile</span>
               </div>
-              <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded font-semibold">
+              <span className="ucc-caption bg-white/15 px-2 py-0.5 rounded font-semibold">
                 {currentItem.mode === 'existing'
                   ? 'Shared master record across all elections'
                   : 'Creates permanent reusable contestant record'}
@@ -1350,11 +1351,11 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                     <div className="flex items-start gap-2">
                       <ShieldAlert className="w-4 h-4 text-[#E45757] shrink-0 mt-0.5" />
                       <div className="text-[#9B1C1C]">
-                        <p className="font-extrabold">
+                        <p className="font-semibold">
                           Shared Permanent Profile Modification Warning
                         </p>
-                        <p className="text-[11px] mt-0.5">
-                          You modified: <strong>{permanentChangedFields.join(', ')}</strong>. Saving will update this contestant&apos;s permanent profile everywhere they appear in UCC VOTE.
+                        <p className="ucc-caption mt-0.5">
+                          You modified: <strong className="font-semibold">{permanentChangedFields.join(', ')}</strong>. Saving will update this contestant&apos;s permanent profile everywhere they appear in UCC VOTE.
                         </p>
                       </div>
                     </div>
@@ -1374,14 +1375,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                           confirmedPermanentEdit: false,
                         }))
                       }
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold text-[11px] hover:bg-slate-50 cursor-pointer shrink-0 flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold ucc-caption hover:bg-slate-50 cursor-pointer shrink-0 flex items-center gap-1"
                     >
                       <RotateCcw className="w-3 h-3" />
                       <span>Revert</span>
                     </button>
                   </div>
 
-                  <label className="flex items-center gap-2 font-bold text-[#9B1C1C] cursor-pointer pt-1">
+                  <label className="flex items-center gap-2 font-semibold text-[#9B1C1C] cursor-pointer pt-1">
                     <input
                       type="checkbox"
                       checked={currentItem.confirmedPermanentEdit}
@@ -1408,7 +1409,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 />
                 <div className="flex-1 space-y-2 w-full">
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#102A43] hover:bg-slate-900 text-white font-bold cursor-pointer">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#102A43] hover:bg-slate-900 text-white ucc-btn font-semibold cursor-pointer">
                       {uploadingTarget === 'permanent' ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
@@ -1416,7 +1417,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       )}
                       <span>
                         {uploadingTarget === 'permanent'
-                          ? `Uploading ${uploadProgress ?? 0}%...`
+                          ? `Uploading ${formatPercentage(uploadProgress ?? 0)}...`
                           : 'Upload Permanent Portrait'}
                       </span>
                       <input
@@ -1432,7 +1433,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       />
                     </label>
                     {uploadError && (
-                      <span className="text-[11px] text-[#E45757] font-semibold">
+                      <span className="ucc-caption text-[#E45757] font-semibold">
                         {uploadError}
                       </span>
                     )}
@@ -1447,14 +1448,14 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Permanent portrait URL (https://firebasestorage.googleapis.com/...)"
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px]"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Full Name <span className="text-[#E45757]">*</span>
                   </label>
                   <input
@@ -1467,12 +1468,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="e.g. Kwame Boateng Mensah"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Student ID / Reg. No. <span className="text-[#E45757]">*</span>
                   </label>
                   <input
@@ -1485,12 +1486,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="e.g. PS/CSC/22/0019"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">Nickname / Moniker</label>
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">Nickname / Moniker</label>
                   <input
                     type="text"
                     value={currentItem.permanent.nickname || ''}
@@ -1501,12 +1502,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Optional campaign moniker"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1 flex items-center gap-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1 flex items-center gap-1">
                     <Mail className="w-3 h-3 text-slate-500" />
                     <span>Email (Admin / Contact)</span>
                   </label>
@@ -1520,12 +1521,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="name@st.ucc.edu.gh"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1 flex items-center gap-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1 flex items-center gap-1">
                     <Phone className="w-3 h-3 text-slate-500" />
                     <span>Phone (Private Admin Only)</span>
                   </label>
@@ -1539,12 +1540,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="024XXXXXXX"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Faculty / School <span className="text-[#E45757]">*</span>
                   </label>
                   <select
@@ -1555,7 +1556,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                         permanent: { ...prev.permanent, faculty: e.target.value },
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   >
                     {!faculties.some((f) => f.name === currentItem.permanent.faculty) &&
                       currentItem.permanent.faculty && (
@@ -1572,7 +1573,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Department <span className="text-[#E45757]">*</span>
                   </label>
                   <input
@@ -1585,12 +1586,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="e.g. Computer Science & IT"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">Programme of Study</label>
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">Programme of Study</label>
                   <input
                     type="text"
                     value={currentItem.permanent.programme || ''}
@@ -1601,12 +1602,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="e.g. B.Sc. Computer Science"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">Academic Level</label>
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">Academic Level</label>
                   <select
                     value={currentItem.permanent.level}
                     onChange={(e) =>
@@ -1615,7 +1616,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                         permanent: { ...prev.permanent, level: e.target.value },
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   >
                     {currentItem.permanent.level === 'Not verified' && (
                       <option value="Not verified">Not verified</option>
@@ -1629,7 +1630,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">Hall of Residence</label>
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">Hall of Residence</label>
                   <select
                     value={currentItem.permanent.hall}
                     onChange={(e) =>
@@ -1638,7 +1639,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                         permanent: { ...prev.permanent, hall: e.target.value },
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   >
                     {halls.map((h) => (
                       <option key={h.id} value={h.name}>
@@ -1659,7 +1660,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Contestant Biography
                   </label>
                   <textarea
@@ -1672,12 +1673,12 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Permanent background & academic profile..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#102A43] mb-1">
+                  <label className="block ucc-label font-semibold text-[#102A43] mb-1">
                     Prior Leadership Experience (One per line)
                   </label>
                   <textarea
@@ -1693,7 +1694,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                       }))
                     }
                     placeholder="Hall Welfare Secretary (2024/2025)&#10;Departmental Representative"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                 </div>
               </div>
@@ -1704,7 +1705,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
             <button
               type="button"
               onClick={handleRemoveFromQueueOrCancel}
-              className="px-4 py-2 rounded-xl border border-[#E45757]/40 text-[#E45757] hover:bg-[#E45757]/10 font-bold cursor-pointer"
+              className="px-4 py-2 rounded-xl border border-[#E45757]/40 text-[#E45757] hover:bg-[#E45757]/10 ucc-btn font-semibold cursor-pointer"
             >
               Remove from Selection
             </button>
@@ -1717,7 +1718,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                   setView('preview');
                 }
               }}
-              className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-2 cursor-pointer shadow-xs"
+              className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer shadow-xs"
             >
               <Eye className="w-4 h-4" />
               <span>Preview Candidate</span>
@@ -1730,11 +1731,11 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
       {view === 'preview' && currentItem && (
         <div className="space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span className="font-extrabold text-[#102A43] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+            <span className="font-semibold text-[#102A43] uppercase tracking-wider ucc-caption flex items-center gap-1.5">
               <Eye className="w-4 h-4 text-[#2563EB]" />
               <span>Candidate Preview &amp; Confirmation</span>
             </span>
-            <span className="text-[11px] text-slate-500">
+            <span className="ucc-caption text-slate-500">
               Review all information before confirming participation.
             </span>
           </div>
@@ -1749,32 +1750,32 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
 
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-md bg-[#102A43] text-white font-bold text-[10px] uppercase">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#102A43] text-white font-semibold ucc-caption uppercase">
                     {electionContext.category}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-md bg-[#2563EB] text-white font-bold text-[10px]">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#2563EB] text-white font-semibold ucc-caption">
                     {currentAssignedPosition?.title || 'Unassigned Position'}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-md bg-[#14B8A6]/15 text-[#0F766E] font-bold text-[10px]">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#14B8A6]/15 text-[#0F766E] font-semibold ucc-caption">
                     {currentItem.applicationStatus}
                   </span>
                 </div>
 
                 <div>
-                  <h4 className="text-lg font-extrabold text-[#102A43]">
+                  <h4 className="ucc-heading-card text-[#102A43]">
                     {currentItem.permanent.fullName}
                   </h4>
                   {currentItem.permanent.nickname && (
-                    <p className="text-xs font-bold text-[#E45757]">
+                    <p className="ucc-caption font-semibold text-[#E45757]">
                       &ldquo;{currentItem.permanent.nickname}&rdquo;
                     </p>
                   )}
-                  <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                  <p className="ucc-caption text-slate-500 font-semibold mt-0.5">
                     Election: {electionContext.title || 'New Election'}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 ucc-caption text-slate-700">
                   <div className="flex items-center gap-1.5">
                     <GraduationCap className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
                     <span className="truncate">
@@ -1797,7 +1798,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
             {(currentItem.campaignStatement || currentItem.manifestoSummary) && (
               <div className="p-3.5 rounded-xl bg-[#F5F7FB] border-l-4 border-[#2563EB] space-y-1">
                 {currentItem.campaignStatement && (
-                  <p className="font-bold text-[#102A43]">{currentItem.campaignStatement}</p>
+                  <p className="font-semibold text-[#102A43]">{currentItem.campaignStatement}</p>
                 )}
                 {currentItem.manifestoSummary && (
                   <p className="text-slate-700 italic">&ldquo;{currentItem.manifestoSummary}&rdquo;</p>
@@ -1807,13 +1808,13 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
 
             {changingPositionInline && (
               <div className="p-3 rounded-xl bg-[#F5F7FB] border border-[#2563EB]/30 flex flex-wrap items-center gap-2">
-                <label className="font-bold text-[#102A43]">New Position:</label>
+                <label className="font-semibold text-[#102A43]">New Position:</label>
                 <select
                   value={currentItem.positionKey}
                   onChange={(e) =>
                     updateCurrentItem((prev) => ({ ...prev, positionKey: e.target.value }))
                   }
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold flex-1"
+                  className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white font-medium flex-1"
                 >
                   {positions.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1824,7 +1825,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 <button
                   type="button"
                   onClick={() => setChangingPositionInline(false)}
-                  className="px-3 py-1.5 rounded-lg bg-[#102A43] text-white font-bold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[#102A43] text-white ucc-btn font-semibold cursor-pointer"
                 >
                   Done
                 </button>
@@ -1838,7 +1839,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 type="button"
                 onClick={() => setView('configure_edit')}
                 disabled={saving}
-                className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Information</span>
@@ -1848,7 +1849,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 type="button"
                 onClick={() => setChangingPositionInline((v) => !v)}
                 disabled={saving}
-                className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[#102A43] ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Award className="w-3.5 h-3.5 text-[#2563EB]" />
                 <span>Change Position</span>
@@ -1858,7 +1859,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
                 type="button"
                 onClick={handleRemoveFromQueueOrCancel}
                 disabled={saving}
-                className="px-3.5 py-2 rounded-xl bg-[#E45757]/10 hover:bg-[#E45757]/20 text-[#E45757] font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-[#E45757]/10 hover:bg-[#E45757]/20 text-[#E45757] ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Remove from Election</span>
@@ -1869,7 +1870,7 @@ export const ContestantWorkflowPanel: React.FC<ContestantWorkflowPanelProps> = (
               type="button"
               onClick={handleConfirmCandidate}
               disabled={saving}
-              className="px-5 py-2.5 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white font-bold flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#14B8A6] hover:bg-teal-600 text-white ucc-btn font-semibold flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
             >
               {saving ? (
                 <>

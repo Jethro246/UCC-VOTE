@@ -1,25 +1,172 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --color-ucc-blue: #123B70;
-    --color-ucc-navy: #0B1F3A;
-    --color-ucc-red: #C62828;
-    --color-ucc-lightblue: #EAF2FA;
-    --color-ucc-lightgrey: #F4F6F9;
-  }
+@theme {
+  --font-sans: var(--font-primary);
+  --font-mono: var(--font-primary);
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 700;
+  --font-weight-black: 700;
+}
 
+:root {
+  /* Font Family */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-primary);
+  --font-mono: var(--font-primary);
+
+  /* Typography Scale */
+  --text-xs: 0.75rem;         /* 12px - Captions */
+  --text-caption: 0.8125rem;  /* 13px - Labels & captions */
+  --text-sm: 0.875rem;        /* 14px - Secondary text, nav, compact buttons */
+  --text-base: 1rem;          /* 16px - Normal body text */
+  --text-lg: 1.125rem;        /* 18px - Card headings (compact) */
+  --text-xl: 1.25rem;         /* 20px - Card headings */
+  --text-2xl: 1.5rem;         /* 24px - Section headings */
+  --text-3xl: 2rem;           /* 32px - Main page headings */
+
+  /* Responsive Fluid Tokens */
+  --text-page-heading: clamp(1.875rem, 0.5vw + 1.65rem, 2rem);      /* 30-32px */
+  --text-section-heading: clamp(1.375rem, 0.4vw + 1.2rem, 1.5rem);  /* 22-24px */
+  --text-card-heading: clamp(1.125rem, 0.35vw + 1rem, 1.25rem);     /* 18-20px */
+  --text-stat: clamp(1.75rem, 1.5vw + 1.25rem, 2.25rem);            /* 28-36px */
+
+  /* Line Heights */
+  --leading-heading: 1.2;
+  --leading-section: 1.3;
+  --leading-body: 1.5;
+  --leading-caption: 1.4;
+
+  /* Font Weights */
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* UCC Brand Colors */
+  --color-ucc-blue: #123B70;
+  --color-ucc-navy: #0B1F3A;
+  --color-ucc-red: #C62828;
+  --color-ucc-lightblue: #EAF2FA;
+  --color-ucc-lightgrey: #F4F6F9;
+}
+
+@layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-primary);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    font-family: var(--font-sans);
+    font-family: var(--font-primary);
+    font-size: var(--text-base);
+    line-height: var(--leading-body);
+    font-weight: var(--font-regular);
     background-color: #F4F6F9;
     color: #1e293b;
     overscroll-behavior-y: contain;
+  }
+
+  input,
+  textarea,
+  select,
+  button,
+  option,
+  optgroup {
+    font-family: inherit;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    overflow-wrap: break-word;
+  }
+}
+
+/* Global fallback with zero specificity collision so all UI & third-party text uses Inter */
+:where(*, *::before, *::after) {
+  font-family: var(--font-primary);
+}
+
+/* Reusable Semantic Typography Classes */
+@layer components {
+  .ucc-heading-hero {
+    font-size: clamp(2rem, 3.2vw + 1.1rem, 3.25rem);
+    line-height: 1.15;
+    font-weight: var(--font-bold);
+    letter-spacing: -0.025em;
+  }
+
+  .ucc-heading-page {
+    font-size: var(--text-page-heading);
+    line-height: var(--leading-heading);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.02em;
+  }
+
+  .ucc-heading-section {
+    font-size: var(--text-section-heading);
+    line-height: var(--leading-section);
+    font-weight: var(--font-semibold);
+    letter-spacing: -0.015em;
+  }
+
+  .ucc-heading-card {
+    font-size: var(--text-card-heading);
+    line-height: var(--leading-section);
+    font-weight: var(--font-semibold);
+    letter-spacing: -0.01em;
+  }
+
+  .ucc-stat {
+    font-size: var(--text-stat);
+    line-height: var(--leading-heading);
+    font-weight: var(--font-bold);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .ucc-body {
+    font-size: var(--text-base);
+    line-height: var(--leading-body);
+    font-weight: var(--font-regular);
+  }
+
+  .ucc-body-secondary {
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    font-weight: var(--font-regular);
+  }
+
+  .ucc-label {
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: var(--font-medium);
+  }
+
+  .ucc-caption {
+    font-size: var(--text-xs);
+    line-height: var(--leading-caption);
+    font-weight: var(--font-medium);
+  }
+
+  .ucc-nav-item {
+    font-size: var(--text-sm);
+    line-height: var(--leading-caption);
+    font-weight: var(--font-medium);
+  }
+
+  .ucc-btn {
+    font-size: var(--text-sm);
+    line-height: var(--leading-caption);
+    font-weight: var(--font-medium);
   }
 }
 

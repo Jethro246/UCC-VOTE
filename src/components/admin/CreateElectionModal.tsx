@@ -528,14 +528,14 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-slate-200">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#123B70] mb-1">
+            <div className="flex items-center gap-1.5 ucc-caption font-semibold text-[#123B70] mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
               <span>EC-UCC Multi-Domain Election Provisioning</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="ucc-heading-section text-slate-900">
               Create New University Election
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="ucc-body-secondary text-slate-500 mt-0.5">
               Assign election domain, subdomain scope, eligibility criteria, timelines, and configurable portfolios.
             </p>
           </div>
@@ -548,7 +548,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         </div>
 
         {/* Step Indicator */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 ucc-label">
           {[
             { step: 1, label: '1. Domain & Info' },
             { step: 2, label: '2. Schedule' },
@@ -566,7 +566,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               key={item.step}
               type="button"
               onClick={() => setActiveStep(item.step as any)}
-              className={`py-2 px-2.5 rounded-xl font-bold text-center transition-colors cursor-pointer whitespace-nowrap ${
+              className={`py-2 px-2.5 rounded-xl font-semibold text-center transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
                 activeStep === item.step
                   ? 'bg-[#123B70] text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -578,7 +578,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
@@ -588,16 +588,16 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 1: Domain, Subdomain & Basic Information */}
           {activeStep === 1 && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-800 mb-1">
                     Election Domain <span className="text-red-600">*</span>
                   </label>
                   <select
                     value={domainId}
                     onChange={(e) => applyDomainDefaults(e.target.value as DomainId)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-semibold"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-semibold"
                   >
                     {allowedDomains.map((dom) => (
                       <option key={dom.id} value={dom.id}>
@@ -608,7 +608,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-800 mb-1">
                     Academic Year
                   </label>
                   <input
@@ -616,7 +616,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026/2027"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white tabular-nums"
                   />
                 </div>
               </div>
@@ -624,7 +624,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               {/* Dynamic Subdomain Selectors */}
               {domainId === 'jcrc_hall' && (
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                  <label className="block font-bold text-slate-800">
+                  <label className="block ucc-label font-semibold text-slate-800">
                     Participating Hall Subdomain <span className="text-red-600">*</span>
                   </label>
                   <select
@@ -638,7 +638,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                         setOrganizingBody(`${hallObj.name} Electoral Committee`);
                       }
                     }}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-medium text-slate-900"
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white font-medium text-slate-900"
                   >
                     <option value="">Select Residential Hall...</option>
                     {availableHalls.map((h) => (
@@ -653,7 +653,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               {(domainId === 'faculty_school' || domainId === 'departmental') && (
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
+                    <label className="block ucc-label font-semibold text-slate-800 mb-1">
                       Faculty / School <span className="text-red-600">*</span>
                     </label>
                     <select
@@ -672,7 +672,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                           }
                         }
                       }}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-900"
                     >
                       <option value="">Select Faculty / School...</option>
                       {availableFaculties.map((f) => (
@@ -685,7 +685,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
                   {domainId === 'departmental' && (
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">
+                      <label className="block ucc-label font-semibold text-slate-800 mb-1">
                         Department Subdomain <span className="text-red-600">*</span>
                       </label>
                       <select
@@ -702,7 +702,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                             setOrganizingBody(`${deptObj.name} Electoral Board`);
                           }
                         }}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900"
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-900"
                       >
                         <option value="">Select Department...</option>
                         {availableDepartments.map((d) => (
@@ -717,7 +717,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               )}
 
               <div>
-                <label className="block font-bold text-slate-800 mb-1">
+                <label className="block ucc-label font-semibold text-slate-800 mb-1">
                   Election Title <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -726,13 +726,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   placeholder="e.g. Oguaa Hall JCRC Executive Elections 2026/2027"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-800 mb-1">
                     Election Code (Public ID)
                   </label>
                   <input
@@ -740,25 +740,25 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="Auto-generated if left blank"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white font-mono uppercase"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white tabular-nums uppercase"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">
+                  <label className="block ucc-label font-semibold text-slate-800 mb-1">
                     Organizing Electoral Body
                   </label>
                   <input
                     type="text"
                     value={organizingBody}
                     onChange={(e) => setOrganizingBody(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-800 mb-1">
+                <label className="block ucc-label font-semibold text-slate-800 mb-1">
                   Official Election Notice & Description
                 </label>
                 <textarea
@@ -766,12 +766,12 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Detail constitutional mandate, domain constituency, and scope..."
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
+                  className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#123B70] text-slate-900 bg-white"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-800 mb-1">
+                <label className="block ucc-label font-semibold text-slate-800 mb-1">
                   Optional Election Guidelines / Gazette Document (Firebase Storage)
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
@@ -793,11 +793,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                         setUploadingDoc(false);
                       }
                     }}
-                    className="text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#EAF2FA] file:text-[#123B70] hover:file:bg-blue-100 cursor-pointer"
+                    className="ucc-body-secondary text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:ucc-caption file:font-semibold file:bg-[#EAF2FA] file:text-[#123B70] hover:file:bg-blue-100 cursor-pointer"
                   />
-                  {uploadingDoc && <span className="text-xs text-[#123B70] font-semibold">Uploading...</span>}
+                  {uploadingDoc && <span className="ucc-caption text-[#123B70] font-semibold">Uploading...</span>}
                   {guidelinesUrl && !uploadingDoc && (
-                    <span className="text-xs text-emerald-700 font-semibold">Document attached</span>
+                    <span className="ucc-caption text-emerald-700 font-semibold">Document attached</span>
                   )}
                 </div>
               </div>
@@ -806,7 +806,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 2: Schedule & Timeline */}
           {activeStep === 2 && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-[#123B70] flex items-center gap-2">
                 <Clock className="w-4 h-4 shrink-0" />
                 <span>
@@ -816,55 +816,55 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                 <div className="space-y-2">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <h4 className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-[#123B70]" />
                     <span>Poll Opening Schedule</span>
                   </h4>
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Date</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Date</label>
                     <input
                       type="date"
                       required
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Time (GMT)</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Time (GMT)</label>
                     <input
                       type="time"
                       required
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <h4 className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-red-600" />
                     <span>Poll Closing Schedule</span>
                   </h4>
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Date</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Date</label>
                     <input
                       type="date"
                       required
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Time (GMT)</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Time (GMT)</label>
                     <input
                       type="time"
                       required
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white tabular-nums"
                     />
                   </div>
                 </div>
@@ -874,7 +874,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 3: Multi-Tier Eligibility Rules */}
           {activeStep === 3 && (
-            <div className="space-y-5 text-xs">
+            <div className="space-y-5 ucc-body-secondary">
               <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0 text-amber-700" />
                 <span>
@@ -886,7 +886,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               {/* Levels */}
               <div>
-                <label className="block font-bold text-slate-800 mb-2">
+                <label className="block ucc-label font-semibold text-slate-800 mb-2">
                   Eligible Academic Levels
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -899,7 +899,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                         type="button"
                         disabled={lockedOut || domainId === 'grasag'}
                         onClick={() => handleToggleLevel(lvl)}
-                        className={`px-3 py-1.5 rounded-xl font-bold border transition-colors cursor-pointer disabled:opacity-50 ${
+                        className={`px-3 py-1.5 rounded-xl ucc-btn font-semibold border transition-colors cursor-pointer disabled:opacity-50 tabular-nums ${
                           isSelected
                             ? 'bg-[#123B70] text-white border-[#123B70]'
                             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -915,7 +915,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               {/* Academic Programmes (for Departmental elections) */}
               {domainId === 'departmental' && activeDepartmentObj && (
                 <div>
-                  <label className="block font-bold text-slate-800 mb-2">
+                  <label className="block ucc-label font-semibold text-slate-800 mb-2">
                     Restrict to Specific Academic Programmes (Leave unchecked for entire {activeDepartmentObj.name})
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -926,7 +926,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                           key={prog}
                           type="button"
                           onClick={() => handleToggleProgramme(prog)}
-                          className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-xl border ucc-caption font-semibold cursor-pointer ${
                             isSel
                               ? 'bg-[#123B70] text-white border-[#123B70]'
                               : 'bg-white text-slate-700 border-slate-300'
@@ -942,7 +942,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               {/* Halls */}
               <div>
-                <label className="block font-bold text-slate-800 mb-2">
+                <label className="block ucc-label font-semibold text-slate-800 mb-2">
                   Eligible Hall Affiliations (Required for JCRC / Hall elections)
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -953,9 +953,9 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                         key={h.id}
                         type="button"
                         onClick={() => handleToggleHall(h.name)}
-                        className={`p-2 rounded-xl text-left font-medium border text-[11px] transition-colors cursor-pointer ${
+                        className={`p-2 rounded-xl text-left font-medium border ucc-caption transition-colors cursor-pointer ${
                           isSelected
-                            ? 'bg-red-50 text-red-900 border-red-300 font-bold'
+                            ? 'bg-red-50 text-red-900 border-red-300 font-semibold'
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                         }`}
                       >
@@ -968,14 +968,14 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               {/* Faculties */}
               <div>
-                <label className="block font-bold text-slate-800 mb-2">
+                <label className="block ucc-label font-semibold text-slate-800 mb-2">
                   Eligible Faculties / Schools
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
                   {availableFaculties.map((f) => {
                     const isSelected = selectedFaculties.includes(f.name);
                     return (
-                      <label key={f.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white text-[11px] cursor-pointer">
+                      <label key={f.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white ucc-caption cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -991,7 +991,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               {/* Election Rules */}
               <div>
-                <label className="block font-bold text-slate-800 mb-2">
+                <label className="block ucc-label font-semibold text-slate-800 mb-2">
                   Official Election Regulations
                 </label>
                 <div className="space-y-1.5 mb-2">
@@ -1014,12 +1014,12 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                     value={newRuleInput}
                     onChange={(e) => setNewRuleInput(e.target.value)}
                     placeholder="Add custom regulatory rule..."
-                    className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white"
+                    className="flex-1 px-3 py-1.5 text-sm rounded-xl border border-slate-300 bg-white"
                   />
                   <button
                     type="button"
                     onClick={handleAddRule}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-900 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-white ucc-btn font-semibold hover:bg-slate-900 cursor-pointer"
                   >
                     Add Rule
                   </button>
@@ -1030,7 +1030,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 4: Contested Positions / Portfolios */}
           {activeStep === 4 && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>
@@ -1052,7 +1052,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                             type="text"
                             value={pos.title}
                             onChange={(e) => handleUpdatePositionField(idx, 'title', e.target.value)}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold"
+                            className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white font-semibold"
                             placeholder="Portfolio Title"
                           />
                           <input
@@ -1067,7 +1067,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                                 parseInt(e.target.value, 10) || 1
                               )
                             }
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                           />
                         </div>
                         <input
@@ -1076,11 +1076,11 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                           onChange={(e) =>
                             handleUpdatePositionField(idx, 'description', e.target.value)
                           }
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white"
                           placeholder="Portfolio description"
                         />
                         <div className="flex items-center justify-between">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
+                          <label className="flex items-center gap-1.5 cursor-pointer ucc-label">
                             <input
                               type="checkbox"
                               checked={pos.allowsSkip}
@@ -1093,7 +1093,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setEditingIdx(null)}
-                            className="px-3 py-1 rounded-lg bg-[#123B70] text-white font-bold cursor-pointer"
+                            className="px-3 py-1 rounded-lg bg-[#123B70] text-white ucc-btn font-semibold cursor-pointer"
                           >
                             Done
                           </button>
@@ -1103,13 +1103,13 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md bg-[#123B70] text-white font-mono font-bold text-[10px]">
+                            <span className="px-2 py-0.5 rounded-md bg-[#123B70] text-white font-semibold ucc-caption tabular-nums">
                               #{idx + 1}
                             </span>
-                            <h4 className="font-bold text-slate-900">{pos.title}</h4>
+                            <h4 className="font-semibold text-slate-900 ucc-body-secondary">{pos.title}</h4>
                           </div>
-                          <p className="text-[11px] text-slate-600">{pos.description}</p>
-                          <div className="flex gap-3 text-[10px] text-slate-500 font-mono pt-0.5">
+                          <p className="ucc-caption text-slate-600">{pos.description}</p>
+                          <div className="flex gap-3 ucc-caption text-slate-500 tabular-nums pt-0.5">
                             <span>Max selections: {pos.maxSelections}</span>
                             <span>Allows skip: {pos.allowsSkip ? 'YES' : 'NO'}</span>
                           </div>
@@ -1140,47 +1140,47 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
               {/* Add Position Form */}
               <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-3">
-                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                <h4 className="ucc-label font-semibold text-slate-900 flex items-center gap-1.5">
                   <Plus className="w-3.5 h-3.5 text-[#123B70]" />
                   <span>Add Custom Contested Position</span>
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Portfolio Title</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Portfolio Title</label>
                     <input
                       type="text"
                       placeholder="e.g. Women's Commissioner or Hall Organizer"
                       value={newPosTitle}
                       onChange={(e) => setNewPosTitle(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                      className="w-full px-3 py-1.5 text-sm rounded-xl border border-slate-300"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Max Selections</label>
+                    <label className="block ucc-caption text-slate-600 mb-1">Max Selections</label>
                     <input
                       type="number"
                       min={1}
                       max={5}
                       value={newPosMax}
                       onChange={(e) => setNewPosMax(parseInt(e.target.value, 10) || 1)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                      className="w-full px-3 py-1.5 text-sm rounded-xl border border-slate-300 tabular-nums"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-600 mb-1">Position Summary</label>
+                  <label className="block ucc-caption text-slate-600 mb-1">Position Summary</label>
                   <input
                     type="text"
                     placeholder="Brief description of executive responsibilities..."
                     value={newPosDesc}
                     onChange={(e) => setNewPosDesc(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300"
+                    className="w-full px-3 py-1.5 text-sm rounded-xl border border-slate-300"
                   />
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-700">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 ucc-label">
                     <input
                       type="checkbox"
                       checked={newPosSkip}
@@ -1192,7 +1192,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddPosition}
-                    className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] cursor-pointer whitespace-nowrap"
+                    className="px-3.5 py-1.5 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] cursor-pointer whitespace-nowrap"
                   >
                     Add Portfolio
                   </button>
@@ -1203,14 +1203,14 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
 
           {/* STEP 5: Candidate Management */}
           {activeStep === 5 && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4 ucc-body-secondary">
               <div className="p-4 rounded-2xl bg-[#F5F7FB] border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-extrabold text-[#102A43] text-sm flex items-center gap-1.5">
+                  <h3 className="ucc-label font-semibold text-[#102A43] flex items-center gap-1.5">
                     <Users className="w-4 h-4 text-[#2563EB]" />
                     <span>Assign Contestants to Election Positions</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="ucc-caption text-slate-500 mt-0.5">
                     Select contestants already registered in UCC VOTE or register new contestants,
                     assign them strictly to positions in this election, and review/edit details.
                   </p>
@@ -1225,7 +1225,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       setSelectorInitialTab('existing');
                       setSelectorModalOpen(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    className="px-3.5 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
                     <Users className="w-3.5 h-3.5" />
                     <span>Add Existing Contestant</span>
@@ -1238,7 +1238,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                       setSelectorInitialTab('new');
                       setSelectorModalOpen(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-[#102A43] hover:bg-[#0B1F3A] text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    className="px-3.5 py-2 rounded-xl bg-[#102A43] hover:bg-[#0B1F3A] text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Register New Contestant</span>
@@ -1253,10 +1253,10 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
               ) : candidateAssignments.length === 0 ? (
                 <div className="p-8 text-center rounded-2xl bg-white border border-dashed border-slate-300 space-y-2">
                   <Users className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="font-bold text-slate-700">
+                  <p className="font-semibold text-slate-700">
                     No candidates staged yet for this election
                   </p>
-                  <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                  <p className="ucc-caption text-slate-500 max-w-md mx-auto">
                     You can add existing contestants or register new ones now using the buttons
                     above, or provision the election first and manage candidates afterward.
                   </p>
@@ -1284,20 +1284,20 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                           />
                           <div className="min-w-0 space-y-0.5">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-bold text-slate-900">{draft.fullName}</span>
-                              <span className="font-mono text-[10px] text-slate-500 tabular-nums">
+                              <span className="font-semibold text-slate-900">{draft.fullName}</span>
+                              <span className="ucc-caption text-slate-500 tabular-nums">
                                 {draft.studentId}
                               </span>
-                              <span className="text-[10px] font-bold text-[#2563EB] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                              <span className="ucc-caption font-semibold text-[#2563EB] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                                 {posTitle}
                               </span>
                             </div>
-                            <div className="text-[11px] text-slate-600 truncate">
+                            <div className="ucc-caption text-slate-600 truncate">
                               {draft.department}
                               {draft.programme ? ` — ${draft.programme}` : ''} · {draft.hall}
                             </div>
                             {(draft.campaignStatement || draft.manifestoSummary) && (
-                              <div className="text-[11px] text-slate-500 truncate max-w-lg">
+                              <div className="ucc-caption text-slate-500 truncate max-w-lg">
                                 &ldquo;{draft.campaignStatement || draft.manifestoSummary}&rdquo;
                               </div>
                             )}
@@ -1311,7 +1311,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                               setEditingDraftIdx(dIdx);
                               setSelectorModalOpen(true);
                             }}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 ucc-caption font-semibold cursor-pointer"
                           >
                             Edit Information / Position
                           </button>
@@ -1322,7 +1322,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                                 prev.filter((_, idx) => idx !== dIdx)
                               )
                             }
-                            className="px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-[#E45757] font-bold cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-[#E45757] ucc-caption font-semibold cursor-pointer"
                           >
                             Remove
                           </button>
@@ -1343,7 +1343,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 if (activeStep > 1) setActiveStep((prev) => (prev - 1) as any);
                 else onClose();
               }}
-              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 ucc-btn font-semibold transition-colors cursor-pointer"
             >
               {activeStep === 1 ? 'Cancel' : 'Previous Step'}
             </button>
@@ -1353,7 +1353,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveStep((prev) => (prev + 1) as any)}
-                  className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] transition-colors cursor-pointer"
                 >
                   Continue
                 </button>
@@ -1361,7 +1361,7 @@ export const CreateElectionModal: React.FC<CreateElectionModalProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white font-bold hover:bg-red-800 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#C62828] text-white ucc-btn font-semibold hover:bg-red-800 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {submitting
                     ? 'Provisioning Election...'

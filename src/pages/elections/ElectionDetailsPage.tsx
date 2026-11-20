@@ -51,13 +51,13 @@ export const ElectionDetailsPage: React.FC = () => {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
         <Vote className="w-8 h-8 text-slate-400 mx-auto" />
-        <h2 className="text-base font-bold text-slate-900">No active elections at the moment.</h2>
-        <p className="text-xs text-slate-500">
+        <h2 className="ucc-heading-section text-slate-900">No active elections at the moment.</h2>
+        <p className="ucc-body-secondary text-slate-500">
           Elections published in Cloud Firestore will appear here with full details and positions.
         </p>
         <button
           onClick={() => navigateTo('elections_directory')}
-          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold cursor-pointer"
+          className="px-4 py-2 rounded-xl bg-[#123B70] text-white text-sm font-semibold cursor-pointer"
         >
           Back to Elections Directory
         </button>
@@ -149,7 +149,7 @@ export const ElectionDetailsPage: React.FC = () => {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => navigateTo('elections_directory')}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#123B70] transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#123B70] transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Elections Directory</span>
@@ -159,7 +159,7 @@ export const ElectionDetailsPage: React.FC = () => {
             <span className="text-slate-300">/</span>
             <button
               onClick={() => navigateTo('domain_elections', { domainId: election.domainId })}
-              className="text-xs font-semibold text-[#123B70] hover:underline cursor-pointer"
+              className="text-sm font-semibold text-[#123B70] hover:underline cursor-pointer"
             >
               {election.category} Domain
             </button>
@@ -173,8 +173,8 @@ export const ElectionDetailsPage: React.FC = () => {
           <div className="flex items-start gap-4 max-w-3xl">
             <Logo variant="default" showWordmark={false} className="mt-1 hidden sm:inline-flex" />
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="font-bold text-[#123B70] uppercase tracking-wider">
+              <div className="flex flex-wrap items-center gap-2 ucc-caption text-slate-500">
+                <span className="font-semibold text-[#123B70] uppercase tracking-wider">
                   {election.category}
                 </span>
                 {election.subdomainLabel && (
@@ -184,30 +184,30 @@ export const ElectionDetailsPage: React.FC = () => {
                   </>
                 )}
                 <span aria-hidden="true">·</span>
-                <span className="font-mono font-semibold">CODE: {election.code}</span>
+                <span className="font-medium">CODE: {election.code}</span>
                 <span aria-hidden="true">·</span>
-                <span>Academic Year {election.academicYear}</span>
+                <span className="font-normal">Academic Year {election.academicYear}</span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="ucc-heading-page text-slate-900">
                 {election.title}
               </h1>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-1">
+            <p className="ucc-body-secondary text-slate-600 pt-1">
               {election.description}
             </p>
 
             {election.historicalNote && (
-              <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
-                <strong className="font-bold">Historical Archive Record Notice: </strong>
+              <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 ucc-body-secondary text-amber-950">
+                <strong className="font-semibold">Historical Archive Record Notice: </strong>
                 {election.historicalNote}
               </div>
             )}
 
-            <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+            <div className="pt-2 flex flex-wrap items-center gap-4 ucc-caption font-normal text-slate-500">
               <span className="inline-flex items-center gap-2">
                 <Building className="w-4 h-4 text-slate-400" />
-                <span>Organizing Secretariat: <strong>{election.organizingBody}</strong></span>
+                <span>Organizing Secretariat: <strong className="font-semibold text-slate-700">{election.organizingBody}</strong></span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-slate-400" />
@@ -220,49 +220,49 @@ export const ElectionDetailsPage: React.FC = () => {
           {/* Action box */}
           <div className="shrink-0 p-5 rounded-2xl bg-slate-50 border border-slate-200 min-w-[240px] space-y-3">
             <div>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+              <span className="ucc-caption text-slate-500 uppercase tracking-wider font-semibold block">
                 Election Status
               </span>
               <div className="mt-1">
                 {election.status === 'live' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 ucc-caption font-semibold">
                     <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
                     Polling Open
                   </span>
                 )}
                 {(election.status === 'scheduled' || (election.status as any) === 'upcoming') && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] ucc-caption font-semibold">
                     <Clock className="w-3.5 h-3.5 text-[#123B70]" />
                     Scheduled
                   </span>
                 )}
                 {election.status === 'draft' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 ucc-caption font-semibold">
                     Draft In Review
                   </span>
                 )}
                 {election.status === 'pending_approval' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 ucc-caption font-semibold">
                     Pending Approval
                   </span>
                 )}
                 {election.status === 'suspended' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 ucc-caption font-semibold">
                     Temporarily Suspended
                   </span>
                 )}
                 {election.status === 'closed' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-800 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-800 ucc-caption font-semibold">
                     Polling Concluded
                   </span>
                 )}
                 {election.status === 'results_pending_certification' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 ucc-caption font-semibold">
                     Auditing Results
                   </span>
                 )}
                 {election.status === 'results_published' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 ucc-caption font-semibold">
                     <Award className="w-3.5 h-3.5 text-emerald-600" />
                     Certified Results Ready
                   </span>
@@ -273,7 +273,7 @@ export const ElectionDetailsPage: React.FC = () => {
                   </span>
                 )}
                 {election.status === 'archived' && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-300 text-slate-800 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-300 text-slate-800 ucc-caption font-semibold">
                     Archived Record
                   </span>
                 )}
@@ -284,7 +284,7 @@ export const ElectionDetailsPage: React.FC = () => {
             {election.status === 'live' && isEligible && !hasVoted && (
               <button
                 onClick={() => navigateTo('digital_ballot', { electionId: election.id })}
-                className="w-full py-3 px-4 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-semibold text-sm sm:text-base transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Vote className="w-4 h-4" />
                 <span>Cast Electronic Ballot</span>
@@ -293,12 +293,12 @@ export const ElectionDetailsPage: React.FC = () => {
 
             {election.status === 'live' && hasVoted && (
               <div className="space-y-2">
-                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 text-center font-medium">
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 ucc-caption text-emerald-800 text-center font-medium">
                   ✓ Your ballot has been recorded securely.
                 </div>
                 <button
                   onClick={() => navigateTo('digital_ballot', { electionId: election.id })}
-                  className="w-full py-2 px-4 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs transition-colors cursor-pointer"
+                  className="w-full py-2 px-4 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 font-semibold text-sm transition-colors cursor-pointer"
                 >
                   View Submission Confirmation
                 </button>
@@ -310,7 +310,7 @@ export const ElectionDetailsPage: React.FC = () => {
               (election.status === 'archived' && (election.provisionalResultsReady || election.resultsCertified))) && (
               <button
                 onClick={() => navigateTo('election_results', { electionId: election.id })}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Award className="w-4 h-4 text-amber-400" />
                 <span>
@@ -328,13 +328,13 @@ export const ElectionDetailsPage: React.FC = () => {
         {/* Left: Portfolios & Candidates */}
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-4 flex items-center gap-2">
+            <h2 className="ucc-heading-section text-slate-900 mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-[#123B70]" />
               <span>Contested Portfolios & Approved Candidates</span>
             </h2>
 
             {positions.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">
+              <p className="ucc-body-secondary text-slate-500 italic">
                 Candidate nomination and vetting records for this election are being compiled.
               </p>
             ) : (
@@ -348,19 +348,19 @@ export const ElectionDetailsPage: React.FC = () => {
                     <div key={pos.id} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider">
+                          <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
                             Portfolio {pos.order}
                           </span>
-                          <h3 className="text-base font-bold text-slate-900">
+                          <h3 className="ucc-heading-card text-slate-900">
                             {pos.title}
                           </h3>
                         </div>
-                        <span className="text-[11px] text-slate-500 font-medium">
+                        <span className="ucc-caption text-slate-500 font-medium">
                           {positionCandidates.length} Approved Aspirant{positionCandidates.length === 1 ? '' : 's'}
                         </span>
                       </div>
                       
-                      <p className="text-xs text-slate-600">
+                      <p className="ucc-body-secondary text-slate-600">
                         {pos.description}
                       </p>
 
@@ -379,11 +379,11 @@ export const ElectionDetailsPage: React.FC = () => {
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-[#123B70]">
+                                <h4 className="text-sm font-semibold text-slate-900 truncate group-hover:text-[#123B70]">
                                   {cand.fullName}
                                 </h4>
                                 {cand.historicalRole && (
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                                  <span className={`px-1.5 py-0.5 rounded ucc-caption font-semibold uppercase shrink-0 ${
                                     cand.historicalRole === 'Winner' ||
                                     cand.historicalRole === 'Elected' ||
                                     cand.historicalRole === 'Elected Unopposed'
@@ -395,11 +395,11 @@ export const ElectionDetailsPage: React.FC = () => {
                                 )}
                               </div>
                               {cand.nickname && (
-                                <p className="text-[11px] text-[#C62828] font-semibold truncate">
+                                <p className="ucc-caption text-[#C62828] font-semibold truncate">
                                   "{cand.nickname}"
                                 </p>
                               )}
-                              <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                              <p className="ucc-caption font-normal text-slate-500 truncate mt-0.5">
                                 {cand.department === 'Not verified' && cand.hall === 'Not verified'
                                   ? 'Hall & Dept not verified'
                                   : `${cand.department} · ${cand.hall}`}
@@ -421,47 +421,47 @@ export const ElectionDetailsPage: React.FC = () => {
           
           {/* Eligibility Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <h3 className="ucc-label font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
               <FileCheck className="w-4 h-4 text-[#123B70]" />
               <span>Your Voter Eligibility</span>
             </h3>
 
             {election.status === 'archived' ? (
               <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 space-y-2">
-                <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
                   <Clock className="w-4 h-4 text-slate-600" />
                   <span>Historical Archive — Voting Closed</span>
                 </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
+                <p className="ucc-body-secondary text-slate-600">
                   Voting is disabled for historical 2026 archive records. You can inspect portfolios, verified candidates, and recorded outcomes.
                 </p>
               </div>
             ) : isEligible ? (
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                <div className="flex items-center gap-2 text-emerald-800 font-semibold text-sm">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Eligible to Vote in this Election</span>
                 </div>
-                <p className="text-[11px] text-emerald-700 leading-relaxed">
+                <p className="ucc-body-secondary text-emerald-700">
                   Your student record at the Directorate of Academic Affairs qualifies you to cast a ballot in this race.
                 </p>
               </div>
             ) : (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
-                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm">
                   <AlertCircle className="w-4 h-4 text-amber-600" />
                   <span>Voter Ineligibility Alert</span>
                 </div>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
+                <p className="ucc-body-secondary text-amber-800">
                   {eligibilityReason}
                 </p>
               </div>
             )}
 
-            <div className="pt-2 text-[11px] text-slate-500 space-y-1">
+            <div className="pt-2 ucc-caption font-normal text-slate-500 space-y-1">
               <div className="flex justify-between">
                 <span>Voter ID:</span>
-                <span className="font-mono font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700">
                   {student ? (student.studentId || student.email) : 'Not signed in'}
                 </span>
               </div>
@@ -476,15 +476,15 @@ export const ElectionDetailsPage: React.FC = () => {
 
           {/* Rules & Regulations */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <h3 className="ucc-label font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#123B70]" />
               <span>Official Polling Regulations</span>
             </h3>
-            <ul className="space-y-2 text-xs text-slate-600">
+            <ul className="space-y-2 ucc-body-secondary text-slate-600">
               {election.rules.map((rule, idx) => (
                 <li key={idx} className="flex items-start gap-2">
-                  <span className="text-[#123B70] font-bold">·</span>
-                  <span className="leading-relaxed">{rule}</span>
+                  <span className="text-[#123B70] font-semibold">·</span>
+                  <span>{rule}</span>
                 </li>
               ))}
             </ul>

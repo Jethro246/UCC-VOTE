@@ -161,10 +161,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
               <Scale className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+              <h2 className="ucc-heading-card text-white">
                 Impartial Side-by-Side Manifesto Comparison
               </h2>
-              <p className="text-xs text-blue-100">
+              <p className="ucc-caption font-normal text-blue-100">
                 Strict Same-Election & Same-Portfolio Scrutiny · {activeElection?.category || 'UCC VOTE'}
               </p>
             </div>
@@ -182,13 +182,13 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
         <div className="bg-slate-50 border-b border-slate-200 p-4 sm:px-6 space-y-3 shrink-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Election
               </label>
               <select
                 value={selectedElectionId}
                 onChange={(e) => setSelectedElectionId(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800"
+                className="w-full px-2.5 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
               >
                 {elections.map((el) => (
                   <option key={el.id} value={el.id}>
@@ -198,13 +198,13 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Contested Portfolio
               </label>
               <select
                 value={selectedPositionId}
                 onChange={(e) => setSelectedPositionId(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800"
+                className="w-full px-2.5 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
               >
                 {positionsInSelectedElection.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -217,13 +217,13 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           {samePositionCandidates.length >= 1 && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              <div className="text-xs text-slate-600">
+              <div className="ucc-body-secondary text-slate-600">
                 <span className="font-semibold text-slate-800">Portfolio: </span>
-                <span className="font-bold text-[#123B70]">
+                <span className="font-semibold text-[#123B70]">
                   {activePosition?.title || selectedPositionId}
                 </span>
                 <span className="text-slate-400 mx-1.5">·</span>
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {samePositionCandidates.length} Approved Candidate
                   {samePositionCandidates.length === 1 ? '' : 's'}
                 </span>
@@ -231,11 +231,11 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Candidate A:</span>
+                  <span className="ucc-caption text-slate-500">Candidate A:</span>
                   <select
                     value={candidate1?.id || ''}
                     onChange={(e) => setActiveCandidateId1(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
+                    className="px-2.5 py-1.5 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
                   >
                     {samePositionCandidates.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -245,14 +245,14 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   </select>
                 </div>
 
-                <span className="text-xs font-bold text-slate-400">vs</span>
+                <span className="ucc-caption font-semibold text-slate-400">vs</span>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Candidate B:</span>
+                  <span className="ucc-caption text-slate-500">Candidate B:</span>
                   <select
                     value={candidate2?.id || ''}
                     onChange={(e) => setActiveCandidateId2(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
+                    className="px-2.5 py-1.5 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-800"
                   >
                     {samePositionCandidates.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -267,11 +267,11 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
         </div>
 
         {/* Neutrality Disclaimer */}
-        <div className="bg-amber-50/70 border-b border-amber-200 px-6 py-2.5 text-[11px] text-amber-900 flex items-center justify-between gap-2 shrink-0">
+        <div className="bg-amber-50/70 border-b border-amber-200 px-6 py-2.5 ucc-caption font-normal text-amber-900 flex items-center justify-between gap-2 shrink-0">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
             <span>
-              <strong>Neutrality Guarantee:</strong> Comparison is strictly restricted to candidates contesting the same election and portfolio.
+              <strong className="font-semibold">Neutrality Guarantee:</strong> Comparison is strictly restricted to candidates contesting the same election and portfolio.
             </span>
           </span>
         </div>
@@ -281,10 +281,10 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
           {samePositionCandidates.length === 0 ? (
             <div className="p-10 text-center space-y-2 border border-slate-200 rounded-2xl bg-slate-50">
               <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="ucc-heading-card text-slate-900">
                 No Approved Candidates in Selected Portfolio
               </h3>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
+              <p className="ucc-body-secondary text-slate-500 max-w-md mx-auto">
                 Select another election or portfolio above that has approved candidates to compare their vetted manifestos.
               </p>
             </div>
@@ -304,28 +304,28 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 />
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-[#123B70] uppercase tracking-wider">Candidate A</span>
+                    <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">Candidate A</span>
                     {candidate1?.historicalRole && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold uppercase">
+                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 ucc-caption font-semibold uppercase">
                         {candidate1.historicalRole}
                       </span>
                     )}
                   </div>
-                  <h3 className="text-base font-extrabold text-slate-900">{candidate1?.fullName}</h3>
+                  <h3 className="ucc-heading-card text-slate-900">{candidate1?.fullName}</h3>
                   {candidate1?.nickname && (
-                    <p className="text-xs font-bold text-[#C62828]">"{candidate1.nickname}"</p>
+                    <p className="ucc-label font-semibold text-[#C62828]">"{candidate1.nickname}"</p>
                   )}
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">{candidate1?.studentId}</p>
+                  <p className="ucc-caption text-slate-500 tabular-nums mt-0.5">{candidate1?.studentId}</p>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">
+              <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 ucc-body-secondary text-slate-600">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Programme</span>
+                  <span className="ucc-caption text-slate-400 block">Programme</span>
                   <span className="font-medium text-slate-800">{candidate1?.programme || candidate1?.department}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Hall of Residence</span>
+                  <span className="ucc-caption text-slate-400 block">Hall of Residence</span>
                   <span className="font-medium text-slate-800">
                     {candidate1?.hall}{candidate1?.level && candidate1.level !== 'Not verified' ? ` (L${candidate1.level})` : ''}
                   </span>
@@ -343,28 +343,28 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 />
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-[#C62828] uppercase tracking-wider">Candidate B</span>
+                    <span className="ucc-caption font-semibold text-[#C62828] uppercase tracking-wider">Candidate B</span>
                     {candidate2?.historicalRole && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold uppercase">
+                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 ucc-caption font-semibold uppercase">
                         {candidate2.historicalRole}
                       </span>
                     )}
                   </div>
-                  <h3 className="text-base font-extrabold text-slate-900">{candidate2?.fullName}</h3>
+                  <h3 className="ucc-heading-card text-slate-900">{candidate2?.fullName}</h3>
                   {candidate2?.nickname && (
-                    <p className="text-xs font-bold text-[#C62828]">"{candidate2.nickname}"</p>
+                    <p className="ucc-label font-semibold text-[#C62828]">"{candidate2.nickname}"</p>
                   )}
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">{candidate2?.studentId}</p>
+                  <p className="ucc-caption text-slate-500 tabular-nums mt-0.5">{candidate2?.studentId}</p>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">
+              <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 ucc-body-secondary text-slate-600">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Programme</span>
+                  <span className="ucc-caption text-slate-400 block">Programme</span>
                   <span className="font-medium text-slate-800">{candidate2?.programme || candidate2?.department}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Hall of Residence</span>
+                  <span className="ucc-caption text-slate-400 block">Hall of Residence</span>
                   <span className="font-medium text-slate-800">
                     {candidate2?.hall}{candidate2?.level && candidate2.level !== 'Not verified' ? ` (L${candidate2.level})` : ''}
                   </span>
@@ -375,14 +375,14 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           {/* Section: Core Manifesto Slogan */}
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider text-center">
+            <h4 className="ucc-label font-semibold text-slate-900 uppercase tracking-wider text-center">
               Core Campaign Pillar / Slogan
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 text-xs text-[#123B70] font-medium leading-relaxed italic">
+              <div className="p-4 rounded-xl border border-blue-100 bg-[#EAF2FA]/50 ucc-body-secondary text-[#123B70] font-medium italic">
                 {candidate1?.manifestoSummary ? `"${candidate1.manifestoSummary}"` : 'Not yet provided'}
               </div>
-              <div className="p-4 rounded-xl border border-red-100 bg-red-50/50 text-xs text-red-900 font-medium leading-relaxed italic">
+              <div className="p-4 rounded-xl border border-red-100 bg-red-50/50 ucc-body-secondary text-red-900 font-medium italic">
                 {candidate2?.manifestoSummary ? `"${candidate2.manifestoSummary}"` : 'Not yet provided'}
               </div>
             </div>
@@ -390,20 +390,20 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           {/* Section: Manifesto Pillars */}
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider text-center">
+            <h4 className="ucc-label font-semibold text-slate-900 uppercase tracking-wider text-center">
               Comprehensive Manifesto Proposals
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 {candidate1?.fullManifesto && candidate1.fullManifesto.length > 0 ? (
                   candidate1.fullManifesto.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
-                      <span className="font-bold text-[#123B70] shrink-0">{idx + 1}.</span>
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 ucc-body-secondary text-slate-700 flex items-start gap-2.5">
+                      <span className="font-semibold text-[#123B70] tabular-nums shrink-0">{idx + 1}.</span>
                       <span>{item}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-400 italic">
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 ucc-body-secondary text-slate-400 italic">
                     Not yet provided
                   </div>
                 )}
@@ -412,13 +412,13 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
               <div className="space-y-2">
                 {candidate2?.fullManifesto && candidate2.fullManifesto.length > 0 ? (
                   candidate2.fullManifesto.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-700 flex items-start gap-2.5">
-                      <span className="font-bold text-[#C62828] shrink-0">{idx + 1}.</span>
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 ucc-body-secondary text-slate-700 flex items-start gap-2.5">
+                      <span className="font-semibold text-[#C62828] tabular-nums shrink-0">{idx + 1}.</span>
                       <span>{item}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs text-slate-400 italic">
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 ucc-body-secondary text-slate-400 italic">
                     Not yet provided
                   </div>
                 )}
@@ -428,20 +428,20 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           {/* Section: Key Promises */}
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider text-center">
+            <h4 className="ucc-label font-semibold text-slate-900 uppercase tracking-wider text-center">
               Key Campaign Promises & Pledges
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1.5">
                 {candidate1?.keyPromises && candidate1.keyPromises.length > 0 ? (
                   candidate1.keyPromises.map((promise, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#123B70] shrink-0 mt-0.5" />
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white ucc-body-secondary text-slate-700 flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#123B70] shrink-0 mt-1" />
                       <span>{promise}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic">
+                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 ucc-body-secondary text-slate-400 italic">
                     Not yet provided
                   </div>
                 )}
@@ -450,13 +450,13 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
               <div className="space-y-1.5">
                 {candidate2?.keyPromises && candidate2.keyPromises.length > 0 ? (
                   candidate2.keyPromises.map((promise, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 flex items-start gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#C62828] shrink-0 mt-0.5" />
+                    <div key={idx} className="p-2.5 rounded-xl border border-slate-200 bg-white ucc-body-secondary text-slate-700 flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#C62828] shrink-0 mt-1" />
                       <span>{promise}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic">
+                  <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 ucc-body-secondary text-slate-400 italic">
                     Not yet provided
                   </div>
                 )}
@@ -466,15 +466,15 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
           {/* Section: Leadership Experience */}
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider text-center">
+            <h4 className="ucc-label font-semibold text-slate-900 uppercase tracking-wider text-center">
               Leadership Experience & Past Track Record
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 text-xs text-slate-700">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 ucc-body-secondary text-slate-700">
                 {candidate1?.leadershipExperience && candidate1.leadershipExperience.length > 0 ? (
                   candidate1.leadershipExperience.map((exp, idx) => (
                     <div key={idx} className="flex items-start gap-2">
-                      <span className="text-[#123B70] font-bold">·</span>
+                      <span className="text-[#123B70] font-semibold">·</span>
                       <span>{exp}</span>
                     </div>
                   ))
@@ -483,11 +483,11 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                 )}
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 text-xs text-slate-700">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5 ucc-body-secondary text-slate-700">
                 {candidate2?.leadershipExperience && candidate2.leadershipExperience.length > 0 ? (
                   candidate2.leadershipExperience.map((exp, idx) => (
                     <div key={idx} className="flex items-start gap-2">
-                      <span className="text-[#C62828] font-bold">·</span>
+                      <span className="text-[#C62828] font-semibold">·</span>
                       <span>{exp}</span>
                     </div>
                   ))
@@ -506,7 +506,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   href={candidate1.videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-3 rounded-xl border border-slate-200 hover:border-[#123B70] bg-white flex items-center justify-between text-xs text-[#123B70] font-semibold transition-colors"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-[#123B70] bg-white flex items-center justify-between ucc-btn text-[#123B70] font-semibold transition-colors"
                 >
                   <span className="flex items-center gap-1.5">
                     <Video className="w-4 h-4 text-red-600" />
@@ -515,7 +515,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               ) : (
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic text-center">
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 ucc-body-secondary text-slate-400 italic text-center">
                   No video pitch submitted
                 </div>
               )}
@@ -527,7 +527,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   href={candidate2.videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-3 rounded-xl border border-slate-200 hover:border-[#C62828] bg-white flex items-center justify-between text-xs text-[#C62828] font-semibold transition-colors"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-[#C62828] bg-white flex items-center justify-between ucc-btn text-[#C62828] font-semibold transition-colors"
                 >
                   <span className="flex items-center gap-1.5">
                     <Video className="w-4 h-4 text-red-600" />
@@ -536,7 +536,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               ) : (
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-400 italic text-center">
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 ucc-body-secondary text-slate-400 italic text-center">
                   No video pitch submitted
                 </div>
               )}
@@ -548,7 +548,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="text-xs text-slate-500">
+          <div className="ucc-body-secondary text-slate-500">
             Compare student leaders objectively on policy, feasibility, and character.
           </div>
 
@@ -562,7 +562,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
                     navigateTo('digital_ballot', { electionId: candidate1.electionId });
                   }
                 }}
-                className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="px-4 py-2 rounded-xl bg-[#C62828] hover:bg-red-700 disabled:opacity-50 text-white ucc-btn font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Vote className="w-4 h-4" />
                 <span>Proceed to Digital Ballot</span>
@@ -571,7 +571,7 @@ export const ManifestoComparisonModal: React.FC<ManifestoComparisonModalProps> =
 
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="px-4 py-2 ucc-btn font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Close Comparison
             </button>

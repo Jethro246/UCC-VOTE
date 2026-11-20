@@ -59,15 +59,15 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between pb-3 border-b border-slate-200">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold mb-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] ucc-caption font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#123B70]" />
               <span>Firebase Voter Eligibility Engine</span>
             </div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">
+            <h3 className="ucc-heading-card text-slate-900">
               Verify Student Voter Eligibility
             </h3>
-            <p className="text-xs text-slate-500">
-              Evaluating criteria against: <span className="font-bold text-slate-800">{election.title}</span>
+            <p className="ucc-body-secondary text-slate-500">
+              Evaluating criteria against: <span className="font-semibold text-slate-800">{election.title}</span>
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -76,21 +76,21 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
         </div>
 
         {/* Student Lookup Input */}
-        <div className="space-y-2 text-xs">
-          <label className="font-bold text-slate-700">Enter Registered Student ID or Firebase UID:</label>
+        <div className="space-y-2">
+          <label className="block ucc-label font-semibold text-slate-700">Enter Registered Student ID or Firebase UID:</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={studentIdInput}
               onChange={(e) => setStudentIdInput(e.target.value)}
               placeholder="Enter Student ID or UID"
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 font-mono text-slate-900"
+              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-sm tabular-nums text-slate-900"
             />
             <button
               type="button"
               onClick={() => handleTestEligibility()}
               disabled={evaluating || !studentIdInput.trim()}
-              className="px-4 py-2 rounded-xl bg-[#123B70] text-white font-bold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-[#123B70] text-white ucc-btn font-semibold hover:bg-[#0B1F3A] transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
               <span>{evaluating ? 'Evaluating...' : 'Evaluate'}</span>
@@ -99,7 +99,7 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 ucc-body-secondary flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
@@ -107,7 +107,7 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
 
         {/* Evaluation Output */}
         {result && (
-          <div className={`p-4 rounded-2xl border text-xs space-y-3 ${
+          <div className={`p-4 rounded-2xl border space-y-3 ${
             result.isEligible 
               ? 'bg-emerald-50/70 border-emerald-200' 
               : 'bg-red-50/70 border-red-200'
@@ -120,15 +120,15 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
                   <XCircle className="w-5 h-5 text-red-600 shrink-0" />
                 )}
                 <div>
-                  <h4 className={`font-black text-sm ${result.isEligible ? 'text-emerald-900' : 'text-red-900'}`}>
+                  <h4 className={`ucc-label font-bold ${result.isEligible ? 'text-emerald-900' : 'text-red-900'}`}>
                     {result.isEligible ? 'VERIFIED: ELIGIBLE TO VOTE' : 'INELIGIBLE TO VOTE'}
                   </h4>
-                  <p className="text-[11px] text-slate-600 font-medium">
+                  <p className="ucc-caption text-slate-600 tabular-nums">
                     Student: {studentName} ({studentIdInput})
                   </p>
                 </div>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+              <span className={`px-2.5 py-0.5 rounded-full ucc-caption font-semibold uppercase ${
                 result.isEligible ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'
               }`}>
                 {result.isEligible ? 'ACCREDITED' : 'BLOCKED'}
@@ -136,17 +136,17 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
             </div>
 
             {result.reason && (
-              <p className={`text-xs ${result.isEligible ? 'text-emerald-800' : 'text-red-800'}`}>
+              <p className={`ucc-body-secondary ${result.isEligible ? 'text-emerald-800' : 'text-red-800'}`}>
                 {result.reason}
               </p>
             )}
 
             {/* Check Breakdown */}
-            <div className="pt-2 border-t border-slate-200/60 grid grid-cols-2 gap-2 text-[11px] font-mono">
+            <div className="pt-2 border-t border-slate-200/60 grid grid-cols-2 gap-2 ucc-caption">
               {Object.entries(result.checks).map(([checkName, passed]) => (
                 <div key={checkName} className="flex items-center justify-between p-1.5 rounded-lg bg-white/70">
                   <span className="text-slate-600 capitalize">{checkName.replace('Match', '')}</span>
-                  <span className={`font-bold ${passed ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <span className={`font-semibold ${passed ? 'text-emerald-700' : 'text-red-700'}`}>
                     {passed ? '✓ PASS' : '✕ FAIL'}
                   </span>
                 </div>
@@ -159,7 +159,7 @@ export const EligibilityTesterModal: React.FC<EligibilityTesterModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-slate-900"
+            className="px-5 py-2 rounded-xl bg-slate-800 text-white ucc-btn font-semibold hover:bg-slate-900"
           >
             Close
           </button>

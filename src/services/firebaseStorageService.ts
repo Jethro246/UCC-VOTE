@@ -6,6 +6,7 @@ import {
   UploadTask,
 } from 'firebase/storage';
 import { auth, storage, FIREBASE_STORAGE_BUCKET } from '../lib/firebase';
+import { formatNumber } from '../utils/numberFormat';
 
 export const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const ALLOWED_DOC_TYPES = [
@@ -61,7 +62,7 @@ export async function validateCandidateImageFile(
   }
 
   if (file.size > MAX_CANDIDATE_IMAGE_BYTES) {
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    const sizeMb = formatNumber(file.size / (1024 * 1024), { maximumFractionDigits: 2 });
     return {
       valid: false,
       error: `Selected image is ${sizeMb} MB, which exceeds the 5 MB maximum limit.`,

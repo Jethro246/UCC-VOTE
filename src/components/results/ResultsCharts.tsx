@@ -7,6 +7,7 @@ import {
 } from '../../types';
 import { Award, ShieldCheck, Lock, AlertTriangle, BarChart3, PieChart } from 'lucide-react';
 import { CandidateAvatar } from '../common/CandidateAvatar';
+import { formatNumber, formatPercentage } from '../../utils/numberFormat';
 
 const CHART_PALETTE = [
   '#123B70', // UCC Blue
@@ -121,8 +122,8 @@ export const BallotDoughnutChart: React.FC<{
         <div className="flex items-center gap-2.5">
           <PieChart className="w-4 h-4 text-[#123B70]" />
           <div>
-            <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="ucc-heading-card text-slate-900">{title}</h3>
+            <p className="ucc-body-secondary text-slate-500">
               Strict separation of valid, blank, invalid, and uncast ballots
             </p>
           </div>
@@ -132,20 +133,20 @@ export const BallotDoughnutChart: React.FC<{
           <button
             type="button"
             onClick={() => setScope('eligible')}
-            className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md ucc-caption font-semibold transition-colors cursor-pointer tabular-nums ${
               scope === 'eligible' ? 'bg-[#123B70] text-white' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Full Roll ({summary.totalEligibleVoters.toLocaleString()})
+            Full Roll ({formatNumber(summary.totalEligibleVoters)})
           </button>
           <button
             type="button"
             onClick={() => setScope('cast')}
-            className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md ucc-caption font-semibold transition-colors cursor-pointer tabular-nums ${
               scope === 'cast' ? 'bg-[#123B70] text-white' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Cast Only ({summary.totalBallotsCast.toLocaleString()})
+            Cast Only ({formatNumber(summary.totalBallotsCast)})
           </button>
         </div>
       </div>
@@ -184,28 +185,28 @@ export const BallotDoughnutChart: React.FC<{
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-4">
               {hovered ? (
                 <>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate max-w-[100px]">
+                  <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-500 truncate max-w-[100px]">
                     {hovered.label}
                   </span>
-                  <span className="text-xl font-black font-mono tabular-nums text-slate-900">
-                    {hovered.pct.toFixed(1)}%
+                  <span className="text-xl font-bold tabular-nums text-slate-900">
+                    {formatPercentage(hovered.pct)}
                   </span>
-                  <span className="text-[11px] font-mono tabular-nums text-slate-500">
-                    {hovered.value.toLocaleString()}
+                  <span className="ucc-caption tabular-nums text-slate-500">
+                    {formatNumber(hovered.value)}
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
                     {scope === 'eligible' ? 'Turnout' : 'Valid Rate'}
                   </span>
-                  <span className="text-2xl font-black font-mono tabular-nums text-[#123B70]">
+                  <span className="text-2xl font-bold tabular-nums text-[#123B70]">
                     {scope === 'eligible'
-                      ? `${summary.turnoutPercentage.toFixed(1)}%`
-                      : `${summary.validBallotRate.toFixed(1)}%`}
+                      ? formatPercentage(summary.turnoutPercentage)
+                      : formatPercentage(summary.validBallotRate)}
                   </span>
-                  <span className="text-[11px] font-mono tabular-nums text-slate-500">
-                    {summary.totalBallotsCast.toLocaleString()} cast
+                  <span className="ucc-caption tabular-nums text-slate-500">
+                    {formatNumber(summary.totalBallotsCast)} cast
                   </span>
                 </>
               )}
@@ -232,18 +233,18 @@ export const BallotDoughnutChart: React.FC<{
                   style={{ backgroundColor: seg.color }}
                 />
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">{seg.label}</div>
+                  <div className="ucc-label font-semibold text-slate-900">{seg.label}</div>
                   {seg.sublabel && (
-                    <div className="text-[11px] text-slate-500 truncate">{seg.sublabel}</div>
+                    <div className="ucc-caption text-slate-500 truncate">{seg.sublabel}</div>
                   )}
                 </div>
               </div>
               <div className="text-right shrink-0 pl-3">
-                <div className="text-sm font-black font-mono tabular-nums text-slate-900">
-                  {seg.value.toLocaleString()}
+                <div className="text-sm font-bold tabular-nums text-slate-900">
+                  {formatNumber(seg.value)}
                 </div>
-                <div className="text-[11px] font-mono tabular-nums text-slate-500">
-                  {seg.pct.toFixed(1)}%
+                <div className="ucc-caption tabular-nums text-slate-500">
+                  {formatPercentage(seg.pct)}
                 </div>
               </div>
             </div>
@@ -268,7 +269,7 @@ export const PositionShareDoughnut: React.FC<{
     value: cand.votesReceived,
     pct: cand.percentageOfValidVotes,
     color: CHART_PALETTE[idx % CHART_PALETTE.length],
-    sublabel: `${cand.votesReceived.toLocaleString()} valid votes`,
+    sublabel: `${formatNumber(cand.votesReceived)} valid votes`,
   }));
 
   const radius = 50;
@@ -280,8 +281,8 @@ export const PositionShareDoughnut: React.FC<{
     return (
       <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px]">
         <PieChart className="w-6 h-6 text-slate-400 mb-2" />
-        <p className="text-xs font-semibold text-slate-700">Vote share chart unavailable</p>
-        <p className="text-[11px] text-slate-500 mt-0.5 max-w-xs">
+        <p className="ucc-label font-semibold text-slate-700">Vote share chart unavailable</p>
+        <p className="ucc-caption text-slate-500 mt-0.5 max-w-xs">
           Detailed ballot vote counts were not recorded in this 2026 historical archive.
         </p>
       </div>
@@ -292,8 +293,8 @@ export const PositionShareDoughnut: React.FC<{
     return (
       <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px]">
         <PieChart className="w-6 h-6 text-slate-400 mb-2" />
-        <p className="text-xs font-semibold text-slate-600">No valid votes tallied yet</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">Distribution chart updates once ballots are cast</p>
+        <p className="ucc-label font-semibold text-slate-600">No valid votes tallied yet</p>
+        <p className="ucc-caption text-slate-400 mt-0.5">Distribution chart updates once ballots are cast</p>
       </div>
     );
   }
@@ -301,11 +302,11 @@ export const PositionShareDoughnut: React.FC<{
   return (
     <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
           Valid Vote Share
         </span>
-        <span className="text-xs font-mono tabular-nums font-bold text-slate-700">
-          {position.totalValidVotes.toLocaleString()} valid
+        <span className="ucc-caption tabular-nums font-semibold text-slate-700">
+          {formatNumber(position.totalValidVotes)} valid
         </span>
       </div>
 
@@ -333,18 +334,18 @@ export const PositionShareDoughnut: React.FC<{
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
             {hovered ? (
               <>
-                <span className="text-[10px] font-bold text-slate-500 truncate max-w-[84px]">
+                <span className="ucc-caption font-semibold text-slate-500 truncate max-w-[84px]">
                   {hovered.label.split(' ')[0]}
                 </span>
-                <span className="text-lg font-black font-mono tabular-nums text-slate-900">
-                  {hovered.pct.toFixed(1)}%
+                <span className="text-lg font-bold tabular-nums text-slate-900">
+                  {formatPercentage(hovered.pct)}
                 </span>
               </>
             ) : (
               <>
-                <span className="text-[10px] font-bold uppercase text-slate-500">Valid</span>
-                <span className="text-lg font-black font-mono tabular-nums text-[#123B70]">
-                  {position.totalValidVotes.toLocaleString()}
+                <span className="ucc-caption font-semibold uppercase text-slate-500">Valid</span>
+                <span className="text-lg font-bold tabular-nums text-[#123B70]">
+                  {formatNumber(position.totalValidVotes)}
                 </span>
               </>
             )}
@@ -358,14 +359,14 @@ export const PositionShareDoughnut: React.FC<{
             key={seg.label}
             onMouseEnter={() => setHoveredIdx(idx)}
             onMouseLeave={() => setHoveredIdx(null)}
-            className="flex items-center justify-between text-xs py-1 px-2 rounded-md hover:bg-white transition-colors"
+            className="flex items-center justify-between ucc-caption py-1 px-2 rounded-md hover:bg-white transition-colors"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: seg.color }} />
               <span className="font-medium text-slate-700 truncate">{seg.label}</span>
             </div>
-            <span className="font-mono tabular-nums font-bold text-slate-900 pl-2 shrink-0">
-              {seg.pct.toFixed(1)}%
+            <span className="tabular-nums font-semibold text-slate-900 pl-2 shrink-0">
+              {formatPercentage(seg.pct)}
             </span>
           </div>
         ))}
@@ -386,17 +387,17 @@ export const CandidateBarChart: React.FC<{
   return (
     <div className="space-y-3.5">
       {position.contestNote && (
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed">
-          <strong className="font-bold">Archive Note: </strong>
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 ucc-body-secondary text-amber-950">
+          <strong className="font-semibold">Archive Note: </strong>
           {position.contestNote}
         </div>
       )}
 
       {position.isTie && (
-        <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+        <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 ucc-body-secondary text-amber-900">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <span className="font-bold">Official Exact Tie Recorded: </span>
+            <span className="font-semibold">Official Exact Tie Recorded: </span>
             <span>
               Top contenders received equal valid votes. No sole winner is declared; subject to UCC Electoral Commission run-off guidelines.
             </span>
@@ -426,27 +427,27 @@ export const CandidateBarChart: React.FC<{
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs font-mono font-bold text-slate-400 w-5 shrink-0 tabular-nums">
+                <span className="ucc-caption font-semibold text-slate-400 w-5 shrink-0 tabular-nums">
                   #{cand.rank}
                 </span>
                 <CandidateAvatar
                   src={cand.photoUrl}
                   alt={cand.fullName}
-                  className="w-11 h-11 rounded-lg object-cover object-top border border-slate-200 shrink-0 text-xs"
+                  className="w-11 h-11 rounded-lg object-cover object-top border border-slate-200 shrink-0 ucc-caption"
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-bold text-slate-900 truncate">
+                    <h4 className="text-sm font-semibold text-slate-900 truncate">
                       {cand.fullName}
                     </h4>
                     {cand.isTied && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wider">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500 text-white ucc-caption font-semibold uppercase tracking-wider">
                         Tied
                       </span>
                     )}
                     {((cand.isWinner && (showOfficialOutcome || isHistoricalNoTally)) || cand.historicalRole) && !cand.isTied && (
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ucc-caption font-semibold uppercase tracking-wider ${
                           cand.isWinner ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
                         }`}
                       >
@@ -455,33 +456,33 @@ export const CandidateBarChart: React.FC<{
                       </span>
                     )}
                     {cand.isLeading && !showOfficialOutcome && !isHistoricalNoTally && !cand.isTied && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-200 text-slate-700 ucc-caption font-semibold uppercase tracking-wider">
                         Provisional Lead
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                  <p className="ucc-caption text-slate-500 truncate mt-0.5">
                     {cand.department} · {cand.hall}
                   </p>
                   {cand.outcomeNote && (
-                    <p className="text-[11px] text-slate-600 mt-0.5">{cand.outcomeNote}</p>
+                    <p className="ucc-caption text-slate-600 mt-0.5">{cand.outcomeNote}</p>
                   )}
                 </div>
               </div>
 
               {isHistoricalNoTally ? (
                 <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
-                  <div className="text-xs font-mono font-semibold text-slate-500">
+                  <div className="ucc-caption font-medium text-slate-500">
                     Vote tally unavailable
                   </div>
                 </div>
               ) : (
                 <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
-                  <div className="text-lg font-black font-mono tabular-nums text-slate-900">
-                    {cand.percentageOfValidVotes.toFixed(1)}%
+                  <div className="text-lg font-bold tabular-nums text-slate-900">
+                    {formatPercentage(cand.percentageOfValidVotes)}
                   </div>
-                  <div className="text-xs font-mono tabular-nums text-slate-500">
-                    {cand.votesReceived.toLocaleString()} valid votes
+                  <div className="ucc-caption tabular-nums text-slate-500">
+                    {formatNumber(cand.votesReceived)} valid votes
                   </div>
                 </div>
               )}
@@ -503,15 +504,15 @@ export const CandidateBarChart: React.FC<{
       })}
 
       {/* Position-level ballot accounting footer */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] font-mono tabular-nums text-slate-500 border-t border-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 ucc-caption tabular-nums text-slate-500 border-t border-slate-100">
         {isHistoricalNoTally ? (
           <span>Historical Archive Record · Detailed vote tallies not recorded</span>
         ) : (
           <>
-            <span>Valid Votes: {position.totalValidVotes.toLocaleString()}</span>
-            <span>Blank / Abstain: {position.blankVotes.toLocaleString()}</span>
-            <span>Invalid / Rejected: {position.invalidVotes.toLocaleString()}</span>
-            <span>Processed Total: {position.totalBallotsProcessed.toLocaleString()}</span>
+            <span>Valid Votes: {formatNumber(position.totalValidVotes)}</span>
+            <span>Blank / Abstain: {formatNumber(position.blankVotes)}</span>
+            <span>Invalid / Rejected: {formatNumber(position.invalidVotes)}</span>
+            <span>Processed Total: {formatNumber(position.totalBallotsProcessed)}</span>
           </>
         )}
       </div>
@@ -549,10 +550,10 @@ export const TurnoutAnalyticsChart: React.FC<{
         <div className="flex items-start gap-2.5">
           <BarChart3 className="w-4 h-4 text-[#123B70] mt-0.5 shrink-0" />
           <div>
-            <h3 className="text-sm font-bold text-slate-900">
+            <h3 className="ucc-heading-card text-slate-900">
               Aggregated Voter Turnout Analytics
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="ucc-body-secondary text-slate-500">
               Participation breakdown across university units with privacy suppression for cohorts under {analytics.privacyThreshold} voters
             </p>
           </div>
@@ -569,7 +570,7 @@ export const TurnoutAnalyticsChart: React.FC<{
               key={tab.id}
               type="button"
               onClick={() => setDimension(tab.id as any)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md ucc-caption font-semibold transition-colors cursor-pointer ${
                 dimension === tab.id
                   ? 'bg-[#123B70] text-white'
                   : 'text-slate-600 hover:text-slate-900'
@@ -582,16 +583,16 @@ export const TurnoutAnalyticsChart: React.FC<{
       </div>
 
       {suppressedCount > 0 && (
-        <div className="p-3 rounded-lg bg-[#EAF2FA]/60 border border-[#123B70]/20 text-xs text-[#0B1F3A] flex items-start gap-2.5">
+        <div className="p-3 rounded-lg bg-[#EAF2FA]/60 border border-[#123B70]/20 ucc-body-secondary text-[#0B1F3A] flex items-start gap-2.5">
           <ShieldCheck className="w-4 h-4 text-[#123B70] shrink-0 mt-0.5" />
           <span>
-            <strong>Student Privacy Safeguard Active:</strong> {suppressedCount} small cohort{suppressedCount > 1 ? 's' : ''} below the {analytics.privacyThreshold}-voter threshold {suppressedCount > 1 ? 'are' : 'is'} masked to prevent individual participation inference.
+            <strong className="font-semibold">Student Privacy Safeguard Active:</strong> {suppressedCount} small cohort{suppressedCount > 1 ? 's' : ''} below the {analytics.privacyThreshold}-voter threshold {suppressedCount > 1 ? 'are' : 'is'} masked to prevent individual participation inference.
           </span>
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-500 py-6 text-center">
+        <p className="ucc-body-secondary text-slate-500 py-6 text-center">
           No turnout breakdown rows available for this dimension.
         </p>
       ) : (
@@ -603,11 +604,11 @@ export const TurnoutAnalyticsChart: React.FC<{
                   key={row.label}
                   className="p-3.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                 >
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <div className="flex items-center gap-2 ucc-label font-semibold text-slate-700">
                     <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{row.label}</span>
                   </div>
-                  <div className="text-[11px] font-mono text-slate-500">
+                  <div className="ucc-caption text-slate-500">
                     {row.suppressionReason || `Suppressed — < ${analytics.privacyThreshold} eligible voters`}
                   </div>
                 </div>
@@ -619,14 +620,14 @@ export const TurnoutAnalyticsChart: React.FC<{
 
             return (
               <div key={row.label} className="space-y-1.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 ucc-label">
                   <span className="font-semibold text-slate-800">{row.label}</span>
-                  <div className="flex items-center gap-3 font-mono tabular-nums">
-                    <span className="text-slate-500">
-                      {cast.toLocaleString()} / {row.eligibleVoters.toLocaleString()} voters
+                  <div className="flex items-center gap-3 tabular-nums">
+                    <span className="text-slate-500 font-normal">
+                      {formatNumber(cast)} / {formatNumber(row.eligibleVoters)} voters
                     </span>
-                    <span className="font-bold text-[#123B70] min-w-[48px] text-right">
-                      {pct.toFixed(1)}%
+                    <span className="font-semibold text-[#123B70] min-w-[48px] text-right">
+                      {formatPercentage(pct)}
                     </span>
                   </div>
                 </div>

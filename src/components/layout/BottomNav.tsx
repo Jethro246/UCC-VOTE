@@ -30,12 +30,12 @@ export const BottomNav: React.FC = () => {
             <button
               key={item.id}
               onClick={() => navigateTo(item.id as any)}
-              className={`min-h-[44px] flex flex-col items-center justify-center py-1 rounded-lg text-[10px] font-medium transition-colors relative ${
+              className={`min-h-[44px] flex flex-col items-center justify-center py-1 px-1 rounded-lg text-xs font-medium transition-colors relative ${
                 isActive
-                  ? 'text-[#123B70] font-bold'
+                  ? 'text-[#123B70] font-semibold'
                   : item.highlight
                   ? 'text-[#C62828] font-semibold'
-                  : 'text-slate-500 hover:text-slate-900'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <div className="relative">
@@ -44,7 +44,7 @@ export const BottomNav: React.FC = () => {
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#C62828] rounded-full" />
                 ) : null}
               </div>
-              <span className="mt-0.5 truncate max-w-full">{item.label}</span>
+              <span className="mt-0.5 truncate max-w-full leading-tight">{item.label}</span>
             </button>
           );
         })}

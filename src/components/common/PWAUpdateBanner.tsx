@@ -36,7 +36,7 @@ export const PWAUpdateBanner: React.FC = () => {
   return (
     <div
       role="alert"
-      className="bg-[#0B1F3A] text-white border-b border-[#123B70] px-4 py-2.5 text-xs"
+      className="bg-[#0B1F3A] text-white border-b border-[#123B70] px-4 py-2.5 text-sm"
     >
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-medium">
@@ -47,7 +47,7 @@ export const PWAUpdateBanner: React.FC = () => {
           <button
             type="button"
             onClick={() => updateServiceWorker(true)}
-            className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-[#A61E1E] text-white font-bold text-xs cursor-pointer transition-colors"
+            className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-[#A61E1E] text-white font-semibold text-sm cursor-pointer transition-colors"
           >
             Update Now
           </button>

@@ -73,24 +73,24 @@ export const AdminLoginPage: React.FC = () => {
           <div className="space-y-5">
             <Logo theme="dark" variant="compact" />
             <div className="space-y-2 pt-2">
-              <span className="inline-block px-2.5 py-0.5 rounded bg-red-950 border border-red-700/50 text-[10px] font-bold uppercase tracking-wider text-red-300">
+              <span className="inline-block px-2.5 py-0.5 rounded bg-red-950 border border-red-700/50 ucc-caption font-semibold uppercase tracking-wider text-red-300">
                 Restricted Access
               </span>
-              <h2 className="text-xl font-extrabold leading-snug">
+              <h2 className="ucc-heading-section text-white">
                 Electoral Commission Console
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="ucc-body-secondary text-slate-300">
                 Authorized returning officers, election administrators, and auditors sign in using their Firebase Electoral Commission credentials.
               </p>
             </div>
           </div>
 
-          <div className="pt-8 text-[11px] text-slate-400 space-y-2 border-t border-slate-800">
+          <div className="pt-8 ucc-caption font-normal text-slate-400 space-y-2 border-t border-slate-800">
             <div className="flex items-center gap-2 text-emerald-400 font-semibold">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>Role Claims & Firestore Verification</span>
             </div>
-            <p className="leading-relaxed">
+            <p className="ucc-body-secondary text-slate-400">
               Administrative permissions are verified against Firebase custom claims and the UCC Electoral Commission directory.
             </p>
           </div>
@@ -99,16 +99,16 @@ export const AdminLoginPage: React.FC = () => {
         {/* Right Sign-In Form */}
         <div className="md:col-span-7 p-6 sm:p-8 space-y-6">
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+            <h1 className="ucc-heading-page text-slate-900">
               Administrator Sign In
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="ucc-body-secondary text-slate-500 mt-1">
               Sign in to manage elections, voter eligibility rolls, nominations, and certified results.
             </p>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-[#C62828]">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 ucc-body-secondary text-[#C62828]">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-medium">{error}</span>
             </div>
@@ -125,7 +125,7 @@ export const AdminLoginPage: React.FC = () => {
 
           <div className="relative flex items-center py-0.5">
             <div className="flex-grow border-t border-slate-200" />
-            <span className="shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="shrink mx-3 ucc-caption font-semibold uppercase tracking-wider text-slate-400">
               or sign in with password
             </span>
             <div className="flex-grow border-t border-slate-200" />
@@ -133,7 +133,7 @@ export const AdminLoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block ucc-label font-semibold text-slate-700 mb-1.5">
                 Administrator Email
               </label>
               <div className="relative">
@@ -144,18 +144,18 @@ export const AdminLoginPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your administrator email"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700">Password</label>
+                <label className="ucc-label font-semibold text-slate-700">Password</label>
                 <button
                   type="button"
                   onClick={() => navigateTo('forgot_password')}
-                  className="text-xs font-semibold text-[#123B70] hover:underline cursor-pointer"
+                  className="ucc-label font-semibold text-[#123B70] hover:underline cursor-pointer"
                 >
                   Reset password
                 </button>
@@ -168,7 +168,7 @@ export const AdminLoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm sm:text-base focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] outline-none"
                 />
                 <button
                   type="button"
@@ -183,7 +183,7 @@ export const AdminLoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
+              className="w-full py-3 rounded-xl bg-[#0B1F3A] hover:bg-[#123B70] text-white text-sm sm:text-base font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
             >
               {isLoading ? (
                 <>
@@ -199,12 +199,12 @@ export const AdminLoginPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="pt-4 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+          <div className="pt-4 border-t border-slate-100 ucc-body-secondary text-slate-500 flex items-center justify-between">
             <span>Looking for student voting?</span>
             <button
               type="button"
               onClick={() => navigateTo('student_login')}
-              className="font-bold text-[#123B70] hover:underline cursor-pointer"
+              className="font-semibold text-[#123B70] hover:underline cursor-pointer"
             >
               Student Portal Sign In →
             </button>

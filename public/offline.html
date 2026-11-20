@@ -5,14 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#123B70" />
     <title>Offline | UCC VOTE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
       * {
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+        font-family: var(--font-primary);
       }
       body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: var(--font-primary);
+        font-size: 16px;
+        line-height: 1.5;
+        font-weight: 400;
         background-color: #f4f6f9;
         color: #1e293b;
         min-height: 100vh;
@@ -20,10 +33,11 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
+        -webkit-font-smoothing: antialiased;
       }
       .card {
         width: 100%;
-        max-width: 460px;
+        max-width: 480px;
         background: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 20px;
@@ -47,21 +61,25 @@
         border-radius: 999px;
         background: #fef3c7;
         color: #92400e;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
+        font-size: 12px;
+        line-height: 1.4;
+        font-weight: 500;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         margin-bottom: 12px;
       }
       h1 {
-        font-size: 22px;
-        font-weight: 800;
+        font-size: clamp(1.5rem, 2vw + 1rem, 1.875rem);
+        line-height: 1.2;
+        font-weight: 700;
         color: #0b1f3a;
         margin-bottom: 10px;
+        letter-spacing: -0.02em;
       }
       p {
-        font-size: 14px;
-        line-height: 1.6;
+        font-size: 16px;
+        line-height: 1.5;
+        font-weight: 400;
         color: #475569;
         margin-bottom: 16px;
       }
@@ -71,8 +89,9 @@
         border-radius: 12px;
         padding: 14px 16px;
         text-align: left;
-        font-size: 12px;
-        line-height: 1.55;
+        font-size: 14px;
+        line-height: 1.5;
+        font-weight: 400;
         color: #123b70;
         margin-bottom: 22px;
       }
@@ -86,8 +105,9 @@
         border: none;
         background: #123b70;
         color: #ffffff;
-        font-size: 14px;
-        font-weight: 700;
+        font-size: 15px;
+        line-height: 1.4;
+        font-weight: 600;
         cursor: pointer;
       }
       .btn:hover {
@@ -95,7 +115,9 @@
       }
       .footer {
         margin-top: 16px;
-        font-size: 11px;
+        font-size: 13px;
+        line-height: 1.4;
+        font-weight: 500;
         color: #64748b;
       }
     </style>
