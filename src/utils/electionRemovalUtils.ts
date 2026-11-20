@@ -263,22 +263,31 @@ export function matchesRemovalConfirmation(
   return (Boolean(expectedTitle) && trimmed === expectedTitle) || (Boolean(expectedCodePhrase) && trimmed === expectedCodePhrase);
 }
 
+const UNSCOPED_ELECTION_ROLES = new Set<string>([
+  'Super Administrator',
+  'Electoral Commissioner',
+  'Returning Officer',
+]);
+
 export function canUserManageElectionRemoval(
   userRole: string,
   adminProfile: AdminProfile | null | undefined,
   election: Election
 ): boolean {
   if (userRole !== 'admin' || !adminProfile) return false;
-  if (adminProfile.isActive === false) return false;
-  if (
-    Array.isArray(adminProfile.managedDomainIds) &&
-    adminProfile.managedDomainIds.length > 0 &&
-    election.domainId &&
-    !adminProfile.managedDomainIds.includes(election.domainId)
-  ) {
-    return false;
-  }
-  return true;
+  if (adminProfile.isActive !== true) return false;
+  if (adminProfile.role === 'Results Auditor') return false;
+
+  const managedDomains = Array.isArray(adminProfile.managedDomainIds)
+    ? adminProfile.managedDomainIds
+    : [];
+  const isUnscopedGlobal =
+    UNSCOPED_ELECTION_ROLES.has(adminProfile.role) && managedDomains.length === 0;
+  if (isUnscopedGlobal) return true;
+
+  return Boolean(
+    managedDomains.length > 0 && election.domainId && managedDomains.includes(election.domainId)
+  );
 }
 
 export function isElectionVisibleInActiveListings(election: Election): boolean {
@@ -356,3 +365,220 @@ export function getElectionStatusMeta(status: ElectionStatus): {
       };
   }
 }
+
+export const DIRECTORY_CONFIG_DOC_ID = '__directory_config';
+export const BULK_REMOVE_CONFIRMATION_PHRASE = 'REMOVE ALL ELECTIONS';
+
+export function matchesBulkRemovalConfirmation(input: string): boolean {
+  return String(input || '').trim() === BULK_REMOVE_CONFIRMATION_PHRASE;
+}
+
+export function isGlobalGovernanceAdmin(
+  admin: AdminProfile | null | undefined
+): boolean {
+  if (!admin || admin.isActive === false) return false;
+  if (admin.role !== 'Super Administrator' && admin.role !== 'Electoral Commissioner') {
+    return false;
+  }
+  const hasScopedRestrictions =
+    (Array.isArray(admin.managedDomainIds) && admin.managedDomainIds.length > 0) ||
+    (Array.isArray(admin.managedHalls) && admin.managedHalls.length > 0) ||
+    (Array.isArray(admin.managedFaculties) && admin.managedFaculties.length > 0) ||
+    (Array.isArray(admin.managedDepartments) && admin.managedDepartments.length > 0);
+  return !hasScopedRestrictions;
+}
+
+export type BulkElectionDisposition =
+  | 'delete'
+  | 'detach_archive'
+  | 'blocked_live'
+  | 'skip_historical';
+
+export interface BulkElectionInspectionItem {
+  election: Election;
+  source: 'firestore' | 'builtin_only';
+  positionsCount: number;
+  candidatesCount: number;
+  assignmentsCount: number;
+  authorisationsCount: number;
+  confirmationsCount: number;
+  ballotsCount: number;
+  candidateVotesTotal: number;
+  hasExistingResultsDoc: boolean;
+  hasPublishedResults: boolean;
+  resultsCertified: boolean;
+  votingRecordsExist: boolean;
+  eligibility: ElectionRemovalEligibility;
+  protectedRecords: string[];
+}
+
+export interface BulkPlannedElectionItem extends BulkElectionInspectionItem {
+  disposition: BulkElectionDisposition;
+  reason: string;
+}
+
+export interface BulkRemovalPlanSummary {
+  totalFound: number;
+  deletableCount: number;
+  detachArchiveCount: number;
+  blockedLiveCount: number;
+  skippedHistoricalCount: number;
+  withVotingRecordsCount: number;
+  totalPositionsCount: number;
+  totalCandidatesCount: number;
+  canProceedWithoutDetachingProtected: boolean;
+  hasLiveBlockers: boolean;
+  items: BulkPlannedElectionItem[];
+}
+
+export function collectProtectedRecordLabels(
+  item: Pick<
+    BulkElectionInspectionItem,
+    | 'election'
+    | 'ballotsCount'
+    | 'authorisationsCount'
+    | 'confirmationsCount'
+    | 'candidateVotesTotal'
+    | 'hasPublishedResults'
+    | 'resultsCertified'
+  >
+): string[] {
+  const labels: string[] = [];
+  const totalVotes = Math.max(0, Number(item.election.totalVotesCast) || 0);
+  if (item.election.isHistorical) {
+    labels.push('Historical institutional archive record');
+  }
+  if (totalVotes > 0 || item.ballotsCount > 0) {
+    labels.push(
+      item.ballotsCount > 0
+        ? `Anonymous ballots (${item.ballotsCount}+ recorded)`
+        : `Recorded cast ballots (${totalVotes})`
+    );
+  }
+  if (item.authorisationsCount > 0) {
+    labels.push(`Voter authorisations (${item.authorisationsCount})`);
+  }
+  if (item.confirmationsCount > 0) {
+    labels.push(`Vote confirmation receipts (${item.confirmationsCount})`);
+  }
+  if (item.candidateVotesTotal > 0) {
+    labels.push(`Candidate vote tallies (${item.candidateVotesTotal})`);
+  }
+  if (item.hasPublishedResults || item.resultsCertified) {
+    labels.push(
+      item.resultsCertified ? 'Certified election results' : 'Published election results'
+    );
+  }
+  return labels;
+}
+
+export function classifyElectionForBulkRemoval(
+  item: BulkElectionInspectionItem,
+  options: { includeHistorical: boolean }
+): BulkPlannedElectionItem {
+  const protectedRecords =
+    item.protectedRecords.length > 0
+      ? item.protectedRecords
+      : collectProtectedRecordLabels(item);
+
+  if (item.election.isHistorical) {
+    if (!options.includeHistorical) {
+      return {
+        ...item,
+        protectedRecords,
+        disposition: 'skip_historical',
+        reason:
+          'Historical record preserved (not selected for removal from the active directory).',
+      };
+    }
+    return {
+      ...item,
+      protectedRecords,
+      disposition: 'detach_archive',
+      reason:
+        'Historical records are preserved; election will be archived/detached from the active directory without destroying records.',
+    };
+  }
+
+  if (item.election.status === 'live') {
+    return {
+      ...item,
+      protectedRecords,
+      disposition: 'blocked_live',
+      reason: item.votingRecordsExist
+        ? 'Election is currently LIVE and has recorded voting records. Close voting before archival/detachment.'
+        : 'Election is currently LIVE. Close or cancel voting before removing or detaching this election.',
+    };
+  }
+
+  if (item.votingRecordsExist) {
+    return {
+      ...item,
+      protectedRecords,
+      disposition: 'detach_archive',
+      reason:
+        'Protected voting records or published/certified results exist. Permanent deletion is blocked; archive and detach from active directory while preserving ballots, confirmations, receipts, and results.',
+    };
+  }
+
+  return {
+    ...item,
+    protectedRecords,
+    disposition: 'delete',
+    reason:
+      item.source === 'builtin_only'
+        ? 'Zero voting records exist. Safe to remove from active directory configuration.'
+        : 'Zero ballots, authorisations, confirmations, or published results exist. Safe to permanently remove election, positions, candidate participations, assignments, and unpublished result drafts.',
+  };
+}
+
+export function buildBulkRemovalPlan(
+  items: BulkElectionInspectionItem[],
+  options: { includeHistorical: boolean }
+): BulkRemovalPlanSummary {
+  const planned = items.map((item) => classifyElectionForBulkRemoval(item, options));
+  const deletableCount = planned.filter((i) => i.disposition === 'delete').length;
+  const detachArchiveCount = planned.filter((i) => i.disposition === 'detach_archive').length;
+  const blockedLiveCount = planned.filter((i) => i.disposition === 'blocked_live').length;
+  const skippedHistoricalCount = planned.filter(
+    (i) => i.disposition === 'skip_historical'
+  ).length;
+  const withVotingRecordsCount = planned.filter((i) => i.votingRecordsExist).length;
+
+  return {
+    totalFound: planned.length,
+    deletableCount,
+    detachArchiveCount,
+    blockedLiveCount,
+    skippedHistoricalCount,
+    withVotingRecordsCount,
+    totalPositionsCount: planned.reduce((sum, i) => sum + i.positionsCount, 0),
+    totalCandidatesCount: planned.reduce((sum, i) => sum + i.candidatesCount, 0),
+    canProceedWithoutDetachingProtected:
+      blockedLiveCount === 0 &&
+      planned.every((i) => i.disposition === 'delete' || i.disposition === 'skip_historical'),
+    hasLiveBlockers: blockedLiveCount > 0,
+    items: planned,
+  };
+}
+
+export function applyDirectoryVisibilityFilter(
+  elections: Election[],
+  hiddenBuiltInElectionIds: string[] = [],
+  firestoreElectionIds?: Set<string>
+): Election[] {
+  const hiddenSet = new Set(hiddenBuiltInElectionIds);
+  return elections.filter((el) => {
+    if (el.hiddenFromDirectory === true) return false;
+    if (hiddenSet.has(el.id)) {
+      if (!firestoreElectionIds || !firestoreElectionIds.has(el.id)) {
+        return false;
+      }
+      if (el.status === 'archived') {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+

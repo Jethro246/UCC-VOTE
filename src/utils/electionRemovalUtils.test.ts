@@ -74,7 +74,7 @@ test('Scenario 1: Authorised admin deletes draft/test/cancelled election with ze
   assert.equal(actions.cancel, true);
 });
 
-test('Scenario 2: Student, candidate, unauthenticated, deactivated, or out-of-scope caller rejected', () => {
+test('Scenario 2: Student, candidate, unauthenticated, deactivated, auditor, or out-of-scope caller rejected', () => {
   assert.equal(canUserManageElectionRemoval('student', null, draftZeroVoteElection), false);
   assert.equal(canUserManageElectionRemoval('guest', null, draftZeroVoteElection), false);
   assert.equal(canUserManageElectionRemoval('student', superAdmin, draftZeroVoteElection), false);
@@ -82,12 +82,25 @@ test('Scenario 2: Student, candidate, unauthenticated, deactivated, or out-of-sc
   const inactiveAdmin: AdminProfile = { ...superAdmin, isActive: false };
   assert.equal(canUserManageElectionRemoval('admin', inactiveAdmin, draftZeroVoteElection), false);
 
+  const missingActiveFlagAdmin = { ...superAdmin, isActive: undefined as unknown as boolean };
+  assert.equal(canUserManageElectionRemoval('admin', missingActiveFlagAdmin, draftZeroVoteElection), false);
+
+  const auditorAdmin: AdminProfile = { ...superAdmin, role: 'Results Auditor' };
+  assert.equal(canUserManageElectionRemoval('admin', auditorAdmin, draftZeroVoteElection), false);
+
   const hallOnlyAdmin: AdminProfile = {
     ...superAdmin,
     role: 'Hall Election Administrator',
     managedDomainIds: ['jcrc_hall'],
   };
   assert.equal(canUserManageElectionRemoval('admin', hallOnlyAdmin, draftZeroVoteElection), false);
+
+  const unassignedHallAdmin: AdminProfile = {
+    ...superAdmin,
+    role: 'Hall Election Administrator',
+    managedDomainIds: [],
+  };
+  assert.equal(canUserManageElectionRemoval('admin', unassignedHallAdmin, draftZeroVoteElection), false);
 
   const nonAdminActions = getAvailableElectionActions(draftZeroVoteElection, false);
   assert.equal(nonAdminActions.remove, false);
@@ -252,11 +265,15 @@ test('Scenario 8: Single-flight lock blocks repeated/double-click requests and F
   // Verify Firestore security rules enforce strict delete protections and preserve immutable collections
   const rulesPath = path.resolve(process.cwd(), 'firestore.rules');
   const rulesText = fs.readFileSync(rulesPath, 'utf8');
-  assert.match(rulesText, /match \/elections\/\{electionId\}[\s\S]*allow delete:/);
-  assert.match(rulesText, /totalVotesCast',\s*0\)\s*==\s*0/);
-  assert.match(rulesText, /isHistorical',\s*false\)\s*!=\s*true/);
+  assert.match(rulesText, /function isAdminRecordActive\(\)/);
+  assert.match(rulesText, /function hasZeroCount\(data,\s*field\)/);
+  assert.match(rulesText, /function electionAllowsDeletion\(electionId,\s*electionData\)/);
+  assert.match(rulesText, /match \/elections\/\{electionId\}[\s\S]*allow delete:[\s\S]*electionAllowsDeletion/);
+  assert.match(rulesText, /hasZeroCount\(electionData,\s*'totalVotesCast'\)/);
+  assert.match(rulesText, /!isFlagTrue\(electionData,\s*'isHistorical'\)/);
   assert.match(rulesText, /match \/ballots\/\{ballotId\}[\s\S]*allow read, write: if false;/);
   assert.match(rulesText, /match \/voter_authorisations\/\{authDocId\}[\s\S]*allow write: if false;/);
   assert.match(rulesText, /match \/vote_confirmations\/\{receiptId\}[\s\S]*allow write: if false;/);
   assert.match(rulesText, /match \/audit_logs\/\{logId\}[\s\S]*allow update, delete: if false;/);
+  assert.match(rulesText, /match \/admins\/\{uid\}[\s\S]*allow write: if false;/);
 });

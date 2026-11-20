@@ -42,6 +42,11 @@ import {
   mergeHistoricalElections,
   mergeHistoricalPositions,
 } from '../data/historical2026Elections';
+import {
+  mergeSrc2027Candidates,
+  mergeSrc2027Elections,
+  mergeSrc2027Positions,
+} from '../data/src2027Election';
 import { authClient } from '../services/authClient';
 import { electionClient } from '../services/electionClient';
 import { votingService } from '../services/votingService';
@@ -74,11 +79,13 @@ import {
   subscribeAllEligibilityRecords,
   subscribeAuditLogs,
   subscribeDomains,
+  subscribeDirectoryConfig,
   subscribeStructuralCollection,
   markNotificationAsRead as markNotificationReadDb,
   markAllNotificationsAsRead as markAllNotificationsReadDb,
   createComplaintTicket,
 } from '../services/firebaseDbService';
+import { applyDirectoryVisibilityFilter } from '../utils/electionRemovalUtils';
 
 const ACTIVE_VIEW_STORAGE_KEY = 'ucc_vote_active_view';
 const SELECTED_ELECTION_STORAGE_KEY = 'ucc_vote_selected_election';
@@ -242,6 +249,30 @@ interface AppContextType {
     confirmationText: string,
     reason?: string
   ) => Promise<{ success: boolean; message?: string; error?: string; code?: string }>;
+  removeAllElectionsAction: (options: {
+    confirmationText: string;
+    includeHistorical?: boolean;
+    detachProtectedElections?: boolean;
+    reason?: string;
+  }) => Promise<{
+    success: boolean;
+    code?: string;
+    error?: string;
+    message?: string;
+    blockedReport?: Array<{
+      electionId: string;
+      title: string;
+      code: string;
+      status: string;
+      protectedRecords: string[];
+      reason: string;
+    }>;
+    removedElectionsCount?: number;
+    removedRelatedDocsCount?: number;
+    archivedDetachedCount?: number;
+    preservedHistoricalCount?: number;
+    preservedCollections?: string[];
+  }>;
   archiveElectionAction: (
     electionId: string,
     reason?: string
@@ -387,6 +418,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [ballotSelections, setBallotSelections] = useState<BallotSelectionMap>({});
 
   const [rawElections, setRawElections] = useState<Election[]>([]);
+  const [hiddenBuiltInElectionIds, setHiddenBuiltInElectionIds] = useState<string[]>([]);
   const [rawDomains, setRawDomains] = useState<DomainRegistryItem[]>(DOMAIN_REGISTRY);
   const [halls, setHalls] = useState<HallUnit[]>(UCC_HALLS);
   const [faculties, setFaculties] = useState<FacultyUnit[]>(UCC_FACULTIES);
@@ -395,12 +427,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [rawCandidates, setRawCandidates] = useState<Candidate[]>([]);
   const [rawContestants, setRawContestants] = useState<ContestantProfile[]>([]);
 
-  const elections = useMemo(() => mergeHistoricalElections(rawElections), [rawElections]);
-  const positionsByElection = useMemo(
-    () => mergeHistoricalPositions(rawPositionsByElection),
-    [rawPositionsByElection]
+  const firestoreElectionIds = useMemo(
+    () => new Set(rawElections.map((e) => e.id)),
+    [rawElections]
   );
-  const candidates = useMemo(() => mergeHistoricalCandidates(rawCandidates), [rawCandidates]);
+
+  const elections = useMemo(
+    () =>
+      applyDirectoryVisibilityFilter(
+        mergeSrc2027Elections(mergeHistoricalElections(rawElections)),
+        hiddenBuiltInElectionIds,
+        firestoreElectionIds
+      ),
+    [rawElections, hiddenBuiltInElectionIds, firestoreElectionIds]
+  );
+
+  const visibleElectionIds = useMemo(
+    () => new Set(elections.map((e) => e.id)),
+    [elections]
+  );
+
+  const positionsByElection = useMemo(() => {
+    const merged = mergeSrc2027Positions(mergeHistoricalPositions(rawPositionsByElection));
+    const filtered: Record<string, Position[]> = {};
+    Object.entries(merged).forEach(([eid, posList]) => {
+      if (visibleElectionIds.has(eid)) {
+        filtered[eid] = posList;
+      }
+    });
+    return filtered;
+  }, [rawPositionsByElection, visibleElectionIds]);
+
+  const candidates = useMemo(
+    () =>
+      mergeSrc2027Candidates(mergeHistoricalCandidates(rawCandidates)).filter((c) =>
+        visibleElectionIds.has(c.electionId)
+      ),
+    [rawCandidates, visibleElectionIds]
+  );
+
   const contestants = useMemo(
     () => mergeContestantDirectory(rawContestants, candidates, elections, positionsByElection),
     [rawContestants, candidates, elections, positionsByElection]
@@ -531,6 +596,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (candidates.length > 0 && !candidates.some((c) => c.id === selectedCandidateId)) {
       setSelectedCandidateId(candidates[0].id);
+    } else if (candidates.length === 0 && selectedCandidateId) {
+      setSelectedCandidateId('');
     }
   }, [candidates, selectedCandidateId]);
 
@@ -593,6 +660,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (items.length > 0) setRawDomains(items);
     }, () => {});
 
+    const unsubDirectoryConfig = subscribeDirectoryConfig((cfg) => {
+      setHiddenBuiltInElectionIds(cfg.hiddenBuiltInElectionIds || []);
+    }, () => {});
+
     const unsubHalls = subscribeStructuralCollection<HallUnit>('halls', (items) => {
       setHalls(mergeOfficialHalls(items));
     }, () => {});
@@ -617,6 +688,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       unsubAnnouncements();
       unsubCalendar();
       unsubDomains();
+      unsubDirectoryConfig();
       unsubHalls();
       unsubFaculties();
       unsubDepartments();
@@ -1124,6 +1196,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const removeAllElectionsAction = async (options: {
+    confirmationText: string;
+    includeHistorical?: boolean;
+    detachProtectedElections?: boolean;
+    reason?: string;
+  }) => {
+    try {
+      const res = await adminService.executeRemoveAllElections(options);
+      if (res.success) {
+        setSelectedElectionId('');
+        setSelectedCandidateId('');
+        setCompareCandidateIds(null);
+        setBallotSelections({});
+        await Promise.all([refreshElections(), refreshCandidates(), refreshDomains()]);
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to execute bulk election removal.' };
+    }
+  };
+
   const archiveElectionAction = async (electionId: string, reason?: string) => {
     try {
       const res = await adminService.archiveElection(electionId, reason);
@@ -1473,6 +1566,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createElectionAction,
         updateElectionStatusAction,
         removeElectionAction,
+        removeAllElectionsAction,
         archiveElectionAction,
         restoreArchivedElectionAction,
         cancelElectionAction,

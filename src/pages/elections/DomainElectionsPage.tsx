@@ -14,6 +14,7 @@ import {
 } from '../../utils/hallUtils';
 import { formatElectionWindow } from '../../utils/dateUtils';
 import { formatNumber, formatPercentage } from '../../utils/numberFormat';
+import { isElectionVisibleInDirectory } from '../../utils/electionStatus';
 import {
   ArrowLeft,
   Vote,
@@ -192,12 +193,7 @@ export const DomainElectionsPage: React.FC = () => {
 
   const domainElections = useMemo(() => {
     return elections.filter((e) => {
-      if (
-        e.status === 'draft' ||
-        e.status === 'pending_approval' ||
-        e.status === 'cancelled' ||
-        (e.status === 'archived' && e.isHistorical !== true)
-      ) {
+      if (!isElectionVisibleInDirectory(e)) {
         return false;
       }
       const domId =
@@ -640,6 +636,7 @@ export const DomainElectionsPage: React.FC = () => {
           <option value="All">All Statuses</option>
           <option value="live">Live Polling</option>
           <option value="scheduled">Scheduled / Upcoming</option>
+          <option value="draft">Draft (Pending Activation)</option>
           <option value="results_published">Results Published</option>
           <option value="closed">Closed</option>
           <option value="archived">Historical Archive (2026)</option>
@@ -685,6 +682,7 @@ export const DomainElectionsPage: React.FC = () => {
             const hasVoted = student?.hasVotedElections.includes(election.id);
             const elig = checkStudentDomainEligibility(election, student, halls);
             const isLive = election.status === 'live';
+            const isDraft = election.status === 'draft';
             const isResults = election.status === 'results_published';
             const isArchived = election.status === 'archived';
 
@@ -715,11 +713,13 @@ export const DomainElectionsPage: React.FC = () => {
                       }`}
                     >
                       {isLive
-                        ? 'Polling Open'
+                        ? 'Live Election · Voting Open'
                         : isResults
                         ? 'Certified Results'
                         : isArchived
                         ? 'Historical Archive'
+                        : isDraft
+                        ? 'Draft · Pending Activation'
                         : election.status === 'scheduled' || election.status === 'upcoming'
                         ? 'Scheduled'
                         : election.status.replace(/_/g, ' ')}
@@ -802,7 +802,11 @@ export const DomainElectionsPage: React.FC = () => {
                         ) : (
                           <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         )}
-                        <span>{elig.reason}</span>
+                        <span>
+                          {isDraft
+                            ? `Your Voter Eligibility: ${elig.reason} (Draft until activated by the UCC Electoral Commission)`
+                            : elig.reason}
+                        </span>
                       </div>
                     )
                   )}
@@ -815,7 +819,7 @@ export const DomainElectionsPage: React.FC = () => {
                       onClick={() => navigateTo('election_details', { electionId: election.id })}
                       className="text-sm font-semibold text-slate-700 hover:text-[#123B70] cursor-pointer whitespace-nowrap"
                     >
-                      Details & Rules
+                      View Election Information
                     </button>
                     <button
                       onClick={() => navigateTo('candidate_directory', { electionId: election.id })}
@@ -833,7 +837,7 @@ export const DomainElectionsPage: React.FC = () => {
                         className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-red-700 text-white text-sm font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                       >
                         <Vote className="w-3.5 h-3.5" />
-                        <span>Cast Ballot</span>
+                        <span>Cast Your Vote</span>
                       </button>
                     )}
 
@@ -847,7 +851,11 @@ export const DomainElectionsPage: React.FC = () => {
                       </button>
                     )}
 
-                    {(isResults || (!isLive && (!isArchived || election.provisionalResultsReady || election.resultsCertified))) && (
+                    {(isResults ||
+                      (!isLive &&
+                        !isDraft &&
+                        election.status !== 'pending_approval' &&
+                        (!isArchived || election.provisionalResultsReady || election.resultsCertified))) && (
                       <button
                         onClick={() => navigateTo('election_results', { electionId: election.id })}
                         className="px-3.5 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#123B70] text-white text-sm font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"

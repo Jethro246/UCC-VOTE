@@ -316,11 +316,20 @@ export interface Election {
   archivedBy?: string;
   archivedByUid?: string;
   archiveReason?: string;
+  hiddenFromDirectory?: boolean;
+  detachedAt?: string;
+  detachedBy?: string;
   restoredAt?: string;
   restoredBy?: string;
   cancelledAt?: string;
   cancelledBy?: string;
   cancellationReason?: string;
+}
+
+export interface DirectoryConfig {
+  hiddenBuiltInElectionIds: string[];
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export type BallotSelectionMap = Record<string, string[]>;

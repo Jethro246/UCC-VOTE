@@ -357,6 +357,19 @@ export async function createOrLoadStudentProfile(
   };
 }
 
+const VALID_ADMIN_ROLES = new Set<AdminRoleType>([
+  'Super Administrator',
+  'Electoral Commissioner',
+  'SRC Election Administrator',
+  'Hall Election Administrator',
+  'GRASAG Election Administrator',
+  'Local NUGS Election Administrator',
+  'Departmental Election Administrator',
+  'Faculty/School Election Administrator',
+  'Returning Officer',
+  'Results Auditor',
+]);
+
 export async function resolveVerifiedAdminUser(user: User): Promise<{
   isAdmin: boolean;
   deactivated?: boolean;
@@ -376,36 +389,27 @@ export async function resolveVerifiedAdminUser(user: User): Promise<{
   }
 
   const adminData = adminSnap?.exists?.() ? (adminSnap.data() as AdminProfile) : null;
-  if (adminData && adminData.isActive === false) {
+  if (!adminData) {
+    return { isAdmin: false };
+  }
+  if (adminData.isActive !== true) {
     return { isAdmin: false, deactivated: true };
   }
+  if (!adminData.role || !VALID_ADMIN_ROLES.has(adminData.role)) {
+    return { isAdmin: false };
+  }
 
-  const resolvedRole = ((adminData?.role ||
-    tokenResult.claims?.role ||
-    'Electoral Commissioner') as AdminRoleType);
-
-  const resolvedAdmin: AdminProfile = adminData
-    ? {
-        ...adminData,
-        id: user.uid,
-        uid: user.uid,
-        role: resolvedRole,
-        permissions:
-          Array.isArray(adminData.permissions) && adminData.permissions.length > 0
-            ? adminData.permissions
-            : getPermissionsForRole(resolvedRole),
-      }
-    : {
-        id: user.uid,
-        uid: user.uid,
-        staffId: (tokenResult.claims?.staffId as string) || `UCC/EC/${user.uid.slice(0, 6).toUpperCase()}`,
-        fullName: user.displayName || user.email || 'Electoral Administrator',
-        email: (user.email || '').toLowerCase(),
-        role: resolvedRole,
-        department: 'UCC Electoral Commission',
-        permissions: getPermissionsForRole(resolvedRole),
-        isActive: true,
-      };
+  const resolvedRole = adminData.role;
+  const resolvedAdmin: AdminProfile = {
+    ...adminData,
+    id: user.uid,
+    uid: user.uid,
+    role: resolvedRole,
+    permissions:
+      Array.isArray(adminData.permissions) && adminData.permissions.length > 0
+        ? adminData.permissions
+        : getPermissionsForRole(resolvedRole),
+  };
 
   return {
     isAdmin: true,

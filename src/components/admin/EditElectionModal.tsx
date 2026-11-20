@@ -58,7 +58,9 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
 
   useEffect(() => {
     if (isOpen && election) {
-      const allowBlankDates = Boolean(election.isHistorical || election.status === 'archived');
+      const allowBlankDates = Boolean(
+        election.isHistorical || election.status === 'archived' || election.status === 'draft'
+      );
       setTitle(election.title || '');
       setCode(election.code || '');
       setAcademicYear(election.academicYear || '');
@@ -93,6 +95,7 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
   const isHallElection = election.domainId === 'jcrc_hall' || election.category === 'JCR / Hall';
 
   const isHistoricalOrArchived = Boolean(election.isHistorical || election.status === 'archived');
+  const allowBlankDates = Boolean(isHistoricalOrArchived || election.status === 'draft');
   const isMultiHallFramework =
     isHallElection && (election.eligibilityCriteria?.halls?.length ?? 0) > 1 && !election.hallId;
 
@@ -121,10 +124,10 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
     const hasBothDates = Boolean(startDate.trim() && endDate.trim());
     const hasPartialDate = Boolean(startDate.trim()) !== Boolean(endDate.trim());
     if (hasPartialDate) {
-      setErrorMsg('Provide both opening and closing dates, or leave both blank for historical records.');
+      setErrorMsg('Provide both opening and closing dates, or leave both blank while in draft or archive.');
       return;
     }
-    if (!isHistoricalOrArchived && !hasBothDates) {
+    if (!allowBlankDates && !hasBothDates) {
       setErrorMsg('Opening and closing dates are required.');
       return;
     }
@@ -317,19 +320,26 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
             <div className="space-y-2">
               <div className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#123B70]" />
-                <span>Poll Opening {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
+                <span>
+                  Poll Opening{' '}
+                  {isHistoricalOrArchived
+                    ? '(Optional for Archive)'
+                    : election.status === 'draft'
+                    ? '(Optional in Draft)'
+                    : ''}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
-                  required={!isHistoricalOrArchived}
+                  required={!allowBlankDates}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
                 <input
                   type="time"
-                  required={!isHistoricalOrArchived && Boolean(startDate)}
+                  required={!allowBlankDates && Boolean(startDate)}
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
@@ -340,19 +350,26 @@ export const EditElectionModal: React.FC<EditElectionModalProps> = ({
             <div className="space-y-2">
               <div className="ucc-label font-semibold text-slate-800 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-red-600" />
-                <span>Poll Closing {isHistoricalOrArchived ? '(Optional for Archive)' : ''}</span>
+                <span>
+                  Poll Closing{' '}
+                  {isHistoricalOrArchived
+                    ? '(Optional for Archive)'
+                    : election.status === 'draft'
+                    ? '(Optional in Draft)'
+                    : ''}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="date"
-                  required={!isHistoricalOrArchived}
+                  required={!allowBlankDates}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"
                 />
                 <input
                   type="time"
-                  required={!isHistoricalOrArchived && Boolean(endDate)}
+                  required={!allowBlankDates && Boolean(endDate)}
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   className="px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white tabular-nums"

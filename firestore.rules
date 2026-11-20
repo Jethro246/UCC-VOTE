@@ -6,28 +6,97 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Administrator privileges come from either:
-    // 1. Cryptographically signed Firebase Auth custom claim (admin: true), subject to /admins/{uid} active check.
-    // 2. Temporary fallback for the two explicitly authorized, email-verified Electoral Commission accounts
-    //    until permanent Firebase Admin SDK custom claims are assigned and verified.
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isValidAdminRole(role) {
+      return role in [
+        'Super Administrator',
+        'Electoral Commissioner',
+        'SRC Election Administrator',
+        'Hall Election Administrator',
+        'GRASAG Election Administrator',
+        'Local NUGS Election Administrator',
+        'Departmental Election Administrator',
+        'Faculty/School Election Administrator',
+        'Returning Officer',
+        'Results Auditor'
+      ];
+    }
+
+    function hasTrustedAdminClaim() {
+      return request.auth.token.get('admin', false) == true;
+    }
+
+    // Require an explicit, active /admins/{uid} record with a recognized non-student
+    // administrator role. Missing /admins/{uid} documents, omitted isActive fields,
+    // deactivated records, and stale custom claims without an active profile are denied.
+    function isAdminRecordActive() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('isActive', false) == true
+        && ('role' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data)
+        && isValidAdminRole(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role);
+    }
+
     function isAdmin() {
-      return request.auth != null
+      return isSignedIn()
+        && hasTrustedAdminClaim()
+        && isAdminRecordActive();
+    }
+
+    function isGlobalGovernanceAdmin() {
+      return isAdmin()
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in [
+          'Super Administrator',
+          'Electoral Commissioner'
+        ]
         && (
-          (
-            request.auth.token.get('admin', false) == true
-            && (
-              !exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-              get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('isActive', true) != false
-            )
+          !('managedDomainIds' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data)
+          || get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds == null
+          || (
+            get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds is list
+            && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds.size() == 0
           )
-          ||
-          (
-            request.auth.token.get('email_verified', false) == true
-            && request.auth.token.get('email', '') is string
-            && request.auth.token.get('email', '').lower() in [
-              "fynnjethro7@gmail.com",
-              "fynnjethro63@gmail.com"
-            ]
+        )
+        && (
+          !('managedHalls' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data)
+          || get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedHalls == null
+          || (
+            get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedHalls is list
+            && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedHalls.size() == 0
+          )
+        );
+    }
+
+    function isUnscopedElectionGovernanceAdmin() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in [
+        'Super Administrator',
+        'Electoral Commissioner',
+        'Returning Officer'
+      ]
+      && (
+        !('managedDomainIds' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data)
+        || get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds == null
+        || (
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds is list
+          && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds.size() == 0
+        )
+      );
+    }
+
+    function canAdminManageElectionDomain(electionData) {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role != 'Results Auditor'
+        && (
+          isUnscopedElectionGovernanceAdmin()
+          || (
+            ('managedDomainIds' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data)
+            && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds is list
+            && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds.size() > 0
+            && ('domainId' in electionData)
+            && electionData.domainId is string
+            && electionData.domainId in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.managedDomainIds
           )
         );
     }
@@ -36,8 +105,54 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    // Null-safe zero check: treats missing, null, or numeric 0 as zero, while rejecting > 0 or non-numeric tampering.
+    function hasZeroCount(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || ((data[field] is int || data[field] is float) && data[field] == 0);
+    }
+
+    function isFlagTrue(data, field) {
+      return (field in data) && data[field] == true;
+    }
+
+    function hasProtectedElectionResults(electionId) {
+      return isValidId(electionId)
+        && exists(/databases/$(database)/documents/election_results/$(electionId))
+        && (
+          isFlagTrue(get(/databases/$(database)/documents/election_results/$(electionId)).data, 'isPublished')
+          || isFlagTrue(get(/databases/$(database)/documents/election_results/$(electionId)).data, 'resultsCertified')
+        );
+    }
+
+    function electionAllowsDeletion(electionId, electionData) {
+      return isValidId(electionId)
+        && canAdminManageElectionDomain(electionData)
+        && ('status' in electionData)
+        && electionData.status is string
+        && electionData.status in [
+          'draft',
+          'pending_approval',
+          'scheduled',
+          'upcoming',
+          'suspended',
+          'closed',
+          'cancelled',
+          'archived'
+        ]
+        && !isFlagTrue(electionData, 'isHistorical')
+        && hasZeroCount(electionData, 'totalVotesCast')
+        && !isFlagTrue(electionData, 'resultsCertified')
+        && !hasProtectedElectionResults(electionId);
+    }
+
+    function electionAllowsChildDeletion(electionId) {
+      return isValidId(electionId)
+        && exists(/databases/$(database)/documents/elections/$(electionId))
+        && electionAllowsDeletion(
+          electionId,
+          get(/databases/$(database)/documents/elections/$(electionId)).data
+        );
     }
 
     function isValidContestantData(data) {
@@ -60,8 +175,8 @@ service cloud.firestore {
     }
 
     function positionBelongsToElection(positionId, electionId) {
-      return positionId is string && positionId != ''
-        && electionId is string && electionId != ''
+      return isValidId(positionId)
+        && isValidId(electionId)
         && existsAfter(/databases/$(database)/documents/positions/$(positionId))
         && getAfter(/databases/$(database)/documents/positions/$(positionId)).data.electionId == electionId;
     }
@@ -89,13 +204,14 @@ service cloud.firestore {
           'uid'
         ])
       );
-      allow delete: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     // Authoritative UCC voter eligibility records (Admin-managed only)
     match /voter_eligibility/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     // Duplicate-vote lock collection: written exclusively by Cloud Functions Admin SDK
@@ -118,40 +234,53 @@ service cloud.firestore {
     // Elections and Contested Positions
     match /elections/{electionId} {
       allow read: if true;
-      allow create: if isValidId(electionId) && isAdmin();
-      allow update: if isValidId(electionId) && isAdmin();
-      allow delete: if isValidId(electionId) && isAdmin()
-        && resource.data.status in [
-          'draft',
-          'pending_approval',
-          'scheduled',
-          'upcoming',
-          'suspended',
-          'closed',
-          'cancelled',
-          'archived'
-        ]
-        && resource.data.get('isHistorical', false) != true
-        && resource.data.get('totalVotesCast', 0) == 0
-        && resource.data.get('resultsCertified', false) != true
+      allow create: if isValidId(electionId)
+        && isAdmin()
+        && canAdminManageElectionDomain(request.resource.data);
+      allow update: if isValidId(electionId)
+        && isAdmin()
+        && canAdminManageElectionDomain(resource.data)
+        && canAdminManageElectionDomain(request.resource.data)
+        // Prevent mutating historical status off or decrementing recorded votes to bypass delete guards
+        && (!isFlagTrue(resource.data, 'isHistorical') || isFlagTrue(request.resource.data, 'isHistorical'))
         && (
-          !exists(/databases/$(database)/documents/election_results/$(electionId))
-          || get(/databases/$(database)/documents/election_results/$(electionId)).data.get('isPublished', false) != true
+          hasZeroCount(resource.data, 'totalVotesCast')
+          || (
+            ('totalVotesCast' in request.resource.data)
+            && (request.resource.data.totalVotesCast is int || request.resource.data.totalVotesCast is float)
+            && request.resource.data.totalVotesCast >= resource.data.totalVotesCast
+          )
         );
+      allow delete: if isValidId(electionId)
+        && isAdmin()
+        && resource != null
+        && electionAllowsDeletion(electionId, resource.data);
     }
 
     match /positions/{positionId} {
       allow read: if true;
-      allow create, update: if isValidId(positionId) && isAdmin();
-      allow delete: if isValidId(positionId) && isAdmin()
-        && (
-          !exists(/databases/$(database)/documents/elections/$(resource.data.electionId))
-          || (
-            get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.status != 'live'
-            && get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.get('totalVotesCast', 0) == 0
-            && get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data.get('isHistorical', false) != true
-          )
-        );
+      allow create: if isValidId(positionId)
+        && isAdmin()
+        && ('electionId' in request.resource.data)
+        && isValidId(request.resource.data.electionId)
+        && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+        && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data);
+      allow update: if isValidId(positionId)
+        && isAdmin()
+        && ('electionId' in resource.data)
+        && isValidId(resource.data.electionId)
+        && exists(/databases/$(database)/documents/elections/$(resource.data.electionId))
+        && canAdminManageElectionDomain(get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data)
+        && ('electionId' in request.resource.data)
+        && isValidId(request.resource.data.electionId)
+        && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+        && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data);
+      allow delete: if isValidId(positionId)
+        && isAdmin()
+        && resource != null
+        && ('electionId' in resource.data)
+        && isValidId(resource.data.electionId)
+        && electionAllowsChildDeletion(resource.data.electionId);
     }
 
     // Permanent reusable contestant profiles (contains contact PII -> strictly admin-only)
@@ -164,17 +293,35 @@ service cloud.firestore {
       allow update: if isValidId(contestantId) && isAdmin()
         && isValidContestantData(request.resource.data)
         && (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
-      allow delete: if isValidId(contestantId) && isAdmin();
+      allow delete: if isValidId(contestantId) && resource != null && isAdmin();
     }
 
     // Assignment uniqueness index preventing duplicate (electionId, positionId, contestant) entries
     match /candidate_assignments/{assignmentId} {
       allow get: if isValidId(assignmentId) && isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isValidId(assignmentId) && isAdmin()
+      allow create: if isValidId(assignmentId)
+        && isAdmin()
         && request.resource.data.candidateId is string
-        && positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId);
-      allow delete: if isValidId(assignmentId) && isAdmin();
+        && positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId)
+        && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+        && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data);
+      allow update: if isValidId(assignmentId)
+        && isAdmin()
+        && ('electionId' in resource.data)
+        && isValidId(resource.data.electionId)
+        && exists(/databases/$(database)/documents/elections/$(resource.data.electionId))
+        && canAdminManageElectionDomain(get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data)
+        && request.resource.data.candidateId is string
+        && positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId)
+        && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+        && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data);
+      allow delete: if isValidId(assignmentId)
+        && isAdmin()
+        && resource != null
+        && ('electionId' in resource.data)
+        && isValidId(resource.data.electionId)
+        && electionAllowsChildDeletion(resource.data.electionId);
     }
 
     // Candidate Nominations & Election-Specific Participation Records
@@ -183,6 +330,10 @@ service cloud.firestore {
       allow create: if isValidId(candidateId) && (
         (
           isAdmin()
+          && ('electionId' in request.resource.data)
+          && isValidId(request.resource.data.electionId)
+          && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+          && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data)
           && (!('positionId' in request.resource.data) || request.resource.data.positionId == '' || positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId))
         )
         ||
@@ -196,6 +347,14 @@ service cloud.firestore {
       allow update: if isValidId(candidateId) && (
         (
           isAdmin()
+          && ('electionId' in resource.data)
+          && isValidId(resource.data.electionId)
+          && exists(/databases/$(database)/documents/elections/$(resource.data.electionId))
+          && canAdminManageElectionDomain(get(/databases/$(database)/documents/elections/$(resource.data.electionId)).data)
+          && ('electionId' in request.resource.data)
+          && isValidId(request.resource.data.electionId)
+          && existsAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId))
+          && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(request.resource.data.electionId)).data)
           && (!('positionId' in request.resource.data) || request.resource.data.positionId == '' || positionBelongsToElection(request.resource.data.positionId, request.resource.data.electionId))
         )
         ||
@@ -216,49 +375,72 @@ service cloud.firestore {
           ])
         )
       );
-      allow delete: if isValidId(candidateId) && isAdmin()
-        && resource.data.get('votesReceived', 0) == 0;
+      allow delete: if isValidId(candidateId)
+        && isAdmin()
+        && resource != null
+        && hasZeroCount(resource.data, 'votesReceived')
+        && ('electionId' in resource.data)
+        && isValidId(resource.data.electionId)
+        && electionAllowsChildDeletion(resource.data.electionId);
     }
 
     // Certified / Published Election Results
     match /election_results/{electionId} {
       allow read: if (resource != null && resource.data.isPublished == true) || isAdmin();
-      allow create, update: if isValidId(electionId) && isAdmin();
-      allow delete: if isValidId(electionId) && isAdmin()
-        && resource.data.get('isPublished', false) != true
-        && resource.data.get('resultsCertified', false) != true;
+      allow create, update: if isValidId(electionId)
+        && isAdmin()
+        && existsAfter(/databases/$(database)/documents/elections/$(electionId))
+        && canAdminManageElectionDomain(getAfter(/databases/$(database)/documents/elections/$(electionId)).data);
+      allow delete: if isValidId(electionId)
+        && isAdmin()
+        && resource != null
+        && !isFlagTrue(resource.data, 'isPublished')
+        && !isFlagTrue(resource.data, 'resultsCertified')
+        && electionAllowsChildDeletion(electionId);
     }
 
-    // Structural UCC Governance Registry
+    // Structural UCC Governance Registry (plus __directory_config controlled strictly by Global Governance Admins)
     match /domains/{domainId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if domainId == '__directory_config'
+        ? isGlobalGovernanceAdmin()
+        : isAdmin();
+      allow delete: if resource != null && (
+        domainId == '__directory_config'
+          ? isGlobalGovernanceAdmin()
+          : isAdmin()
+      );
     }
 
     match /halls/{hallId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     match /faculties/{facultyId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     match /departments/{departmentId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     // Public Announcements & Election Calendar
     match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     match /calendar_events/{eventId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     // Notifications (global targetUid == null or user-targeted) & per-user read tracking
@@ -268,7 +450,8 @@ service cloud.firestore {
         resource.data.targetUid == request.auth.uid ||
         isAdmin()
       );
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     match /notification_reads/{readId} {
@@ -285,7 +468,8 @@ service cloud.firestore {
     match /complaints/{complaintId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if resource != null && isAdmin();
     }
 
     // Administrator accounts: readable only by owner or verified admins;

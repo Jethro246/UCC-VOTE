@@ -184,7 +184,7 @@ export const ElectionDetailsPage: React.FC = () => {
                   </>
                 )}
                 <span aria-hidden="true">·</span>
-                <span className="font-medium">CODE: {election.code}</span>
+                <span className="font-medium">Election Code: {election.code}</span>
                 <span aria-hidden="true">·</span>
                 <span className="font-normal">Academic Year {election.academicYear}</span>
               </div>
@@ -227,7 +227,7 @@ export const ElectionDetailsPage: React.FC = () => {
                 {election.status === 'live' && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 ucc-caption font-semibold">
                     <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-                    Polling Open
+                    Active Election · Voting Open
                   </span>
                 )}
                 {(election.status === 'scheduled' || (election.status as any) === 'upcoming') && (
@@ -238,7 +238,8 @@ export const ElectionDetailsPage: React.FC = () => {
                 )}
                 {election.status === 'draft' && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 ucc-caption font-semibold">
-                    Draft In Review
+                    <Clock className="w-3.5 h-3.5 text-slate-600" />
+                    Draft · Pending Activation
                   </span>
                 )}
                 {election.status === 'pending_approval' && (
@@ -280,6 +281,12 @@ export const ElectionDetailsPage: React.FC = () => {
               </div>
             </div>
 
+            {election.status === 'draft' && (
+              <p className="ucc-caption text-slate-600 leading-relaxed">
+                Draft until an authorised administrator configures polling dates and activates voting.
+              </p>
+            )}
+
             {/* Voting or Results button */}
             {election.status === 'live' && isEligible && !hasVoted && (
               <button
@@ -287,7 +294,7 @@ export const ElectionDetailsPage: React.FC = () => {
                 className="w-full py-3 px-4 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-semibold text-sm sm:text-base transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Vote className="w-4 h-4" />
-                <span>Cast Electronic Ballot</span>
+                <span>Cast Your Vote</span>
               </button>
             )}
 
@@ -443,7 +450,9 @@ export const ElectionDetailsPage: React.FC = () => {
                   <span>Eligible to Vote in this Election</span>
                 </div>
                 <p className="ucc-body-secondary text-emerald-700">
-                  Your student record at the Directorate of Academic Affairs qualifies you to cast a ballot in this race.
+                  {election.status === 'draft'
+                    ? 'Your student record at the Directorate of Academic Affairs qualifies you for this election. Ballot casting opens once the UCC Electoral Commission activates voting.'
+                    : 'Your student record at the Directorate of Academic Affairs qualifies you to cast a ballot in this race.'}
                 </p>
               </div>
             ) : (

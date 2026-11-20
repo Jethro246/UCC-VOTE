@@ -42,6 +42,7 @@ import {
   resolveElectionHallUnit
 } from '../../utils/hallUtils';
 import { formatElectionDate } from '../../utils/dateUtils';
+import { isElectionVisibleInDirectory } from '../../utils/electionStatus';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -231,13 +232,7 @@ export const StudentDashboard: React.FC = () => {
     return { isEligible: true, reason: 'Verified eligible voter' };
   };
 
-  const studentVisibleElections = elections.filter(
-    (el: any) =>
-      el.status !== 'draft' &&
-      el.status !== 'pending_approval' &&
-      el.status !== 'cancelled' &&
-      (el.status !== 'archived' || el.isHistorical === true)
-  );
+  const studentVisibleElections = elections.filter(isElectionVisibleInDirectory);
 
   const allElectionsWithEligibility = studentVisibleElections.map((el: any) => {
     const { isEligible, reason } = computeEligibility(el);
@@ -257,7 +252,7 @@ export const StudentDashboard: React.FC = () => {
   );
   const activeElections = allElectionsWithEligibility.filter(e => e.status === 'live');
   const upcomingElections = allElectionsWithEligibility.filter(
-    e => e.status === 'upcoming' || e.status === 'scheduled'
+    e => e.status === 'upcoming' || e.status === 'scheduled' || e.status === 'draft'
   );
   const completedElections = allElectionsWithEligibility.filter(
     e => e.status === 'results_published' || e.status === 'closed' || (e.status === 'archived' && e.isHistorical === true)
@@ -958,13 +953,19 @@ export const StudentDashboard: React.FC = () => {
                           {election.status === 'live' && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 ucc-caption font-semibold">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                              Polls Open
+                              Voting Open
                             </span>
                           )}
-                          {election.status === 'upcoming' && (
+                          {(election.status === 'upcoming' || election.status === 'scheduled') && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#123B70] ucc-caption font-semibold">
                               <Clock className="w-3.5 h-3.5" />
-                              Upcoming
+                              Scheduled
+                            </span>
+                          )}
+                          {election.status === 'draft' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 ucc-caption font-semibold">
+                              <Clock className="w-3.5 h-3.5 text-slate-600" />
+                              Draft · Pending Activation
                             </span>
                           )}
                           {election.status === 'results_published' && (
@@ -1010,6 +1011,11 @@ export const StudentDashboard: React.FC = () => {
                               <Clock className="w-3.5 h-3.5 text-slate-400" />
                               Historical {election.academicYear} Archive · Dates not recorded
                             </span>
+                          ) : !election.startDate && !election.endDate ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              Polling Schedule: Pending Electoral Commission activation
+                            </span>
                           ) : (
                             <>
                               <span className="flex items-center gap-1">
@@ -1030,7 +1036,7 @@ export const StudentDashboard: React.FC = () => {
                             onClick={() => navigateTo('election_details', { electionId: election.id })}
                             className="px-3 py-1.5 rounded-lg border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                           >
-                            View Details
+                            View Election Information
                           </button>
 
                           {election.canVoteNow && (
@@ -1039,7 +1045,7 @@ export const StudentDashboard: React.FC = () => {
                               className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-red-700 ucc-btn font-semibold text-white transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
                             >
                               <Vote className="w-3.5 h-3.5" />
-                              <span>Vote Now</span>
+                              <span>Cast Your Vote</span>
                             </button>
                           )}
 

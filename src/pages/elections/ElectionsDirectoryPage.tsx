@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { DomainId, ElectionCategory, ElectionStatus } from '../../types';
 import { formatNumber, formatPercentage } from '../../utils/numberFormat';
+import { isElectionVisibleInDirectory } from '../../utils/electionStatus';
 
 function getDomainIcon(domainId: DomainId) {
   switch (domainId) {
@@ -63,19 +64,14 @@ export const ElectionsDirectoryPage: React.FC = () => {
     { label: 'All Active & Published', value: 'All' },
     { label: 'Live Polling', value: 'live' },
     { label: 'Scheduled', value: 'scheduled' },
+    { label: 'Draft (Pending Activation)', value: 'draft' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Closed', value: 'closed' },
     { label: 'Results Published', value: 'results_published' },
     { label: 'Historical Archive (2026)', value: 'archived' }
   ];
 
-  const publicVisibleElections = elections.filter(
-    (e) =>
-      e.status !== 'draft' &&
-      e.status !== 'pending_approval' &&
-      e.status !== 'cancelled' &&
-      (e.status !== 'archived' || e.isHistorical === true)
-  );
+  const publicVisibleElections = elections.filter(isElectionVisibleInDirectory);
 
   const filteredElections = publicVisibleElections.filter((e) => {
     const matchesCategory = categoryFilter === 'All' || e.category === categoryFilter;
@@ -256,6 +252,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
             {filteredElections.map((election) => {
               const hasVoted = student?.hasVotedElections.includes(election.id);
               const isLive = election.status === 'live';
+              const isDraft = election.status === 'draft';
               const isUpcoming =
                 election.status === 'upcoming' || election.status === 'scheduled';
               const isResults = election.status === 'results_published';
@@ -289,7 +286,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
                             ? 'text-emerald-700'
                             : isResults
                             ? 'text-amber-700'
-                            : isUpcoming
+                            : isUpcoming || isDraft
                             ? 'text-[#123B70]'
                             : isArchived
                             ? 'text-slate-600'
@@ -297,9 +294,11 @@ export const ElectionsDirectoryPage: React.FC = () => {
                         }`}
                       >
                         {isLive
-                          ? 'Live Now'
+                          ? 'Active Election · Voting Open'
                           : isUpcoming
                           ? 'Scheduled'
+                          : isDraft
+                          ? 'Draft · Pending Activation'
                           : isResults
                           ? 'Results Certified'
                           : isArchived
@@ -353,7 +352,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
                       onClick={() => navigateTo('election_details', { electionId: election.id })}
                       className="text-sm font-semibold text-slate-700 hover:text-[#123B70] transition-colors cursor-pointer whitespace-nowrap"
                     >
-                      View Guidelines
+                      View Election Information
                     </button>
 
                     {isLive && !hasVoted && (
@@ -362,7 +361,7 @@ export const ElectionsDirectoryPage: React.FC = () => {
                         className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-red-700 text-sm font-semibold text-white transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                       >
                         <Vote className="w-3.5 h-3.5" />
-                        <span>Vote Now</span>
+                        <span>Cast Your Vote</span>
                       </button>
                     )}
 
@@ -386,12 +385,12 @@ export const ElectionsDirectoryPage: React.FC = () => {
                       </button>
                     )}
 
-                    {isUpcoming && (
+                    {(isUpcoming || isDraft) && (
                       <button
-                        onClick={() => navigateTo('candidate_directory')}
+                        onClick={() => navigateTo('candidate_directory', { electionId: election.id })}
                         className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-sm font-semibold text-slate-800 transition-colors cursor-pointer whitespace-nowrap"
                       >
-                        Aspirants
+                        {isDraft ? 'Contestants' : 'Aspirants'}
                       </button>
                     )}
 

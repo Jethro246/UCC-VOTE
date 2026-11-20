@@ -16,7 +16,14 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
+import {
+  auth,
+  db,
+  formatFirestorePermissionError,
+  functions,
+  handleFirestoreError,
+  OperationType,
+} from '../lib/firebase';
 import { formatNumber } from '../utils/numberFormat';
 import {
   UCC_HALLS,
@@ -33,7 +40,22 @@ import {
   getHistoricalElectionById,
   getHistoricalPositionsByElectionId,
   getHistoricalResultsByElectionId,
+  mergeHistoricalCandidates,
+  mergeHistoricalElections,
+  mergeHistoricalPositions,
 } from '../data/historical2026Elections';
+import {
+  SRC_2027_CANDIDATES,
+  SRC_2027_ELECTION,
+  SRC_2027_ELECTION_ID,
+  SRC_2027_POSITIONS,
+  getSrc2027CandidateById,
+  getSrc2027ElectionById,
+  getSrc2027PositionsByElectionId,
+  mergeSrc2027Candidates,
+  mergeSrc2027Elections,
+  mergeSrc2027Positions,
+} from '../data/src2027Election';
 import {
   AdminProfile,
   AdminRoleType,
@@ -54,7 +76,7 @@ import {
   ResultsWorkflowStage,
 } from '../types';
 import { CreateElectionPayload } from './interfaces';
-import { convertTimestamp, writeAuditLog } from './firebaseDbService';
+import { convertTimestamp, getDirectoryConfig, writeAuditLog } from './firebaseDbService';
 import {
   buildAssignmentUniquenessKey,
   buildContestantId,
@@ -63,9 +85,17 @@ import {
   normalizeStudentId,
 } from '../utils/contestantUtils';
 import {
+  BULK_REMOVE_CONFIRMATION_PHRASE,
+  BulkElectionInspectionItem,
+  BulkRemovalPlanSummary,
+  DIRECTORY_CONFIG_DOC_ID,
   ElectionRemovalEligibility,
   assessElectionRemovalEligibility,
+  buildBulkRemovalPlan,
+  collectProtectedRecordLabels,
+  isGlobalGovernanceAdmin,
   isValidElectionId,
+  matchesBulkRemovalConfirmation,
   matchesRemovalConfirmation,
 } from '../utils/electionRemovalUtils';
 import { findMatchingHallUnit, isOfficialHallAffiliation } from '../utils/hallUtils';
@@ -114,13 +144,36 @@ async function getCurrentAdminContext(): Promise<{ name: string; role: string; u
   return { name: user.displayName || user.email || 'Administrator', role: 'Admin', uid: user.uid };
 }
 
-const AUTHORIZED_FALLBACK_ADMIN_EMAILS = new Set([
-  'fynnjethro7@gmail.com',
-  'fynnjethro63@gmail.com',
+const VALID_GOVERNANCE_ROLES = new Set<AdminRoleType>([
+  'Super Administrator',
+  'Electoral Commissioner',
+  'SRC Election Administrator',
+  'Hall Election Administrator',
+  'GRASAG Election Administrator',
+  'Local NUGS Election Administrator',
+  'Departmental Election Administrator',
+  'Faculty/School Election Administrator',
+  'Returning Officer',
+  'Results Auditor',
+]);
+
+const UNSCOPED_ELECTION_GOVERNANCE_ROLES = new Set<AdminRoleType>([
+  'Super Administrator',
+  'Electoral Commissioner',
+  'Returning Officer',
 ]);
 
 async function assertActiveAdminContext(election?: Election): Promise<
-  | { ok: true; actor: { name: string; role: string; uid: string; managedDomainIds?: DomainId[] } }
+  | {
+      ok: true;
+      actor: {
+        name: string;
+        role: string;
+        uid: string;
+        managedDomainIds?: DomainId[];
+        adminProfile: AdminProfile;
+      };
+    }
   | { ok: false; error: string }
 > {
   const user = auth.currentUser;
@@ -130,49 +183,87 @@ async function assertActiveAdminContext(election?: Election): Promise<
 
   let claims: Record<string, any> = {};
   try {
-    const tokenRes = await user.getIdTokenResult();
+    let tokenRes = await user.getIdTokenResult();
+    if (tokenRes.claims?.admin !== true) {
+      tokenRes = await user.getIdTokenResult(true);
+    }
     claims = tokenRes.claims || {};
   } catch {
     claims = {};
   }
 
+  if (claims.admin !== true) {
+    return {
+      ok: false,
+      error:
+        'Administrator custom claims (admin: true) are required. Ordinary student or candidate accounts cannot manage or remove elections.',
+    };
+  }
+
   const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-  const adminData = adminSnap?.exists() ? (adminSnap.data() as AdminProfile) : null;
-  if (adminData && adminData.isActive === false) {
-    return { ok: false, error: 'Your administrator account has been deactivated.' };
-  }
+  const adminData = adminSnap?.exists()
+    ? ({ ...adminSnap.data(), id: adminSnap.id, uid: user.uid } as AdminProfile)
+    : null;
 
-  const hasClaimAdmin = claims.admin === true;
-  const email = (user.email || '').trim().toLowerCase();
-  const hasAllowlistedEmail = Boolean(user.emailVerified && AUTHORIZED_FALLBACK_ADMIN_EMAILS.has(email));
-
-  if (!hasClaimAdmin && !hasAllowlistedEmail) {
+  if (!adminData) {
     return {
       ok: false,
-      error: 'Administrator authorisation required. Ordinary student or candidate accounts cannot manage or remove elections.',
+      error:
+        'An active administrator profile document (/admins/{uid}) is required before managing or deleting elections.',
+    };
+  }
+  if (adminData.isActive !== true) {
+    return { ok: false, error: 'Your administrator account is inactive or has been deactivated.' };
+  }
+  if (!adminData.role || !VALID_GOVERNANCE_ROLES.has(adminData.role)) {
+    return {
+      ok: false,
+      error: 'Your administrator record does not hold a recognized Electoral Commission role.',
     };
   }
 
-  if (
-    election &&
-    Array.isArray(adminData?.managedDomainIds) &&
-    adminData!.managedDomainIds.length > 0 &&
-    election.domainId &&
-    !adminData!.managedDomainIds.includes(election.domainId)
-  ) {
-    return {
-      ok: false,
-      error: 'You do not have administrative authority over this election domain.',
-    };
+  if (election) {
+    if (adminData.role === 'Results Auditor') {
+      return {
+        ok: false,
+        error: 'Results Auditors have read-only audit access and cannot modify or remove elections.',
+      };
+    }
+    const managedDomains = Array.isArray(adminData.managedDomainIds) ? adminData.managedDomainIds : [];
+    const isUnscopedGlobal =
+      UNSCOPED_ELECTION_GOVERNANCE_ROLES.has(adminData.role) && managedDomains.length === 0;
+    if (!isUnscopedGlobal) {
+      if (
+        managedDomains.length === 0 ||
+        !election.domainId ||
+        !managedDomains.includes(election.domainId)
+      ) {
+        return {
+          ok: false,
+          error: 'You do not have administrative authority over this election domain.',
+        };
+      }
+    }
   }
+
+  const resolvedProfile: AdminProfile = {
+    ...adminData,
+    id: user.uid,
+    uid: user.uid,
+    permissions:
+      Array.isArray(adminData.permissions) && adminData.permissions.length > 0
+        ? adminData.permissions
+        : getPermissionsForRole(adminData.role),
+  };
 
   return {
     ok: true,
     actor: {
-      name: adminData?.fullName || user.displayName || user.email || 'Electoral Administrator',
-      role: adminData?.role || String(claims.role || 'Electoral Commissioner'),
+      name: resolvedProfile.fullName || user.displayName || user.email || 'Electoral Administrator',
+      role: resolvedProfile.role,
       uid: user.uid,
-      managedDomainIds: adminData?.managedDomainIds,
+      managedDomainIds: resolvedProfile.managedDomainIds,
+      adminProfile: resolvedProfile,
     },
   };
 }
@@ -193,47 +284,134 @@ function isCallableDomainRejection(err: any): boolean {
   );
 }
 
-async function ensureHistoricalElectionInFirestore(id: string): Promise<void> {
-  const hist = getHistoricalElectionById(id);
-  if (!hist) return;
+async function ensureBuiltInElectionInFirestore(id: string): Promise<void> {
+  const builtInElection = getSrc2027ElectionById(id) || getHistoricalElectionById(id);
+  if (!builtInElection) return;
+
   const ref = doc(db, 'elections', id);
   const snap = await getDoc(ref).catch(() => null);
   if (snap && !snap.exists()) {
-    await setDoc(ref, stripUndefined({ ...hist, updatedAt: serverTimestamp() }));
-    const histPositions = getHistoricalPositionsByElectionId(id);
-    for (const pos of histPositions) {
-      const pRef = doc(db, 'positions', pos.id);
-      const pSnap = await getDoc(pRef).catch(() => null);
-      if (pSnap && !pSnap.exists()) {
-        await setDoc(pRef, stripUndefined(pos));
+    await setDoc(ref, stripUndefined({ ...builtInElection, updatedAt: serverTimestamp() }));
+  }
+
+  const builtInPositions =
+    id === SRC_2027_ELECTION_ID
+      ? getSrc2027PositionsByElectionId(id)
+      : getHistoricalPositionsByElectionId(id);
+  for (const pos of builtInPositions) {
+    const pRef = doc(db, 'positions', pos.id);
+    const pSnap = await getDoc(pRef).catch(() => null);
+    if (pSnap && !pSnap.exists()) {
+      await setDoc(pRef, stripUndefined(pos));
+    }
+  }
+
+  if (id === SRC_2027_ELECTION_ID) {
+    for (const cand of SRC_2027_CANDIDATES) {
+      const cRef = doc(db, 'candidates', cand.id);
+      const cSnap = await getDoc(cRef).catch(() => null);
+      if (cSnap && !cSnap.exists()) {
+        await setDoc(cRef, stripUndefined({ ...cand, updatedAt: serverTimestamp() }));
       }
     }
   }
 }
 
-async function ensureHistoricalPositionInFirestore(posId: string): Promise<void> {
-  const hist = HISTORICAL_2026_POSITIONS.find((p) => p.id === posId);
-  if (!hist) return;
-  await ensureHistoricalElectionInFirestore(hist.electionId);
+async function ensureBuiltInPositionInFirestore(posId: string): Promise<void> {
+  const builtIn =
+    SRC_2027_POSITIONS.find((p) => p.id === posId) ||
+    HISTORICAL_2026_POSITIONS.find((p) => p.id === posId);
+  if (!builtIn) return;
+  await ensureBuiltInElectionInFirestore(builtIn.electionId);
   const ref = doc(db, 'positions', posId);
   const snap = await getDoc(ref).catch(() => null);
   if (snap && !snap.exists()) {
-    await setDoc(ref, stripUndefined(hist));
+    await setDoc(ref, stripUndefined(builtIn));
   }
 }
 
-async function ensureHistoricalCandidateInFirestore(id: string): Promise<void> {
-  const hist = getHistoricalCandidateById(id);
-  if (!hist) return;
-  await ensureHistoricalElectionInFirestore(hist.electionId);
+async function ensureBuiltInCandidateInFirestore(id: string): Promise<void> {
+  const builtIn = getSrc2027CandidateById(id) || getHistoricalCandidateById(id);
+  if (!builtIn) return;
+  await ensureBuiltInElectionInFirestore(builtIn.electionId);
   const ref = doc(db, 'candidates', id);
   const snap = await getDoc(ref).catch(() => null);
   if (snap && !snap.exists()) {
-    await setDoc(ref, stripUndefined({ ...hist, updatedAt: serverTimestamp() }));
+    await setDoc(ref, stripUndefined({ ...builtIn, updatedAt: serverTimestamp() }));
   }
 }
 
 class FirebaseAdminService {
+  async seedSrc2027Election(): Promise<{
+    success: boolean;
+    createdElections: number;
+    createdPositions: number;
+    createdCandidates: number;
+    error?: string;
+  }> {
+    let createdElections = 0;
+    let createdPositions = 0;
+    let createdCandidates = 0;
+
+    try {
+      const eRef = doc(db, 'elections', SRC_2027_ELECTION.id);
+      const eSnap = await getDoc(eRef);
+      if (!eSnap.exists()) {
+        await setDoc(eRef, stripUndefined({ ...SRC_2027_ELECTION, updatedAt: serverTimestamp() }));
+        createdElections++;
+      }
+
+      for (const pos of SRC_2027_POSITIONS) {
+        const pRef = doc(db, 'positions', pos.id);
+        const pSnap = await getDoc(pRef);
+        if (!pSnap.exists()) {
+          await setDoc(pRef, stripUndefined(pos));
+          createdPositions++;
+        }
+      }
+
+      for (const cand of SRC_2027_CANDIDATES) {
+        const cRef = doc(db, 'candidates', cand.id);
+        const cSnap = await getDoc(cRef);
+        if (!cSnap.exists()) {
+          await setDoc(cRef, stripUndefined({ ...cand, updatedAt: serverTimestamp() }));
+          createdCandidates++;
+        }
+      }
+
+      await setDoc(
+        doc(db, 'domains', DIRECTORY_CONFIG_DOC_ID),
+        {
+          hiddenBuiltInElectionIds: arrayRemove(SRC_2027_ELECTION.id),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => {});
+
+      const actor = await getCurrentAdminContext();
+      await writeAuditLog({
+        adminName: actor.name,
+        adminRole: actor.role,
+        action: 'Synchronised UCC SRC General Elections 2027 (Draft) to Firestore',
+        target: `${SRC_2027_ELECTION.code} · elections(${createdElections}), positions(${createdPositions}), candidates(${createdCandidates})`,
+      });
+
+      return {
+        success: true,
+        createdElections,
+        createdPositions,
+        createdCandidates,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        createdElections,
+        createdPositions,
+        createdCandidates,
+        error: err?.message || 'Unable to synchronise UCC SRC 2027 election to Firestore.',
+      };
+    }
+  }
   async seedHistorical2026Elections(): Promise<{
     success: boolean;
     createdElections: number;
@@ -284,6 +462,18 @@ class FirebaseAdminService {
           await setDoc(ref, stripUndefined({ ...resPayload, updatedAt: serverTimestamp() }));
           createdResults++;
         }
+      }
+
+      const histIds = HISTORICAL_2026_ELECTIONS.map((e) => e.id);
+      if (histIds.length > 0) {
+        await setDoc(
+          doc(db, 'domains', DIRECTORY_CONFIG_DOC_ID),
+          {
+            hiddenBuiltInElectionIds: arrayRemove(...histIds),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        ).catch(() => {});
       }
 
       const actor = await getCurrentAdminContext();
@@ -658,7 +848,7 @@ class FirebaseAdminService {
     updates: Partial<Election>
   ): Promise<{ success: boolean; election?: Election; message?: string; error?: string }> {
     try {
-      await ensureHistoricalElectionInFirestore(id);
+      await ensureBuiltInElectionInFirestore(id);
       const cleanUpdates = stripUndefined({
         ...updates,
         updatedAt: serverTimestamp(),
@@ -714,7 +904,7 @@ class FirebaseAdminService {
         statusUpdate.resultsCertified = false;
       }
 
-      await ensureHistoricalElectionInFirestore(id);
+      await ensureBuiltInElectionInFirestore(id);
       await updateDoc(doc(db, 'elections', id), statusUpdate);
 
       // Keep published state of election_results synced when unpublishing results (never strip archived results)
@@ -928,6 +1118,18 @@ class FirebaseAdminService {
         await batch.commit();
       }
 
+      if (electionId === SRC_2027_ELECTION_ID) {
+        await setDoc(
+          doc(db, 'domains', DIRECTORY_CONFIG_DOC_ID),
+          {
+            hiddenBuiltInElectionIds: arrayUnion(electionId),
+            updatedAt: serverTimestamp(),
+            updatedBy: authCheck.actor.name,
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
+
       await writeAuditLog({
         adminName: authCheck.actor.name,
         adminRole: authCheck.actor.role,
@@ -948,7 +1150,504 @@ class FirebaseAdminService {
     } catch (err: any) {
       return {
         success: false,
-        error: err?.message || 'Unable to permanently remove election from Firestore.',
+        error: formatFirestorePermissionError(err, OperationType.DELETE, `elections/${electionId}`),
+      };
+    }
+  }
+
+  async inspectAllElectionsForRemoval(): Promise<{
+    success: boolean;
+    items: BulkElectionInspectionItem[];
+    summary?: BulkRemovalPlanSummary;
+    error?: string;
+    code?: string;
+  }> {
+    const authCheck = await assertActiveAdminContext();
+    if (authCheck.ok === false) {
+      return { success: false, items: [], error: authCheck.error, code: 'PERMISSION_DENIED' };
+    }
+    if (!isGlobalGovernanceAdmin(authCheck.actor.adminProfile)) {
+      return {
+        success: false,
+        items: [],
+        error:
+          'Only unrestricted Super Administrators or Electoral Commissioners can inspect and execute platform-wide election removal.',
+        code: 'GLOBAL_ADMIN_REQUIRED',
+      };
+    }
+
+    try {
+      const [
+        electionsSnap,
+        posSnap,
+        candSnap,
+        assignSnap,
+        resSnap,
+        authSnap,
+        confirmSnap,
+        dirConfig,
+      ] = await Promise.all([
+        getDocs(collection(db, 'elections')),
+        getDocs(collection(db, 'positions')),
+        getDocs(collection(db, 'candidates')),
+        getDocs(collection(db, 'candidate_assignments')).catch(() => null),
+        getDocs(collection(db, 'election_results')).catch(() => null),
+        getDocs(collection(db, 'voter_authorisations')).catch(() => null),
+        getDocs(collection(db, 'vote_confirmations')).catch(() => null),
+        getDirectoryConfig(),
+      ]);
+
+      const firestoreElections = electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+      const firestoreElectionIds = new Set(firestoreElections.map((e) => e.id));
+      const hiddenBuiltInSet = new Set(dirConfig.hiddenBuiltInElectionIds);
+
+      // Include all non-detached Firestore elections + any unsuppressed built-in elections
+      const mergedElectionsRaw = mergeSrc2027Elections(
+        mergeHistoricalElections(firestoreElections)
+      );
+      const activeInventoryElections = mergedElectionsRaw.filter((el) => {
+        if (el.hiddenFromDirectory === true) return false;
+        if (!firestoreElectionIds.has(el.id) && hiddenBuiltInSet.has(el.id)) return false;
+        return true;
+      });
+
+      const firestorePosByElection: Record<string, Position[]> = {};
+      posSnap.docs.forEach((d) => {
+        const pos = mapDoc<Position>(d.id, d.data());
+        if (!pos.electionId) return;
+        if (!firestorePosByElection[pos.electionId]) {
+          firestorePosByElection[pos.electionId] = [];
+        }
+        firestorePosByElection[pos.electionId].push(pos);
+      });
+      const mergedPositions = mergeSrc2027Positions(
+        mergeHistoricalPositions(firestorePosByElection)
+      );
+
+      const mergedCandidates = mergeSrc2027Candidates(
+        mergeHistoricalCandidates(candSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data())))
+      );
+
+      const assignCountByElection: Record<string, number> = {};
+      assignSnap?.docs.forEach((d) => {
+        const eid = String(d.data()?.electionId || '');
+        if (eid) assignCountByElection[eid] = (assignCountByElection[eid] || 0) + 1;
+      });
+
+      const authCountByElection: Record<string, number> = {};
+      authSnap?.docs.forEach((d) => {
+        const eid = String(d.data()?.electionId || '');
+        if (eid) authCountByElection[eid] = (authCountByElection[eid] || 0) + 1;
+      });
+
+      const confirmCountByElection: Record<string, number> = {};
+      confirmSnap?.docs.forEach((d) => {
+        const eid = String(d.data()?.electionId || '');
+        if (eid) confirmCountByElection[eid] = (confirmCountByElection[eid] || 0) + 1;
+      });
+
+      const resultsDocByElection: Record<string, Record<string, any>> = {};
+      resSnap?.docs.forEach((d) => {
+        resultsDocByElection[d.id] = d.data();
+      });
+
+      const items: BulkElectionInspectionItem[] = activeInventoryElections.map((election) => {
+        const inFirestore = firestoreElectionIds.has(election.id);
+        const posList = inFirestore
+          ? firestorePosByElection[election.id] || []
+          : mergedPositions[election.id] || [];
+        const candList = mergedCandidates.filter((c) => c.electionId === election.id);
+        const candidateVotesTotal = candList.reduce(
+          (sum, c) => sum + Math.max(0, Number(c.votesReceived) || 0),
+          0
+        );
+        const authorisationsCount = authCountByElection[election.id] || 0;
+        const confirmationsCount = confirmCountByElection[election.id] || 0;
+        const assignmentsCount = assignCountByElection[election.id] || 0;
+        const resData = resultsDocByElection[election.id];
+        const hasExistingResultsDoc = Boolean(resData);
+        const hasPublishedResults =
+          Boolean(resData?.isPublished) || election.status === 'results_published';
+        const resultsCertified =
+          Boolean(election.resultsCertified) || Boolean(resData?.resultsCertified);
+        const ballotsCount = Math.max(0, Number(election.totalVotesCast) || 0);
+
+        const eligibility = assessElectionRemovalEligibility(election, {
+          ballotsCount,
+          authorisationsCount,
+          confirmationsCount,
+          candidateVotesTotal,
+          hasPublishedResults,
+          hasExistingResultsDoc,
+          resultsCertified,
+        });
+
+        const votingRecordsExist =
+          ballotsCount > 0 ||
+          authorisationsCount > 0 ||
+          confirmationsCount > 0 ||
+          candidateVotesTotal > 0 ||
+          hasPublishedResults ||
+          resultsCertified;
+
+        const baseItem: BulkElectionInspectionItem = {
+          election,
+          source: inFirestore ? 'firestore' : 'builtin_only',
+          positionsCount: posList.length || election.positionsCount || 0,
+          candidatesCount: candList.length,
+          assignmentsCount,
+          authorisationsCount,
+          confirmationsCount,
+          ballotsCount,
+          candidateVotesTotal,
+          hasExistingResultsDoc,
+          hasPublishedResults,
+          resultsCertified,
+          votingRecordsExist,
+          eligibility,
+          protectedRecords: [],
+        };
+        baseItem.protectedRecords = collectProtectedRecordLabels(baseItem);
+        return baseItem;
+      });
+
+      return {
+        success: true,
+        items,
+        summary: buildBulkRemovalPlan(items, { includeHistorical: false }),
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        items: [],
+        error: err?.message || 'Unable to inspect elections for bulk removal.',
+      };
+    }
+  }
+
+  async executeRemoveAllElections(options: {
+    confirmationText: string;
+    includeHistorical?: boolean;
+    detachProtectedElections?: boolean;
+    reason?: string;
+  }): Promise<{
+    success: boolean;
+    code?: string;
+    error?: string;
+    message?: string;
+    plan?: BulkRemovalPlanSummary;
+    blockedReport?: Array<{
+      electionId: string;
+      title: string;
+      code: string;
+      status: string;
+      protectedRecords: string[];
+      reason: string;
+    }>;
+    removedElectionsCount?: number;
+    removedRelatedDocsCount?: number;
+    archivedDetachedCount?: number;
+    preservedHistoricalCount?: number;
+    preservedCollections?: string[];
+  }> {
+    const authCheck = await assertActiveAdminContext();
+    if (authCheck.ok === false) {
+      return { success: false, code: 'PERMISSION_DENIED', error: authCheck.error };
+    }
+    if (!isGlobalGovernanceAdmin(authCheck.actor.adminProfile)) {
+      return {
+        success: false,
+        code: 'GLOBAL_ADMIN_REQUIRED',
+        error:
+          'Only unrestricted Super Administrators or Electoral Commissioners can execute REMOVE ALL ELECTIONS.',
+      };
+    }
+
+    if (!matchesBulkRemovalConfirmation(options.confirmationText)) {
+      return {
+        success: false,
+        code: 'CONFIRMATION_MISMATCH',
+        error: `Confirmation text did not match the exact required phrase "${BULK_REMOVE_CONFIRMATION_PHRASE}".`,
+      };
+    }
+
+    const inspection = await this.inspectAllElectionsForRemoval();
+    if (!inspection.success) {
+      return {
+        success: false,
+        code: inspection.code || 'INSPECTION_FAILED',
+        error: inspection.error || 'Could not inspect existing elections.',
+      };
+    }
+
+    const includeHistorical = Boolean(options.includeHistorical);
+    const detachProtected = Boolean(options.detachProtectedElections);
+    const plan = buildBulkRemovalPlan(inspection.items, { includeHistorical });
+
+    if (plan.totalFound === 0) {
+      return {
+        success: true,
+        message: 'No existing elections remain in the active election directory.',
+        plan,
+        removedElectionsCount: 0,
+        removedRelatedDocsCount: 0,
+        archivedDetachedCount: 0,
+        preservedHistoricalCount: 0,
+        preservedCollections: [
+          'ballots',
+          'voter_authorisations',
+          'vote_confirmations',
+          'election_results (certified)',
+          'audit_logs',
+          'students',
+          'voter_eligibility',
+          'admins',
+          'contestants',
+        ],
+      };
+    }
+
+    // Safety Gate 1: Never delete or detach active LIVE elections in bulk
+    const liveBlockers = plan.items.filter((i) => i.disposition === 'blocked_live');
+    if (liveBlockers.length > 0) {
+      return {
+        success: false,
+        code: 'LIVE_ELECTIONS_BLOCK_REMOVAL',
+        plan,
+        blockedReport: liveBlockers.map((b) => ({
+          electionId: b.election.id,
+          title: b.election.title,
+          code: b.election.code,
+          status: b.election.status,
+          protectedRecords: b.protectedRecords,
+          reason: b.reason,
+        })),
+        error: `${liveBlockers.length} LIVE election(s) prevent bulk removal. Close or cancel live voting before removing or detaching elections.`,
+      };
+    }
+
+    // Safety Gate 2: Stop and report if protected voting/historical records prevent safe permanent deletion
+    const detachTargets = plan.items.filter((i) => i.disposition === 'detach_archive');
+    if (!detachProtected && detachTargets.some((t) => t.votingRecordsExist || t.election.isHistorical)) {
+      return {
+        success: false,
+        code: 'PROTECTED_VOTING_RECORDS_EXIST',
+        plan,
+        blockedReport: detachTargets.map((b) => ({
+          electionId: b.election.id,
+          title: b.election.title,
+          code: b.election.code,
+          status: b.election.status,
+          protectedRecords: b.protectedRecords,
+          reason: b.reason,
+        })),
+        error:
+          'Complete permanent deletion stopped because protected voting, result, or historical records exist. Approve archival & detachment to clear those elections from the active directory while preserving all protected records.',
+      };
+    }
+
+    const builtInIdsSet = new Set<string>([
+      SRC_2027_ELECTION_ID,
+      ...HISTORICAL_2026_ELECTIONS.map((e) => e.id),
+    ]);
+
+    // Attempt trusted Cloud Function first when deployed
+    try {
+      const fn = httpsCallable(functions, 'removeAllElections');
+      const res = await fn({
+        confirmationText: options.confirmationText,
+        includeHistorical,
+        detachProtectedElections: detachProtected,
+        reason: options.reason,
+        builtInElectionIds: plan.items
+          .filter((i) => i.disposition !== 'skip_historical' && builtInIdsSet.has(i.election.id))
+          .map((i) => i.election.id),
+      });
+      const data = res.data as any;
+      if (data?.success) {
+        return {
+          success: true,
+          plan,
+          removedElectionsCount: data.removedElectionsCount ?? 0,
+          removedRelatedDocsCount: data.removedRelatedDocsCount ?? 0,
+          archivedDetachedCount: data.archivedDetachedCount ?? 0,
+          preservedHistoricalCount: data.preservedHistoricalCount ?? plan.skippedHistoricalCount,
+          preservedCollections: data.preservedCollections || [
+            'ballots',
+            'voter_authorisations',
+            'vote_confirmations',
+            'election_results (certified / published)',
+            'audit_logs',
+            'students',
+            'voter_eligibility',
+            'admins',
+            'contestants',
+          ],
+          message: data.message,
+        };
+      }
+    } catch (err: any) {
+      if (isCallableDomainRejection(err)) {
+        return {
+          success: false,
+          code: 'SERVER_REJECTED',
+          error: err?.message || 'Server rejected bulk election removal.',
+        };
+      }
+      // Fall back to rules-enforced client Firestore cleanup when Cloud Functions are unavailable (e.g. Spark plan)
+    }
+
+    try {
+      let removedElectionsCount = 0;
+      let removedRelatedDocsCount = 0;
+      let archivedDetachedCount = 0;
+      const hiddenBuiltInIdsToAdd = new Set<string>();
+
+      // 1. Permanently delete zero-vote / non-live / non-historical elections
+      for (const item of plan.items.filter((i) => i.disposition === 'delete')) {
+        const eid = item.election.id;
+        if (builtInIdsSet.has(eid)) {
+          hiddenBuiltInIdsToAdd.add(eid);
+        }
+        if (item.source === 'firestore') {
+          const [pSnap, cSnap, aSnap, rSnap, authCheckSnap, confCheckSnap] = await Promise.all([
+            getDocs(query(collection(db, 'positions'), where('electionId', '==', eid))),
+            getDocs(query(collection(db, 'candidates'), where('electionId', '==', eid))),
+            getDocs(query(collection(db, 'candidate_assignments'), where('electionId', '==', eid))),
+            getDoc(doc(db, 'election_results', eid)).catch(() => null),
+            getDocs(query(collection(db, 'voter_authorisations'), where('electionId', '==', eid), limit(1))).catch(() => null),
+            getDocs(query(collection(db, 'vote_confirmations'), where('electionId', '==', eid), limit(1))).catch(() => null),
+          ]);
+
+          const freshHasVotes =
+            cSnap.docs.some((d) => (Number(d.data()?.votesReceived) || 0) > 0) ||
+            (authCheckSnap?.size || 0) > 0 ||
+            (confCheckSnap?.size || 0) > 0 ||
+            (rSnap?.exists() &&
+              (rSnap.data()?.isPublished === true || rSnap.data()?.resultsCertified === true));
+
+          if (freshHasVotes) {
+            // Dynamically downgrade to safe archive & detach rather than deleting protected records
+            await updateDoc(doc(db, 'elections', eid), {
+              previousStatus: item.election.status,
+              status: 'archived',
+              isPublished: false,
+              hiddenFromDirectory: true,
+              archivedAt: new Date().toISOString(),
+              archivedBy: authCheck.actor.name,
+              archivedByUid: authCheck.actor.uid,
+              archiveReason:
+                options.reason?.trim() ||
+                'Archived & detached during bulk directory clearance (voting records detected)',
+              detachedAt: new Date().toISOString(),
+              detachedBy: authCheck.actor.name,
+              updatedAt: serverTimestamp(),
+            });
+            archivedDetachedCount++;
+            continue;
+          }
+
+          const refsToDelete = [
+            ...pSnap.docs.map((d) => d.ref),
+            ...cSnap.docs.map((d) => d.ref),
+            ...aSnap.docs.map((d) => d.ref),
+          ];
+          if (rSnap?.exists() && rSnap.data()?.isPublished !== true && rSnap.data()?.resultsCertified !== true) {
+            refsToDelete.push(rSnap.ref);
+          }
+          refsToDelete.push(doc(db, 'elections', eid));
+
+          const CHUNK_SIZE = 400;
+          for (let i = 0; i < refsToDelete.length; i += CHUNK_SIZE) {
+            const batch = writeBatch(db);
+            refsToDelete.slice(i, i + CHUNK_SIZE).forEach((ref) => batch.delete(ref));
+            await batch.commit();
+          }
+          removedElectionsCount++;
+          removedRelatedDocsCount += Math.max(0, refsToDelete.length - 1);
+        } else {
+          removedElectionsCount++;
+        }
+      }
+
+      // 2. Archive & detach protected/historical elections without deleting voting or result records
+      for (const item of detachTargets) {
+        const eid = item.election.id;
+        if (builtInIdsSet.has(eid)) {
+          hiddenBuiltInIdsToAdd.add(eid);
+        }
+        if (item.source === 'firestore') {
+          await updateDoc(doc(db, 'elections', eid), {
+            previousStatus: item.election.status,
+            status: 'archived',
+            isPublished: false,
+            hiddenFromDirectory: true,
+            archivedAt: item.election.archivedAt || new Date().toISOString(),
+            archivedBy: item.election.archivedBy || authCheck.actor.name,
+            archivedByUid: item.election.archivedByUid || authCheck.actor.uid,
+            archiveReason:
+              options.reason?.trim() ||
+              item.election.archiveReason ||
+              'Archived & detached from active directory while preserving ballots, receipts, and results',
+            detachedAt: new Date().toISOString(),
+            detachedBy: authCheck.actor.name,
+            updatedAt: serverTimestamp(),
+          });
+        }
+        archivedDetachedCount++;
+      }
+
+      // 3. Persist suppressed built-in IDs so built-ins do not re-appear until re-synced
+      if (hiddenBuiltInIdsToAdd.size > 0) {
+        await setDoc(
+          doc(db, 'domains', DIRECTORY_CONFIG_DOC_ID),
+          {
+            hiddenBuiltInElectionIds: arrayUnion(...Array.from(hiddenBuiltInIdsToAdd)),
+            updatedAt: serverTimestamp(),
+            updatedBy: authCheck.actor.name,
+          },
+          { merge: true }
+        );
+      }
+
+      const preservedHistoricalCount = plan.skippedHistoricalCount;
+      const preservedCollections = [
+        'ballots',
+        'voter_authorisations',
+        'vote_confirmations',
+        'election_results (certified / published)',
+        'audit_logs',
+        'students',
+        'voter_eligibility',
+        'admins',
+        'contestants',
+      ];
+
+      await writeAuditLog({
+        adminName: authCheck.actor.name,
+        adminRole: authCheck.actor.role,
+        adminUid: authCheck.actor.uid,
+        reason: options.reason?.trim() || 'Bulk election directory clearance executed',
+        action: 'REMOVE ALL ELECTIONS Executed',
+        target: `Removed ${removedElectionsCount} election(s) (+${removedRelatedDocsCount} related docs); Archived/Detached ${archivedDetachedCount}; Preserved Historical ${preservedHistoricalCount}`,
+        status: 'warning',
+      });
+
+      return {
+        success: true,
+        plan,
+        removedElectionsCount,
+        removedRelatedDocsCount,
+        archivedDetachedCount,
+        preservedHistoricalCount,
+        preservedCollections,
+        message: `Removed ${removedElectionsCount} election(s) and archived/detached ${archivedDetachedCount} protected election(s). All ballots, voter authorisations, confirmation receipts, student accounts, admin accounts, permanent contestant profiles, and audit logs remain preserved.`,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        code: 'BULK_REMOVAL_FAILED',
+        error: formatFirestorePermissionError(err, OperationType.DELETE, 'elections'),
       };
     }
   }
@@ -962,7 +1661,7 @@ class FirebaseAdminService {
     }
 
     try {
-      await ensureHistoricalElectionInFirestore(electionId);
+      await ensureBuiltInElectionInFirestore(electionId);
       const eSnap = await getDoc(doc(db, 'elections', electionId));
       if (!eSnap.exists()) {
         return { success: false, error: 'Election record not found.' };
@@ -1136,7 +1835,7 @@ class FirebaseAdminService {
     }
 
     try {
-      await ensureHistoricalElectionInFirestore(electionId);
+      await ensureBuiltInElectionInFirestore(electionId);
       const eSnap = await getDoc(doc(db, 'elections', electionId));
       if (!eSnap.exists()) {
         return { success: false, error: 'Election record not found.' };
@@ -1223,7 +1922,7 @@ class FirebaseAdminService {
   ) {
     const posId = `pos_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     try {
-      await ensureHistoricalElectionInFirestore(electionId);
+      await ensureBuiltInElectionInFirestore(electionId);
       const [existingSnap, electionSnap] = await Promise.all([
         getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
         getDoc(doc(db, 'elections', electionId)).catch(() => null),
@@ -1269,7 +1968,7 @@ class FirebaseAdminService {
     }
   ) {
     try {
-      await ensureHistoricalPositionInFirestore(posId);
+      await ensureBuiltInPositionInFirestore(posId);
       await updateDoc(doc(db, 'positions', posId), stripUndefined(updates));
       return { success: true, message: 'Position updated.' };
     } catch (err: any) {
@@ -1279,8 +1978,8 @@ class FirebaseAdminService {
 
   async deletePosition(electionId: string, posId: string) {
     try {
-      await ensureHistoricalElectionInFirestore(electionId);
-      await ensureHistoricalPositionInFirestore(posId);
+      await ensureBuiltInElectionInFirestore(electionId);
+      await ensureBuiltInPositionInFirestore(posId);
       await deleteDoc(doc(db, 'positions', posId));
       const remaining = await getDocs(
         query(collection(db, 'positions'), where('electionId', '==', electionId))
@@ -1301,7 +2000,7 @@ class FirebaseAdminService {
 
   async verifyCandidateEligibility(id: string) {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
+      await ensureBuiltInCandidateInFirestore(id);
       const cSnap = await getDoc(doc(db, 'candidates', id));
       if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
       const cand = mapDoc<Candidate>(cSnap.id, cSnap.data());
@@ -1348,7 +2047,7 @@ class FirebaseAdminService {
 
   async approveCandidate(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
+      await ensureBuiltInCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       const cSnap = await getDoc(doc(db, 'candidates', id));
       if (!cSnap.exists()) return { success: false, error: 'Candidate not found.' };
@@ -1363,7 +2062,7 @@ class FirebaseAdminService {
       });
 
       if (cand.positionId) {
-        await ensureHistoricalPositionInFirestore(cand.positionId);
+        await ensureBuiltInPositionInFirestore(cand.positionId);
         await updateDoc(doc(db, 'positions', cand.positionId), {
           candidateIds: arrayUnion(id),
         }).catch(() => {});
@@ -1386,7 +2085,7 @@ class FirebaseAdminService {
     reason: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
+      await ensureBuiltInCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Rejected',
@@ -1412,7 +2111,7 @@ class FirebaseAdminService {
     notes: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
+      await ensureBuiltInCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Under review',
@@ -1438,7 +2137,7 @@ class FirebaseAdminService {
     _reason?: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
+      await ensureBuiltInCandidateInFirestore(id);
       const actor = await getCurrentAdminContext();
       await updateDoc(doc(db, 'candidates', id), {
         applicationStatus: 'Withdrawn',
@@ -1464,9 +2163,9 @@ class FirebaseAdminService {
     positionId: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      await ensureHistoricalCandidateInFirestore(id);
-      await ensureHistoricalElectionInFirestore(electionId);
-      await ensureHistoricalPositionInFirestore(positionId);
+      await ensureBuiltInCandidateInFirestore(id);
+      await ensureBuiltInElectionInFirestore(electionId);
+      await ensureBuiltInPositionInFirestore(positionId);
       const [cSnap, eSnap, pSnap] = await Promise.all([
         getDoc(doc(db, 'candidates', id)),
         getDoc(doc(db, 'elections', electionId)),
@@ -1904,8 +2603,8 @@ class FirebaseAdminService {
     error?: string;
   }> {
     try {
-      await ensureHistoricalElectionInFirestore(payload.electionId);
-      await ensureHistoricalPositionInFirestore(payload.positionId);
+      await ensureBuiltInElectionInFirestore(payload.electionId);
+      await ensureBuiltInPositionInFirestore(payload.positionId);
 
       const [eSnap, pSnap] = await Promise.all([
         getDoc(doc(db, 'elections', payload.electionId)),
@@ -2175,14 +2874,14 @@ class FirebaseAdminService {
     error?: string;
   }> {
     try {
-      await ensureHistoricalCandidateInFirestore(candidateId);
+      await ensureBuiltInCandidateInFirestore(candidateId);
       const cSnap = await getDoc(doc(db, 'candidates', candidateId));
       if (!cSnap.exists()) {
         return { success: false, error: 'Candidate record not found.' };
       }
 
       const existing = mapDoc<Candidate>(cSnap.id, cSnap.data());
-      await ensureHistoricalElectionInFirestore(existing.electionId);
+      await ensureBuiltInElectionInFirestore(existing.electionId);
       const eSnap = await getDoc(doc(db, 'elections', existing.electionId));
       const election = eSnap.exists() ? mapDoc<Election>(eSnap.id, eSnap.data()) : null;
 
@@ -2213,7 +2912,7 @@ class FirebaseAdminService {
 
       const nextPosId = payload.positionId || existing.positionId;
       if (isChangingPosition) {
-        await ensureHistoricalPositionInFirestore(nextPosId);
+        await ensureBuiltInPositionInFirestore(nextPosId);
         const targetPosSnap = await getDoc(doc(db, 'positions', nextPosId));
         if (!targetPosSnap.exists()) {
           return { success: false, error: 'Selected position does not exist.' };

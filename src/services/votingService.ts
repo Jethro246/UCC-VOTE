@@ -17,8 +17,9 @@ import {
   VoterEligibilityRecord,
 } from '../types';
 import { evaluateStudentEligibilityLocal } from './electionClient';
-import { convertTimestamp } from './firebaseDbService';
+import { convertTimestamp, getDirectoryConfig } from './firebaseDbService';
 import { getHistoricalElectionById } from '../data/historical2026Elections';
+import { getSrc2027ElectionById } from '../data/src2027Election';
 
 function mapDoc<T>(id: string, data: Record<string, any>): T {
   const out: Record<string, any> = { id };
@@ -50,7 +51,7 @@ class FirebaseVotingService {
     }
 
     try {
-      const [eSnap, pSnap, cSnap, sSnap, eligSnap, authSnap, confSnap] = await Promise.all([
+      const [eSnap, pSnap, cSnap, sSnap, eligSnap, authSnap, confSnap, dirConfig] = await Promise.all([
         getDoc(doc(db, 'elections', electionId)),
         getDocs(query(collection(db, 'positions'), where('electionId', '==', electionId))),
         getDocs(
@@ -64,9 +65,28 @@ class FirebaseVotingService {
         getDoc(doc(db, 'voter_eligibility', user.uid)).catch(() => null),
         getDoc(doc(db, 'voter_authorisations', `${electionId}_${user.uid}`)).catch(() => null),
         getDoc(doc(db, 'vote_confirmations', `${electionId}_${user.uid}`)).catch(() => null),
+        getDirectoryConfig(),
       ]);
 
       if (!eSnap.exists()) {
+        if (dirConfig.hiddenBuiltInElectionIds.includes(electionId)) {
+          return {
+            success: false,
+            httpStatus: 404,
+            code: 'ELECTION_REMOVED',
+            error: 'This election has been removed from the active directory.',
+          };
+        }
+        const src2027 = getSrc2027ElectionById(electionId);
+        if (src2027) {
+          return {
+            success: false,
+            httpStatus: 403,
+            code: 'ELECTION_NOT_OPEN',
+            election: src2027,
+            error: `Voting is not currently open (Election status: ${src2027.status.replace(/_/g, ' ')}).`,
+          };
+        }
         const hist = getHistoricalElectionById(electionId);
         if (hist) {
           return {
@@ -80,6 +100,15 @@ class FirebaseVotingService {
       }
 
       const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      if (election.hiddenFromDirectory === true || election.status === 'archived') {
+        return {
+          success: false,
+          httpStatus: 403,
+          code: 'ELECTION_ARCHIVED',
+          election,
+          error: 'This election has been archived or detached from active voting.',
+        };
+      }
       const positionsList = pSnap.docs
         .map((d) => mapDoc<Position>(d.id, d.data()))
         .sort((a, b) => (a.order || 0) - (b.order || 0));

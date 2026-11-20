@@ -46,6 +46,7 @@ import { CreateElectionModal } from '../../components/admin/CreateElectionModal'
 import { EditElectionModal } from '../../components/admin/EditElectionModal';
 import { StatusTransitionModal } from '../../components/admin/StatusTransitionModal';
 import { RemoveElectionModal } from '../../components/admin/RemoveElectionModal';
+import { RemoveAllElectionsModal } from '../../components/admin/RemoveAllElectionsModal';
 import { PositionManagerModal } from '../../components/admin/PositionManagerModal';
 import { EligibilityTesterModal } from '../../components/admin/EligibilityTesterModal';
 import { CandidateRegistrationModal } from '../../components/admin/CandidateRegistrationModal';
@@ -59,6 +60,7 @@ import {
   canUserManageElectionRemoval,
   getAvailableElectionActions,
   getElectionStatusMeta,
+  isGlobalGovernanceAdmin as checkGlobalGovernanceAdmin,
 } from '../../utils/electionRemovalUtils';
 import {
   computeHallMetrics,
@@ -106,8 +108,7 @@ const AdminDashboardContent: React.FC = () => {
     calendarEvents,
   } = useApp();
 
-  const isGlobalGovernanceAdmin =
-    admin?.role === 'Super Administrator' || admin?.role === 'Electoral Commissioner';
+  const isGlobalGovernanceAdmin = checkGlobalGovernanceAdmin(admin);
 
   const permittedDomains = admin?.managedDomainIds?.length
     ? domains.filter((d) => admin.managedDomainIds!.includes(d.id))
@@ -255,6 +256,7 @@ const AdminDashboardContent: React.FC = () => {
   const [selectedElectionForStatus, setSelectedElectionForStatus] = useState<Election | null>(null);
   const [selectedElectionForRemoval, setSelectedElectionForRemoval] = useState<Election | null>(null);
   const [removalModalMode, setRemovalModalMode] = useState<'remove' | 'archive' | 'restore'>('remove');
+  const [showRemoveAllModal, setShowRemoveAllModal] = useState(false);
   const [selectedElectionForPositions, setSelectedElectionForPositions] = useState<Election | null>(null);
   const [selectedElectionForCandidates, setSelectedElectionForCandidates] = useState<Election | null>(null);
   const [selectedElectionForEligibility, setSelectedElectionForEligibility] = useState<Election | null>(null);
@@ -262,6 +264,7 @@ const AdminDashboardContent: React.FC = () => {
   const [electionStatusFilter, setElectionStatusFilter] = useState<'all' | 'active_draft' | 'archived' | 'cancelled'>('all');
   const [syncingHalls, setSyncingHalls] = useState(false);
   const [syncingHistorical2026, setSyncingHistorical2026] = useState(false);
+  const [syncingSrc2027, setSyncingSrc2027] = useState(false);
   const [uploadingHallLogoId, setUploadingHallLogoId] = useState<string | null>(null);
   const [resultsDefaultElectionId, setResultsDefaultElectionId] = useState<string | undefined>(undefined);
 
@@ -1117,6 +1120,27 @@ const AdminDashboardContent: React.FC = () => {
                   )}
                   <button
                     type="button"
+                    disabled={syncingSrc2027}
+                    onClick={async () => {
+                      setSyncingSrc2027(true);
+                      const res = await adminService.seedSrc2027Election();
+                      if (res.success) {
+                        await Promise.all([refreshElections(), refreshDomains(), refreshCandidates()]);
+                        showSuccessToast(
+                          `UCC SRC General Elections 2027 synced to Firestore (added ${res.createdElections} election, ${res.createdPositions} positions, ${res.createdCandidates} contestants).`
+                        );
+                      } else {
+                        showSuccessToast(res.error || 'Unable to sync UCC SRC 2027 election to Firestore.');
+                      }
+                      setSyncingSrc2027(false);
+                    }}
+                    className="px-3.5 py-2 rounded-xl border border-[#123B70]/30 bg-[#EAF2FA] hover:bg-blue-100 text-[#123B70] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingSrc2027 ? 'animate-spin' : ''}`} />
+                    <span>{syncingSrc2027 ? 'Syncing 2027 SRC...' : 'Sync 2027 SRC to DB'}</span>
+                  </button>
+                  <button
+                    type="button"
                     disabled={syncingHistorical2026}
                     onClick={async () => {
                       setSyncingHistorical2026(true);
@@ -1147,6 +1171,16 @@ const AdminDashboardContent: React.FC = () => {
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Election</span>
                   </button>
+                  {isGlobalGovernanceAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowRemoveAllModal(true)}
+                      className="px-3.5 py-2 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 text-[#C62828] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>REMOVE ALL ELECTIONS</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2498,6 +2532,22 @@ const AdminDashboardContent: React.FC = () => {
           await Promise.all([refreshElections(), refreshCandidates(), fetchAuditLogs()]);
         }}
       />
+
+      {isGlobalGovernanceAdmin && (
+        <RemoveAllElectionsModal
+          isOpen={showRemoveAllModal}
+          onClose={() => setShowRemoveAllModal(false)}
+          onSuccess={async (message) => {
+            showSuccessToast(message);
+            await Promise.all([
+              refreshElections(),
+              refreshCandidates(),
+              refreshDomains(),
+              fetchAuditLogs(),
+            ]);
+          }}
+        />
+      )}
 
       <PositionManagerModal
         isOpen={!!selectedElectionForPositions}

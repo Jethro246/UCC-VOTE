@@ -29,6 +29,14 @@ import {
   mergeHistoricalPositions,
 } from '../data/historical2026Elections';
 import {
+  getSrc2027CandidateById,
+  getSrc2027ElectionById,
+  getSrc2027PositionsByElectionId,
+  mergeSrc2027Candidates,
+  mergeSrc2027Elections,
+  mergeSrc2027Positions,
+} from '../data/src2027Election';
+import {
   UNVERIFIED_HALL_MESSAGE,
   findMatchingHallUnit,
   isOfficialHallAffiliation,
@@ -49,7 +57,11 @@ import {
   VoterEligibilityRecord,
 } from '../types';
 import { DomainWithStats, EligibilityResult } from './interfaces';
-import { convertTimestamp } from './firebaseDbService';
+import { convertTimestamp, getDirectoryConfig } from './firebaseDbService';
+import {
+  DIRECTORY_CONFIG_DOC_ID,
+  applyDirectoryVisibilityFilter,
+} from '../utils/electionRemovalUtils';
 
 function mapDoc<T>(id: string, data: Record<string, any>): T {
   const out: Record<string, any> = { id };
@@ -188,20 +200,34 @@ export function evaluateStudentEligibilityLocal(
 class FirebaseElectionClient {
   async getDomains() {
     try {
-      const [domainsSnap, hallsSnap, facSnap, deptSnap, electionsSnap, posSnap, candSnap] =
-        await Promise.all([
-          getDocs(collection(db, 'domains')).catch(() => null),
-          getDocs(collection(db, 'halls')).catch(() => null),
-          getDocs(collection(db, 'faculties')).catch(() => null),
-          getDocs(collection(db, 'departments')).catch(() => null),
-          getDocs(collection(db, 'elections')),
-          getDocs(collection(db, 'positions')),
-          getDocs(collection(db, 'candidates')),
-        ]);
+      const [
+        domainsSnap,
+        hallsSnap,
+        facSnap,
+        deptSnap,
+        electionsSnap,
+        posSnap,
+        candSnap,
+        dirConfig,
+      ] = await Promise.all([
+        getDocs(collection(db, 'domains')).catch(() => null),
+        getDocs(collection(db, 'halls')).catch(() => null),
+        getDocs(collection(db, 'faculties')).catch(() => null),
+        getDocs(collection(db, 'departments')).catch(() => null),
+        getDocs(collection(db, 'elections')),
+        getDocs(collection(db, 'positions')),
+        getDocs(collection(db, 'candidates')),
+        getDirectoryConfig(),
+      ]);
+
+      const domainDocs =
+        domainsSnap && !domainsSnap.empty
+          ? domainsSnap.docs.filter((d) => d.id !== DIRECTORY_CONFIG_DOC_ID)
+          : [];
 
       const rawDomains: DomainRegistryItem[] =
-        domainsSnap && !domainsSnap.empty
-          ? domainsSnap.docs.map((d) => mapDoc<DomainRegistryItem>(d.id, d.data()))
+        domainDocs.length > 0
+          ? domainDocs.map((d) => mapDoc<DomainRegistryItem>(d.id, d.data()))
           : DOMAIN_REGISTRY;
 
       const remoteHalls: HallUnit[] =
@@ -220,12 +246,20 @@ class FirebaseElectionClient {
           ? deptSnap.docs.map((d) => mapDoc<DepartmentUnit>(d.id, d.data()))
           : UCC_DEPARTMENTS;
 
-      const elections = mergeHistoricalElections(
-        electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()))
+      const firestoreElections = electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+      const firestoreIds = new Set(firestoreElections.map((e) => e.id));
+      const elections = applyDirectoryVisibilityFilter(
+        mergeSrc2027Elections(mergeHistoricalElections(firestoreElections)),
+        dirConfig.hiddenBuiltInElectionIds,
+        firestoreIds
       );
-      const candidates = mergeHistoricalCandidates(
-        candSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
-      );
+      const visibleElectionIds = new Set(elections.map((e) => e.id));
+
+      const candidates = mergeSrc2027Candidates(
+        mergeHistoricalCandidates(
+          candSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
+        )
+      ).filter((c) => visibleElectionIds.has(c.electionId));
 
       const firestorePositionsByElection: Record<string, Position[]> = {};
       posSnap.docs.forEach((d) => {
@@ -236,7 +270,15 @@ class FirebaseElectionClient {
         }
         firestorePositionsByElection[pos.electionId].push(pos);
       });
-      const positionsByElection = mergeHistoricalPositions(firestorePositionsByElection);
+      const mergedPositions = mergeSrc2027Positions(
+        mergeHistoricalPositions(firestorePositionsByElection)
+      );
+      const positionsByElection: Record<string, Position[]> = {};
+      Object.entries(mergedPositions).forEach(([eid, list]) => {
+        if (visibleElectionIds.has(eid)) {
+          positionsByElection[eid] = list;
+        }
+      });
 
       const domains: DomainWithStats[] = rawDomains
         .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
@@ -302,11 +344,18 @@ class FirebaseElectionClient {
   ) {
     const res = await this.getDomains();
     const domain = res.domains.find((d) => d.id === domainId);
-    const electionsSnap = await getDocs(collection(db, 'elections'));
-    const candidatesSnap = await getDocs(collection(db, 'candidates'));
+    const [electionsSnap, candidatesSnap, dirConfig] = await Promise.all([
+      getDocs(collection(db, 'elections')),
+      getDocs(collection(db, 'candidates')),
+      getDirectoryConfig(),
+    ]);
 
-    let elections = mergeHistoricalElections(
-      electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()))
+    const firestoreElections = electionsSnap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+    const firestoreIds = new Set(firestoreElections.map((e) => e.id));
+    let elections = applyDirectoryVisibilityFilter(
+      mergeSrc2027Elections(mergeHistoricalElections(firestoreElections)),
+      dirConfig.hiddenBuiltInElectionIds,
+      firestoreIds
     ).filter((e) => (e.domainId || categoryToDomainId(e.category)) === domainId);
 
     if (filters?.hallId) elections = elections.filter((e) => e.hallId === filters.hallId);
@@ -317,8 +366,10 @@ class FirebaseElectionClient {
     if (filters?.status) elections = elections.filter((e) => e.status === filters.status);
 
     const electionIds = new Set(elections.map((e) => e.id));
-    const candidates = mergeHistoricalCandidates(
-      candidatesSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
+    const candidates = mergeSrc2027Candidates(
+      mergeHistoricalCandidates(
+        candidatesSnap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
+      )
     ).filter((c) => electionIds.has(c.electionId));
 
     return {
@@ -345,9 +396,16 @@ class FirebaseElectionClient {
     search?: string;
   }) {
     try {
-      const snap = await getDocs(collection(db, 'elections'));
-      let items = mergeHistoricalElections(
-        snap.docs.map((d) => mapDoc<Election>(d.id, d.data()))
+      const [snap, dirConfig] = await Promise.all([
+        getDocs(collection(db, 'elections')),
+        getDirectoryConfig(),
+      ]);
+      const firestoreElections = snap.docs.map((d) => mapDoc<Election>(d.id, d.data()));
+      const firestoreIds = new Set(firestoreElections.map((e) => e.id));
+      let items = applyDirectoryVisibilityFilter(
+        mergeSrc2027Elections(mergeHistoricalElections(firestoreElections)),
+        dirConfig.hiddenBuiltInElectionIds,
+        firestoreIds
       );
       if (params?.category) items = items.filter((e) => e.category === params.category);
       if (params?.domainId) {
@@ -383,11 +441,24 @@ class FirebaseElectionClient {
 
   async getElectionById(id: string) {
     try {
-      const [eSnap, pSnap] = await Promise.all([
+      const [eSnap, pSnap, dirConfig] = await Promise.all([
         getDoc(doc(db, 'elections', id)),
         getDocs(query(collection(db, 'positions'), where('electionId', '==', id))),
+        getDirectoryConfig(),
       ]);
+      const hiddenSet = new Set(dirConfig.hiddenBuiltInElectionIds);
       if (!eSnap.exists()) {
+        if (hiddenSet.has(id)) {
+          return { success: false, error: 'Election not found.' };
+        }
+        const src2027 = getSrc2027ElectionById(id);
+        if (src2027) {
+          return {
+            success: true,
+            election: src2027,
+            positions: getSrc2027PositionsByElectionId(id),
+          };
+        }
         const hist = getHistoricalElectionById(id);
         if (!hist) {
           return { success: false, error: 'Election not found.' };
@@ -398,13 +469,19 @@ class FirebaseElectionClient {
           positions: getHistoricalPositionsByElectionId(id),
         };
       }
+      const firestoreElection = mapDoc<Election>(eSnap.id, eSnap.data());
+      if (firestoreElection.hiddenFromDirectory) {
+        return { success: false, error: 'Election is no longer active in directory.' };
+      }
       const firestorePositions = pSnap.docs.map((d) => mapDoc<Position>(d.id, d.data()));
-      const mergedPositions = mergeHistoricalPositions({
-        [id]: firestorePositions,
-      })[id] || [];
+      const mergedPositions = mergeSrc2027Positions(
+        mergeHistoricalPositions({
+          [id]: firestorePositions,
+        })
+      )[id] || [];
       return {
         success: true,
-        election: mapDoc<Election>(eSnap.id, eSnap.data()),
+        election: firestoreElection,
         positions: mergedPositions,
       };
     } catch (err: any) {
@@ -415,10 +492,12 @@ class FirebaseElectionClient {
   async checkEligibility(electionId: string, studentIdOrUid?: string) {
     try {
       const eSnap = await getDoc(doc(db, 'elections', electionId));
-      if (!eSnap.exists()) {
+      const election: Election | undefined = eSnap.exists()
+        ? mapDoc<Election>(eSnap.id, eSnap.data())
+        : getSrc2027ElectionById(electionId) || getHistoricalElectionById(electionId);
+      if (!election) {
         return { success: false, error: 'Election record not found.' };
       }
-      const election = mapDoc<Election>(eSnap.id, eSnap.data());
 
       // Try trusted Cloud Function first if deployed
       try {
@@ -501,10 +580,16 @@ class FirebaseElectionClient {
     search?: string;
   }) {
     try {
-      const snap = await getDocs(collection(db, 'candidates'));
-      let items = mergeHistoricalCandidates(
-        snap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
-      );
+      const [snap, electionsRes] = await Promise.all([
+        getDocs(collection(db, 'candidates')),
+        this.getElections(),
+      ]);
+      const visibleElectionIds = new Set(electionsRes.elections.map((e) => e.id));
+      let items = mergeSrc2027Candidates(
+        mergeHistoricalCandidates(
+          snap.docs.map((d) => mapDoc<Candidate>(d.id, d.data()))
+        )
+      ).filter((c) => visibleElectionIds.has(c.electionId));
       if (params?.electionId) items = items.filter((c) => c.electionId === params.electionId);
       if (params?.positionId) items = items.filter((c) => c.positionId === params.positionId);
       if (params?.domainId) items = items.filter((c) => c.domainId === params.domainId);
@@ -535,10 +620,20 @@ class FirebaseElectionClient {
 
   async getCandidateById(id: string) {
     try {
-      const snap = await getDoc(doc(db, 'candidates', id));
+      const [snap, dirConfig] = await Promise.all([
+        getDoc(doc(db, 'candidates', id)),
+        getDirectoryConfig(),
+      ]);
+      const hiddenSet = new Set(dirConfig.hiddenBuiltInElectionIds);
       if (!snap.exists()) {
+        const src2027 = getSrc2027CandidateById(id);
+        if (src2027 && !hiddenSet.has(src2027.electionId)) {
+          return { success: true, candidate: src2027 };
+        }
         const hist = getHistoricalCandidateById(id);
-        if (hist) return { success: true, candidate: hist };
+        if (hist && !hiddenSet.has(hist.electionId)) {
+          return { success: true, candidate: hist };
+        }
         return { success: false, error: 'Candidate not found.' };
       }
       return { success: true, candidate: mapDoc<Candidate>(snap.id, snap.data()) };
@@ -643,14 +738,14 @@ class FirebaseElectionClient {
       }
       const existingSnap = await getDoc(doc(db, 'candidates', id)).catch(() => null);
       if (existingSnap && !existingSnap.exists()) {
-        const hist = getHistoricalCandidateById(id);
-        if (hist) {
-          const histClean: Record<string, any> = {};
-          for (const [k, v] of Object.entries({ ...hist, ...payload })) {
+        const builtIn = getSrc2027CandidateById(id) || getHistoricalCandidateById(id);
+        if (builtIn) {
+          const cleanSeed: Record<string, any> = {};
+          for (const [k, v] of Object.entries({ ...builtIn, ...payload })) {
             if (k === 'phone') continue;
-            if (v !== undefined) histClean[k] = v;
+            if (v !== undefined) cleanSeed[k] = v;
           }
-          await setDoc(doc(db, 'candidates', id), histClean);
+          await setDoc(doc(db, 'candidates', id), cleanSeed);
           const refreshed = await getDoc(doc(db, 'candidates', id));
           return {
             success: true,
@@ -678,12 +773,22 @@ class FirebaseElectionClient {
 
   async getPublishedResults(electionId: string) {
     try {
-      const [eSnap, rSnap] = await Promise.all([
+      const [eSnap, rSnap, dirConfig] = await Promise.all([
         getDoc(doc(db, 'elections', electionId)),
         getDoc(doc(db, 'election_results', electionId)),
+        getDirectoryConfig(),
       ]);
+      const hiddenSet = new Set(dirConfig.hiddenBuiltInElectionIds);
 
       if (!eSnap.exists()) {
+        if (hiddenSet.has(electionId) || getSrc2027ElectionById(electionId)) {
+          return {
+            success: false,
+            error: hiddenSet.has(electionId)
+              ? 'Election has been removed from the active directory.'
+              : 'Election results have not been published.',
+          };
+        }
         const histResults = getHistoricalResultsByElectionId(electionId);
         if (histResults) {
           return { success: true, results: histResults };
@@ -692,8 +797,16 @@ class FirebaseElectionClient {
       }
 
       const election = mapDoc<Election>(eSnap.id, eSnap.data());
+      if (election.hiddenFromDirectory) {
+        return {
+          success: false,
+          error: 'This election has been archived and detached from the active directory.',
+        };
+      }
       if (!rSnap.exists()) {
-        const histResults = getHistoricalResultsByElectionId(electionId);
+        const histResults = hiddenSet.has(electionId)
+          ? undefined
+          : getHistoricalResultsByElectionId(electionId);
         if (histResults) {
           return { success: true, results: histResults };
         }

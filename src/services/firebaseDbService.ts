@@ -417,12 +417,58 @@ export function subscribeDomains(
     query(collection(db, 'domains')),
     (snap) => {
       const items = snap.docs
+        .filter((d) => d.id !== '__directory_config')
         .map((d) => serializeDocData<DomainRegistryItem>(d.id, d.data()))
         .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
       onData(items);
     },
     (err) => onError?.(err)
   );
+}
+
+export function subscribeDirectoryConfig(
+  onData: (config: { hiddenBuiltInElectionIds: string[]; updatedAt?: string; updatedBy?: string }) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'domains', '__directory_config'),
+    (snap) => {
+      if (!snap.exists()) {
+        onData({ hiddenBuiltInElectionIds: [] });
+        return;
+      }
+      const data = serializeDocData<{
+        hiddenBuiltInElectionIds?: string[];
+        updatedAt?: string;
+        updatedBy?: string;
+      }>(snap.id, snap.data());
+      onData({
+        hiddenBuiltInElectionIds: Array.isArray(data.hiddenBuiltInElectionIds)
+          ? data.hiddenBuiltInElectionIds.map(String)
+          : [],
+        updatedAt: data.updatedAt,
+        updatedBy: data.updatedBy,
+      });
+    },
+    (err) => onError?.(err)
+  );
+}
+
+export async function getDirectoryConfig(): Promise<{
+  hiddenBuiltInElectionIds: string[];
+}> {
+  try {
+    const snap = await getDoc(doc(db, 'domains', '__directory_config'));
+    if (!snap.exists()) return { hiddenBuiltInElectionIds: [] };
+    const data = snap.data();
+    return {
+      hiddenBuiltInElectionIds: Array.isArray(data?.hiddenBuiltInElectionIds)
+        ? data.hiddenBuiltInElectionIds.map(String)
+        : [],
+    };
+  } catch {
+    return { hiddenBuiltInElectionIds: [] };
+  }
 }
 
 export function subscribeStructuralCollection<T>(

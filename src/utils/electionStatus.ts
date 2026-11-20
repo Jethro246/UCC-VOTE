@@ -32,6 +32,25 @@ export function isElectionPublishedToStudents(
   return !HIDDEN_STATUSES.has(String(election.status || 'draft'));
 }
 
+/**
+ * Determines whether an election should appear in the Elections Directory,
+ * Domain view, and Student Dashboard listings. Includes published elections,
+ * protected 2026 historical archives, and explicitly published draft records
+ * awaiting Electoral Commission activation (such as UCC-SRC-2027).
+ */
+export function isElectionVisibleInDirectory(
+  election?: Pick<Election, 'status' | 'isPublished' | 'isHistorical' | 'hiddenFromDirectory'> | null
+): boolean {
+  if (!election) return false;
+  if (election.hiddenFromDirectory === true) return false;
+  if (election.isPublished === false) return false;
+  const status = String(election.status || 'draft');
+  if (status === 'cancelled' || status === 'pending_approval') return false;
+  if (status === 'archived') return election.isHistorical === true;
+  if (status === 'draft') return election.isPublished === true;
+  return true;
+}
+
 export function getElectionStatusMeta(
   electionOrStatus?: Pick<Election, 'status' | 'isPublished'> | ElectionStatus | string | null
 ): ElectionStatusMeta {
