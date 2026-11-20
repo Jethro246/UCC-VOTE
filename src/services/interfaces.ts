@@ -100,4 +100,6 @@ export interface CreateElectionPayload {
   }[];
   candidateAssignments?: ElectionCandidateAssignmentDraft[];
   guidelinesUrl?: string;
+  initialStatus?: 'draft' | 'scheduled';
+  isPublished?: boolean;
 }

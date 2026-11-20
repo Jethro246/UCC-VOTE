@@ -13,6 +13,7 @@ import { Position, Election } from '../../types';
 import { electionClient } from '../../services/electionClient';
 import { adminService } from '../../services/adminService';
 import { useApp } from '../../context/AppContext';
+import { getElectionStatusMeta } from '../../utils/electionStatus';
 
 interface PositionManagerModalProps {
   isOpen: boolean;
@@ -170,7 +171,8 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
   const isLiveOrClosed =
     election.status === 'live' ||
     election.status === 'closed' ||
-    election.status === 'results_published';
+    election.status === 'results_published' ||
+    election.status === 'cancelled';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
@@ -225,7 +227,7 @@ export const PositionManagerModal: React.FC<PositionManagerModalProps> = ({
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
             <span>
-              This election is {election.status.toUpperCase()}. Position structures are locked to preserve ballot integrity.
+              This election is {getElectionStatusMeta(election).label.toUpperCase()}. Position structures are locked to preserve ballot integrity.
             </span>
           </div>
         )}

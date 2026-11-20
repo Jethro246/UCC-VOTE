@@ -155,6 +155,7 @@ export type ElectionStatus =
   | 'closed'
   | 'results_pending_certification'
   | 'results_published'
+  | 'cancelled'
   | 'archived';
 
 export type CandidateApplicationStatus =
@@ -293,6 +294,7 @@ export interface Election {
   rules: string[];
   positionsCount: number;
   allowsEmptyBallot?: boolean;
+  isPublished?: boolean;
   resultsCertified: boolean;
   provisionalResultsReady: boolean;
   createdAt?: string;

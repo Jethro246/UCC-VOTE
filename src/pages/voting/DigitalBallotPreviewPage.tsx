@@ -7,6 +7,7 @@ import { Logo, BrandedLoadingScreen } from '../../components/common/Logo';
 import { CandidateAvatar } from '../../components/common/CandidateAvatar';
 import { resolveCandidatePhotoUrl } from '../../utils/contestantUtils';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { isElectionPublishedToStudents } from '../../utils/electionStatus';
 import {
   Vote,
   CheckCircle2,
@@ -63,7 +64,9 @@ export const DigitalBallotPreviewPage: React.FC = () => {
   } = useApp();
 
   const { isOnline } = useOnlineStatus();
-  const fallbackElection = elections.find((e) => e.id === selectedElectionId) || elections[0];
+  const visibleElections = elections.filter(isElectionPublishedToStudents);
+  const fallbackElection =
+    visibleElections.find((e) => e.id === selectedElectionId) || visibleElections[0];
 
   const [isLoadingBallot, setIsLoadingBallot] = useState(true);
   const [ballotError, setBallotError] = useState<{
@@ -140,7 +143,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
       return;
     }
 
-    if (elections.length === 0 || !selectedElectionId) {
+    if (visibleElections.length === 0 || !selectedElectionId) {
       setBallotError({
         code: 'NO_ACTIVE_ELECTIONS',
         message: 'No active elections at the moment.'
