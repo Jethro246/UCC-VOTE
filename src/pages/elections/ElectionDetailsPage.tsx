@@ -169,10 +169,10 @@ export const ElectionDetailsPage: React.FC = () => {
 
       {/* Main Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-          <div className="flex items-start gap-4 max-w-3xl">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 max-md:gap-3">
+          <div className="flex items-start gap-4 max-md:gap-2.5 max-w-3xl">
             <Logo variant="default" showWordmark={false} className="mt-1 hidden sm:inline-flex" />
-            <div className="space-y-2">
+            <div className="space-y-2 max-md:space-y-1">
               <div className="flex flex-wrap items-center gap-2 ucc-caption text-slate-500">
                 <span className="font-semibold text-[#123B70] uppercase tracking-wider">
                   {election.category}
@@ -193,7 +193,7 @@ export const ElectionDetailsPage: React.FC = () => {
                 {election.title}
               </h1>
 
-            <p className="ucc-body-secondary text-slate-600 pt-1">
+            <p className="ucc-body-secondary text-slate-600 pt-1 max-md:pt-0">
               {election.description}
             </p>
 
@@ -204,7 +204,7 @@ export const ElectionDetailsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="pt-2 flex flex-wrap items-center gap-4 ucc-caption font-normal text-slate-500">
+            <div className="pt-2 max-md:pt-1 flex flex-wrap items-center gap-4 max-md:gap-2 ucc-caption font-normal text-slate-500">
               <span className="inline-flex items-center gap-2">
                 <Building className="w-4 h-4 text-slate-400" />
                 <span>Organizing Secretariat: <strong className="font-semibold text-slate-700">{election.organizingBody}</strong></span>
@@ -218,7 +218,7 @@ export const ElectionDetailsPage: React.FC = () => {
           </div>
 
           {/* Action box */}
-          <div className="shrink-0 p-5 rounded-2xl bg-slate-50 border border-slate-200 min-w-[240px] space-y-3">
+          <div className="shrink-0 p-5 max-md:p-3 rounded-2xl bg-slate-50 border border-slate-200 min-w-[240px] max-md:min-w-0 max-md:w-full space-y-3 max-md:space-y-2">
             <div>
               <span className="ucc-caption text-slate-500 uppercase tracking-wider font-semibold block">
                 Election Status
@@ -352,8 +352,8 @@ export const ElectionDetailsPage: React.FC = () => {
                   );
 
                   return (
-                    <div key={pos.id} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                      <div className="flex items-center justify-between">
+                    <div key={pos.id} className="p-5 max-md:p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3 max-md:space-y-2">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
                           <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider">
                             Portfolio {pos.order}
@@ -362,7 +362,7 @@ export const ElectionDetailsPage: React.FC = () => {
                             {pos.title}
                           </h3>
                         </div>
-                        <span className="ucc-caption text-slate-500 font-medium">
+                        <span className="ucc-caption text-slate-500 font-medium shrink-0">
                           {positionCandidates.length} Approved Aspirant{positionCandidates.length === 1 ? '' : 's'}
                         </span>
                       </div>
@@ -372,17 +372,17 @@ export const ElectionDetailsPage: React.FC = () => {
                       </p>
 
                       {/* Candidates cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-md:gap-2 pt-2 max-md:pt-1">
                         {positionCandidates.map((cand) => (
                           <div
                             key={cand.id}
                             onClick={() => navigateTo('candidate_profile', { candidateId: cand.id })}
-                            className="p-3 bg-white rounded-xl border border-slate-200 hover:border-[#123B70]/40 transition-all cursor-pointer flex items-center gap-3 group"
+                            className="p-3 max-md:p-2 bg-white rounded-xl border border-slate-200 hover:border-[#123B70]/40 transition-all cursor-pointer flex items-center gap-3 max-md:gap-2.5 group"
                           >
                             <CandidateAvatar
                               src={resolveCandidatePhotoUrl(cand)}
                               alt={cand.fullName}
-                              className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform text-xs"
+                              className="w-12 h-12 max-md:w-10 max-md:h-10 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform text-xs"
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0">

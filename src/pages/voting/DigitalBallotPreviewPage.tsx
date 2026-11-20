@@ -762,7 +762,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               return (
                 <div
                   key={position.id}
-                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  className={`p-4 max-md:p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-md:gap-2 ${
                     isMissingRequired
                       ? 'border-red-300 bg-red-50/50'
                       : 'border-slate-200 bg-slate-50/70'
@@ -980,7 +980,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="shrink-0 p-3.5 rounded-xl bg-[#F4F6F9] border border-slate-200 ucc-caption space-y-1 min-w-[210px]">
+          <div className="shrink-0 p-3.5 max-md:p-2.5 rounded-xl bg-[#F4F6F9] border border-slate-200 ucc-caption space-y-1 min-w-[210px] max-md:min-w-0 max-md:w-full">
             <div className="flex items-center gap-1.5 text-[#123B70] font-semibold">
               <Clock className="w-3.5 h-3.5" />
               <span>Voting Deadline</span>
@@ -1058,7 +1058,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
 
       {/* Active Position Card */}
       {activePosition && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6 max-md:space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
             <div>
               <div className="flex items-center gap-2">
@@ -1100,7 +1100,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
               No approved candidates are currently assigned to this position.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:gap-2.5">
               {positionCandidates.map((cand) => {
                 const isSelected = currentSelectionsForPos.includes(cand.id);
                 const limitReached =
@@ -1119,7 +1119,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         handleToggleCandidate(cand.id);
                       }
                     }}
-                    className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative group flex flex-col justify-between ${
+                    className={`p-5 max-md:p-3 rounded-2xl border-2 transition-all cursor-pointer relative group flex flex-col justify-between ${
                       isSelected
                         ? 'border-[#123B70] bg-[#EAF2FA]/55 shadow-md ring-2 ring-[#123B70]/20'
                         : limitReached
@@ -1127,12 +1127,12 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
                     }`}
                   >
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-4">
+                    <div className="space-y-3 max-md:space-y-2">
+                      <div className="flex items-start gap-4 max-md:gap-2.5">
                         <CandidateAvatar
                           src={resolveCandidatePhotoUrl(cand)}
                           alt={cand.fullName}
-                          className="w-16 h-16 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                          className="w-16 h-16 max-md:w-12 max-md:h-12 rounded-xl object-cover object-top border border-slate-200 shrink-0"
                         />
                         <div className="min-w-0 flex-1">
                           <h3 className="ucc-heading-card text-slate-900 group-hover:text-[#123B70] transition-colors">
@@ -1166,7 +1166,7 @@ export const DigitalBallotPreviewPage: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                    <div className="mt-4 pt-3 max-md:mt-2.5 max-md:pt-2 border-t border-slate-200/80 flex items-center justify-between">
                       <button
                         type="button"
                         onClick={(e) => {

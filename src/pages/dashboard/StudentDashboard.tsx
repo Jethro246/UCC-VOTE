@@ -343,29 +343,29 @@ export const StudentDashboard: React.FC = () => {
       )}
 
       {/* DASHBOARD HEADER & WELCOME HERO */}
-      <div className={`bg-gradient-to-r from-[#0B1F3A] via-[#123B70] to-[#1e4e8c] rounded-2xl text-white p-6 sm:p-8 shadow-lg relative ${showAccountMenu ? 'z-30' : ''}`}>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className={`bg-gradient-to-r from-[#0B1F3A] via-[#123B70] to-[#1e4e8c] rounded-2xl text-white p-6 sm:p-8 max-md:p-3.5 max-md:shadow-sm shadow-lg relative ${showAccountMenu ? 'z-30' : ''}`}>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 max-md:gap-3">
           
           {/* Left: Verified Name, Photo & Affiliation */}
-          <div className="flex items-start sm:items-center gap-4 min-w-0">
+          <div className="flex items-start sm:items-center gap-4 max-md:gap-2.5 min-w-0">
             <div className="relative shrink-0">
               <CandidateAvatar
                 src={currentStudent.avatarUrl}
                 alt={currentStudent.fullName}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white/30 shadow-md text-xl"
+                className="w-16 h-16 sm:w-20 sm:h-20 max-md:w-12 max-md:h-12 max-md:rounded-xl max-md:text-sm rounded-2xl object-cover border-2 border-white/30 shadow-md text-xl"
               />
-              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-[#0B1F3A] flex items-center justify-center ucc-caption font-semibold ${
+              <div className={`absolute -bottom-1 -right-1 w-5 h-5 max-md:w-4 max-md:h-4 max-md:text-[10px] rounded-full border-2 border-[#0B1F3A] flex items-center justify-center ucc-caption font-semibold ${
                 isSuspended ? 'bg-red-500 text-white' : isRollVerified ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
               }`}>
                 {isSuspended ? '✕' : isRollVerified ? '✓' : '!'}
               </div>
             </div>
 
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Logo variant="compact" theme="dark" showWordmark={false} />
-                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 ucc-caption text-sky-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="space-y-1.5 max-md:space-y-0.5 min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 max-md:gap-1.5">
+                <Logo variant="compact" theme="dark" showWordmark={false} className="max-md:hidden" />
+                <div className="inline-flex items-center gap-2 max-md:gap-1 px-2.5 py-0.5 max-md:px-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 ucc-caption text-sky-200">
+                  <ShieldCheck className="w-3.5 h-3.5 max-md:w-3 max-md:h-3 text-emerald-400 shrink-0" />
                   <span>
                     {isSuspended
                       ? 'Account Suspended'
@@ -376,11 +376,11 @@ export const StudentDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <h1 className="ucc-heading-page text-white">
+              <h1 className="ucc-heading-page text-white max-md:text-base max-md:leading-snug">
                 Welcome back, {currentStudent.fullName}
               </h1>
 
-              <p className="ucc-body-secondary text-slate-200 truncate max-w-xl">
+              <p className="ucc-body-secondary text-slate-200 truncate max-md:whitespace-normal max-md:line-clamp-2 max-md:text-xs max-w-xl">
                 {[
                   currentStudent.programme || 'UCC Programme Not Linked',
                   currentStudent.level ? `Level ${currentStudent.level}` : '',
@@ -390,7 +390,7 @@ export const StudentDashboard: React.FC = () => {
                   .join(' · ')}
               </p>
 
-              <p className="ucc-caption text-slate-300 tabular-nums">
+              <p className="ucc-caption text-slate-300 tabular-nums max-md:text-[11px] max-md:leading-snug">
                 ID: {currentStudent.studentId || 'Pending submission'} · Dept:{' '}
                 {currentStudent.department || 'Not specified'}
               </p>
@@ -398,15 +398,15 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           {/* Right: Quick Action & Account Menu */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 max-md:gap-2 max-md:w-full">
             <button
               onClick={() => navigateTo('notifications')}
-              className="p-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors cursor-pointer relative"
+              className="p-3 max-md:p-2 max-md:rounded-lg rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors cursor-pointer relative"
               title="View Bulletins"
             >
               <Bell className="w-4 h-4" />
               {notifications.some(n => !n.read) && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#C62828] rounded-full" />
+                <span className="absolute top-2 right-2 max-md:top-1.5 max-md:right-1.5 w-2 h-2 bg-[#C62828] rounded-full" />
               )}
             </button>
 
@@ -414,9 +414,9 @@ export const StudentDashboard: React.FC = () => {
             {pendingVotesCount > 0 && firstPendingElection && !isSuspended && (
               <button
                 onClick={() => navigateTo('digital_ballot', { electionId: firstPendingElection.id })}
-                className="px-5 py-3 rounded-xl bg-[#C62828] hover:bg-red-700 text-white ucc-btn font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                className="px-5 py-3 max-md:px-3 max-md:py-2 max-md:rounded-lg max-md:text-xs max-md:flex-1 max-md:justify-center rounded-xl bg-[#C62828] hover:bg-red-700 text-white ucc-btn font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap"
               >
-                <Vote className="w-4 h-4" />
+                <Vote className="w-4 h-4 max-md:w-3.5 max-md:h-3.5" />
                 <span>Cast Live Ballot ({pendingVotesCount})</span>
               </button>
             )}
@@ -434,9 +434,9 @@ export const StudentDashboard: React.FC = () => {
                   }
                   setShowAccountMenu((prev) => !prev);
                 }}
-                className="px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white ucc-btn font-medium flex items-center gap-1.5 transition-colors cursor-pointer touch-manipulation"
+                className="px-3.5 py-3 max-md:px-2.5 max-md:py-2 max-md:rounded-lg max-md:text-xs rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white ucc-btn font-medium flex items-center gap-1.5 transition-colors cursor-pointer touch-manipulation"
               >
-                <UserCircle className="w-4 h-4" />
+                <UserCircle className="w-4 h-4 max-md:w-3.5 max-md:h-3.5" />
                 <span>Account</span>
               </button>
 
@@ -484,10 +484,10 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* DASHBOARD STATISTICS CARDS (DERIVED FROM APPLICATION DATA) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-md:gap-2.5">
         
         {/* Available to Me */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-1">
+        <div className="p-5 max-md:p-3 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-1 max-md:space-y-0.5">
           <div className="flex items-center justify-between">
             <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider">
               Available To Me
@@ -738,31 +738,31 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
         {/* 4 Status KPI Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-md:gap-2">
+          <div className="p-3.5 max-md:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <span className="ucc-caption uppercase font-semibold text-slate-500">Total Eligible</span>
-            <span className="block text-xl font-bold text-slate-900 mt-0.5 tabular-nums">
+            <span className="block text-xl max-md:text-base font-bold text-slate-900 mt-0.5 tabular-nums">
               {formatNumber(availableElections.length)} Races
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div className="p-3.5 max-md:p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
             <span className="ucc-caption uppercase font-semibold text-emerald-800">Ballots Cast</span>
-            <span className="block text-xl font-bold text-emerald-700 mt-0.5 tabular-nums">
+            <span className="block text-xl max-md:text-base font-bold text-emerald-700 mt-0.5 tabular-nums">
               {formatNumber(completedVotesCount)} Completed
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+          <div className="p-3.5 max-md:p-2.5 rounded-xl bg-amber-50 border border-amber-200">
             <span className="ucc-caption uppercase font-semibold text-amber-800">Awaiting Your Vote</span>
-            <span className="block text-xl font-bold text-amber-700 mt-0.5 tabular-nums">
+            <span className="block text-xl max-md:text-base font-bold text-amber-700 mt-0.5 tabular-nums">
               {formatNumber(pendingVotesCount)} Pending
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="p-3.5 max-md:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <span className="ucc-caption uppercase font-semibold text-slate-500">Closed Races</span>
-            <span className="block text-xl font-bold text-slate-600 mt-0.5 tabular-nums">
+            <span className="block text-xl max-md:text-base font-bold text-slate-600 mt-0.5 tabular-nums">
               {formatNumber(closedEligibleCount)} Finalized
             </span>
           </div>
@@ -790,16 +790,16 @@ export const StudentDashboard: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-md:grid-cols-2 max-md:gap-2">
             {domains.map((dom) => {
               const eligibleInDomain = availableElections.filter((e) => e.domainId === dom.id).length;
               return (
                 <button
                   key={dom.id}
                   onClick={() => navigateTo('domain_elections', { domainId: dom.id })}
-                  className="text-left p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-[#123B70] transition-colors cursor-pointer space-y-1.5"
+                  className="text-left p-4 max-md:p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-[#123B70] transition-colors cursor-pointer space-y-1.5 max-md:space-y-1 min-w-0"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 max-md:flex-col max-md:items-start max-md:gap-0.5">
                     <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wide">
                       {dom.shortName}
                     </span>
@@ -807,7 +807,7 @@ export const StudentDashboard: React.FC = () => {
                       {formatNumber(dom.stats.activeElections)} live · {formatNumber(eligibleInDomain)} eligible
                     </span>
                   </div>
-                  <div className="text-sm font-semibold text-slate-900 leading-snug">{dom.name}</div>
+                  <div className="text-sm max-md:text-xs font-semibold text-slate-900 leading-snug line-clamp-2">{dom.name}</div>
                   <p className="ucc-caption text-slate-500 line-clamp-1">{dom.eligibilityRuleSummary}</p>
                 </button>
               );
@@ -1080,10 +1080,10 @@ export const StudentDashboard: React.FC = () => {
               Voter Quick Actions
             </h3>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5 max-md:gap-2">
               <button
                 onClick={() => navigateTo('elections_directory')}
-                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-[#EAF2FA] hover:border-blue-200 text-left transition-all group cursor-pointer"
+                className="p-3 max-md:p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-[#EAF2FA] hover:border-blue-200 text-left transition-all group cursor-pointer"
               >
                 <Vote className="w-5 h-5 text-[#123B70] group-hover:scale-105 transition-transform mb-1.5" />
                 <span className="ucc-label font-semibold text-slate-900 block">All Elections</span>

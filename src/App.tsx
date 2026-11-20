@@ -286,7 +286,7 @@ const AppContent: React.FC = () => {
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
         {userRole !== 'guest' && <Sidebar isAdmin={userRole === 'admin' && Boolean(admin)} />}
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 pb-20 md:pb-8">
+        <main className="ucc-app-main flex-1 p-4 sm:p-6 lg:p-8 min-w-0 pb-20 md:pb-8">
           {renderActiveView()}
         </main>
       </div>

@@ -305,11 +305,11 @@ export const HelpSupportPage: React.FC = () => {
                 value={searchTicket}
                 onChange={(e) => setSearchTicket(e.target.value)}
                 placeholder="Search your submitted ticket number"
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-300 font-mono tabular-nums focus:outline-none focus:border-[#123B70]"
+                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-slate-300 font-mono tabular-nums focus:outline-none focus:border-[#123B70]"
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-[#123B70] text-white ucc-btn font-semibold rounded-xl hover:bg-[#0B1F3A] cursor-pointer"
+                className="px-4 max-md:px-3 py-2 bg-[#123B70] text-white ucc-btn font-semibold rounded-xl hover:bg-[#0B1F3A] cursor-pointer shrink-0"
               >
                 Track Ticket
               </button>
@@ -392,7 +392,7 @@ export const HelpSupportPage: React.FC = () => {
       )}
 
       {/* Commission Contact Desk */}
-      <div className="bg-[#0B1F3A] text-white p-6 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="bg-[#0B1F3A] text-white p-6 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 max-md:gap-2.5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-amber-400 shrink-0">
             <Phone className="w-4 h-4" />

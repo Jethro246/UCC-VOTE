@@ -329,20 +329,20 @@ export const DomainElectionsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+          <div className="grid grid-cols-3 gap-3 max-md:gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl p-3 max-md:p-2 text-center">
             <div>
               <span className="ucc-caption font-semibold text-slate-500 uppercase block">
                 Total Races
               </span>
-              <span className="text-xl font-bold tabular-nums text-slate-900">
+              <span className="text-xl max-md:text-base font-bold tabular-nums text-slate-900">
                 {formatNumber(domainElections.length)}
               </span>
             </div>
-            <div className="border-x border-slate-200 px-3">
+            <div className="border-x border-slate-200 px-3 max-md:px-1.5">
               <span className="ucc-caption font-semibold text-slate-500 uppercase block">
                 Live Now
               </span>
-              <span className="text-xl font-bold tabular-nums text-emerald-700">
+              <span className="text-xl max-md:text-base font-bold tabular-nums text-emerald-700">
                 {formatNumber(domainElections.filter((e) => e.status === 'live').length)}
               </span>
             </div>
@@ -350,7 +350,7 @@ export const DomainElectionsPage: React.FC = () => {
               <span className="ucc-caption font-semibold text-slate-500 uppercase block">
                 Ballots Cast
               </span>
-              <span className="text-xl font-bold tabular-nums text-[#123B70]">
+              <span className="text-xl max-md:text-base font-bold tabular-nums text-[#123B70]">
                 {formatNumber(
                   domainElections.reduce((acc, el) => acc + (el.totalVotesCast || 0), 0)
                 )}
@@ -360,7 +360,7 @@ export const DomainElectionsPage: React.FC = () => {
         </div>
 
         {/* Governance & Constitution Policy Strip */}
-        <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3 ucc-body-secondary">
+        <div className="pt-3 max-md:pt-2 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3 max-md:gap-1.5 ucc-body-secondary">
           <div className="flex items-start gap-2 text-slate-700">
             <ShieldCheck className="w-4 h-4 text-[#123B70] shrink-0 mt-0.5" />
             <span>
@@ -463,7 +463,7 @@ export const DomainElectionsPage: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-md:grid-cols-2 max-md:gap-2">
             {halls.map((hall) => {
               const metrics = computeHallMetrics(hall, halls, domainElections, candidates);
               const isSelected = selectedHallId === hall.id;
@@ -474,7 +474,7 @@ export const DomainElectionsPage: React.FC = () => {
                   key={hall.id}
                   type="button"
                   onClick={() => setSelectedHallId(isSelected ? 'All' : hall.id)}
-                  className={`p-4 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between gap-3 ${
+                  className={`p-4 max-md:p-2.5 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between gap-3 max-md:gap-2 min-w-0 ${
                     isSelected
                       ? 'border-[#123B70] bg-[#EAF2FA]/60'
                       : isStudentHall
@@ -482,22 +482,22 @@ export const DomainElectionsPage: React.FC = () => {
                       : 'border-slate-200 bg-slate-50/40 hover:bg-white'
                   }`}
                 >
-                  <div className="space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-start justify-between gap-2 max-md:flex-wrap max-md:gap-1 min-w-0">
+                      <div className="flex items-center gap-2.5 max-md:gap-2 min-w-0">
                         {hall.logoUrl ? (
                           <img
                             src={hall.logoUrl}
                             alt={`${hall.name} emblem`}
-                            className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                            className="w-8 h-8 max-md:w-7 max-md:h-7 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-lg bg-[#123B70]/10 text-[#123B70] flex items-center justify-center ucc-caption font-bold shrink-0">
+                          <div className="w-8 h-8 max-md:w-7 max-md:h-7 rounded-lg bg-[#123B70]/10 text-[#123B70] flex items-center justify-center ucc-caption font-bold shrink-0">
                             {hall.code || hall.shortName.slice(0, 3).toUpperCase()}
                           </div>
                         )}
                         <div className="min-w-0">
-                          <span className="text-sm font-semibold text-slate-900 block leading-snug truncate">
+                          <span className="text-sm max-md:text-xs font-semibold text-slate-900 block leading-snug truncate">
                             {getHallDisplayName(hall)}
                           </span>
                           <span className="ucc-caption font-normal text-slate-500">
@@ -506,15 +506,15 @@ export const DomainElectionsPage: React.FC = () => {
                         </div>
                       </div>
                       {isStudentHall && (
-                        <span className="ucc-caption font-semibold text-emerald-700 whitespace-nowrap shrink-0">
+                        <span className="ucc-caption max-md:text-[10px] font-semibold text-emerald-700 whitespace-nowrap shrink-0">
                           Your Hall
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between ucc-caption font-normal text-slate-600 tabular-nums">
-                    <span>
+                  <div className="pt-2 max-md:pt-1.5 border-t border-slate-200/70 flex items-center justify-between gap-1 ucc-caption font-normal text-slate-600 tabular-nums">
+                    <span className="truncate">
                       {formatNumber(metrics.electionsCount)} Election{metrics.electionsCount === 1 ? '' : 's'}
                     </span>
                     <span
@@ -691,7 +691,7 @@ export const DomainElectionsPage: React.FC = () => {
                 key={election.id}
                 className="bg-white rounded-xl min-[481px]:rounded-2xl border border-slate-200 flex flex-col justify-between overflow-hidden min-w-0"
               >
-                <div className="p-3 min-[376px]:p-3.5 min-[481px]:p-4 lg:p-5 space-y-2 min-[376px]:space-y-2.5 lg:space-y-3.5 min-w-0">
+                <div className="p-3 min-[376px]:p-3.5 min-[481px]:p-4 lg:p-5 max-md:p-2.5 space-y-2 min-[376px]:space-y-2.5 lg:space-y-3.5 max-md:space-y-1.5 min-w-0">
                   {/* Unboxed quiet metadata header */}
                   <div className="flex items-center justify-between gap-2 text-[11px] min-[376px]:text-xs leading-tight">
                     <div className="flex items-center gap-1.5 text-slate-500 min-w-0 truncate">
@@ -727,10 +727,10 @@ export const DomainElectionsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <h3 className="text-[15px] min-[376px]:text-base min-[481px]:text-[17px] md:text-lg lg:text-xl font-bold lg:font-semibold leading-snug tracking-[-0.01em] text-slate-900 line-clamp-2 lg:line-clamp-none">
+                    <h3 className="text-[15px] min-[376px]:text-base min-[481px]:text-[17px] md:text-lg lg:text-xl max-md:text-sm font-bold lg:font-semibold leading-snug tracking-[-0.01em] text-slate-900 line-clamp-2 lg:line-clamp-none">
                       {election.title}
                     </h3>
-                    <p className="text-xs min-[481px]:text-[13px] lg:text-sm leading-snug lg:leading-normal text-slate-600 mt-1 line-clamp-2 lg:line-clamp-none">
+                    <p className="text-xs min-[481px]:text-[13px] lg:text-sm max-md:text-xs leading-snug lg:leading-normal text-slate-600 mt-1 max-md:mt-0.5 line-clamp-2 lg:line-clamp-none">
                       {election.description}
                     </p>
                   </div>
@@ -813,17 +813,17 @@ export const DomainElectionsPage: React.FC = () => {
                 </div>
 
                 {/* Action Footer */}
-                <div className="px-3 py-2 min-[376px]:px-3.5 min-[376px]:py-2.5 min-[481px]:px-4 lg:px-5 lg:py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-[481px]:gap-3">
+                <div className="px-3 py-2 min-[376px]:px-3.5 min-[376px]:py-2.5 min-[481px]:px-4 lg:px-5 lg:py-3.5 max-md:px-2.5 max-md:py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 max-md:gap-1.5">
+                  <div className="flex items-center gap-2.5 min-[481px]:gap-3 max-md:gap-2">
                     <button
                       onClick={() => navigateTo('election_details', { electionId: election.id })}
-                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-slate-700 hover:text-[#123B70] cursor-pointer whitespace-nowrap min-h-[32px] lg:min-h-0 inline-flex items-center"
+                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-slate-700 hover:text-[#123B70] cursor-pointer whitespace-nowrap min-h-[32px] max-md:min-h-[28px] lg:min-h-0 inline-flex items-center"
                     >
                       View Election Information
                     </button>
                     <button
                       onClick={() => navigateTo('candidate_directory', { electionId: election.id })}
-                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-[#123B70] hover:underline cursor-pointer inline-flex items-center gap-1 whitespace-nowrap min-h-[32px] lg:min-h-0"
+                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-[#123B70] hover:underline cursor-pointer inline-flex items-center gap-1 whitespace-nowrap min-h-[32px] max-md:min-h-[28px] lg:min-h-0"
                     >
                       <Users className="w-3.5 h-3.5 shrink-0" />
                       <span>Candidates</span>

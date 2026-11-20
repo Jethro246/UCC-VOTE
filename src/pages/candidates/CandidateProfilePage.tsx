@@ -107,18 +107,18 @@ export const CandidateProfilePage: React.FC = () => {
 
       {/* Candidate Profile Hero Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col md:flex-row items-start gap-6 lg:gap-8">
+        <div className="flex flex-col md:flex-row items-start gap-6 lg:gap-8 max-md:gap-3.5">
           
           {/* Large Profile Photograph with Status Badge */}
           <div className="relative shrink-0 mx-auto md:mx-0">
             <CandidateAvatar
               src={resolveCandidatePhotoUrl(candidate)}
               alt={candidate.fullName}
-              className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl object-cover object-top border-2 border-slate-200 shadow-md ring-4 ring-[#EAF2FA]"
+              className="w-36 h-36 sm:w-48 sm:h-48 max-md:w-24 max-md:h-24 max-md:rounded-xl rounded-2xl object-cover object-top border-2 border-slate-200 shadow-md ring-4 max-md:ring-2 ring-[#EAF2FA]"
             />
             
             {candidate.applicationStatus === 'Approved' && (
-              <div className="absolute -bottom-2.5 inset-x-2 px-2.5 py-1 bg-[#123B70] text-white ucc-caption font-semibold rounded-lg border-2 border-white shadow-xs text-center uppercase tracking-wider flex items-center justify-center gap-1">
+              <div className="absolute -bottom-2.5 inset-x-2 max-md:inset-x-1 px-2.5 py-1 max-md:px-1.5 max-md:py-0.5 max-md:text-[10px] bg-[#123B70] text-white ucc-caption font-semibold rounded-lg border-2 border-white shadow-xs text-center uppercase tracking-wider flex items-center justify-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 <span>Approved Aspirant</span>
               </div>
@@ -220,11 +220,11 @@ export const CandidateProfilePage: React.FC = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="pt-4 flex flex-wrap items-center gap-3">
+            <div className="pt-4 max-md:pt-2 flex flex-wrap items-center gap-3 max-md:gap-2">
               {isApproved && election?.status === 'live' && (
                 <button
                   onClick={() => navigateTo('digital_ballot', { electionId: candidate.electionId })}
-                  className="px-5 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white ucc-btn font-semibold flex items-center gap-2 shadow-xs cursor-pointer transition-colors"
+                  className="px-5 py-2.5 max-md:px-3 max-md:py-2 rounded-xl bg-[#C62828] hover:bg-red-700 text-white ucc-btn font-semibold flex items-center gap-2 shadow-xs cursor-pointer transition-colors"
                 >
                   <Vote className="w-4 h-4" />
                   <span>Cast Vote for this Portfolio</span>
@@ -234,7 +234,7 @@ export const CandidateProfilePage: React.FC = () => {
               {opponents.length > 1 && (
                 <button
                   onClick={() => setShowComparisonModal(true)}
-                  className="px-4 py-2.5 rounded-xl bg-[#EAF2FA] hover:bg-blue-100 text-[#123B70] ucc-btn font-semibold flex items-center gap-2 transition-colors cursor-pointer border border-blue-200"
+                  className="px-4 py-2.5 max-md:px-3 max-md:py-2 rounded-xl bg-[#EAF2FA] hover:bg-blue-100 text-[#123B70] ucc-btn font-semibold flex items-center gap-2 transition-colors cursor-pointer border border-blue-200"
                 >
                   <Scale className="w-4 h-4" />
                   <span>Side-by-Side Comparison</span>
@@ -243,7 +243,7 @@ export const CandidateProfilePage: React.FC = () => {
 
               <button
                 onClick={() => navigateTo('election_details', { electionId: candidate.electionId })}
-                className="px-4 py-2.5 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="px-4 py-2.5 max-md:px-3 max-md:py-2 rounded-xl border border-slate-300 ucc-btn font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 View All Portfolios
               </button>
@@ -314,10 +314,10 @@ export const CandidateProfilePage: React.FC = () => {
             </div>
 
             {candidate.fullManifesto && candidate.fullManifesto.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 max-md:space-y-2">
                 {candidate.fullManifesto.map((pillar, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-[#123B70] text-white ucc-caption font-semibold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
+                  <div key={idx} className="p-4 max-md:p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 max-md:gap-2">
+                    <span className="w-6 h-6 max-md:w-5 max-md:h-5 rounded-full bg-[#123B70] text-white ucc-caption font-semibold flex items-center justify-center shrink-0 mt-0.5 tabular-nums">
                       {idx + 1}
                     </span>
                     <div className="space-y-1">
@@ -342,9 +342,9 @@ export const CandidateProfilePage: React.FC = () => {
               <span>Prior University Leadership & Service Record</span>
             </h2>
             {candidate.leadershipExperience && candidate.leadershipExperience.length > 0 ? (
-              <ul className="space-y-2 ucc-body-secondary text-slate-700">
+              <ul className="space-y-2 max-md:space-y-1.5 ucc-body-secondary text-slate-700">
                 {candidate.leadershipExperience.map((exp, idx) => (
-                  <li key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
+                  <li key={idx} className="p-3 max-md:p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>{exp}</span>
                   </li>

@@ -542,8 +542,8 @@ const AdminDashboardContent: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Admin Commission Header */}
-      <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-start sm:items-center gap-4">
+      <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6 max-md:gap-3">
+        <div className="flex items-start sm:items-center gap-4 max-md:gap-2.5">
           <Logo variant="default" theme="dark" showWordmark={false} className="hidden sm:inline-flex" />
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2 text-xs text-amber-300 font-bold">
@@ -567,7 +567,7 @@ const AdminDashboardContent: React.FC = () => {
               ) : null}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl max-md:text-lg font-extrabold tracking-tight text-white">
               Electoral Commission Administration Console
             </h1>
 
@@ -580,7 +580,7 @@ const AdminDashboardContent: React.FC = () => {
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2.5 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+            className="px-4 py-2.5 max-md:px-3 max-md:py-2 rounded-xl bg-[#C62828] hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>Create New Election</span>
@@ -590,7 +590,7 @@ const AdminDashboardContent: React.FC = () => {
 
       {/* Domain Workspace Switcher */}
       {permittedDomains.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 max-md:p-2.5 flex flex-wrap items-center justify-between gap-3 max-md:gap-2">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
             <Layers className="w-4 h-4 text-[#123B70]" />
             <span>Domain Workspace:</span>
@@ -664,12 +664,12 @@ const AdminDashboardContent: React.FC = () => {
       {/* TAB 1: OVERVIEW & TURNOUT */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-md:gap-2.5">
             <div className="p-5 bg-white rounded-2xl border border-slate-200">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Scoped Elections
               </span>
-              <span className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1 block">
+              <span className="text-2xl max-md:text-lg font-black text-slate-900 font-mono tabular-nums mt-1 block">
                 {scopedElections.length}
               </span>
               <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">
@@ -681,7 +681,7 @@ const AdminDashboardContent: React.FC = () => {
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Total Ballots Cast
               </span>
-              <span className="text-2xl font-black text-[#123B70] font-mono tabular-nums mt-1 block">
+              <span className="text-2xl max-md:text-lg font-black text-[#123B70] font-mono tabular-nums mt-1 block">
                 {scopedElections.reduce((sum, e) => sum + (e.totalVotesCast || 0), 0).toLocaleString()}
               </span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">Across scoped domain races</span>
@@ -691,7 +691,7 @@ const AdminDashboardContent: React.FC = () => {
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Registered Students
               </span>
-              <span className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-1 block">
+              <span className="text-2xl max-md:text-lg font-black text-amber-600 font-mono tabular-nums mt-1 block">
                 {allStudents.length}
               </span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">
@@ -703,7 +703,7 @@ const AdminDashboardContent: React.FC = () => {
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Ballot Vault Separation
               </span>
-              <span className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-1 block">
+              <span className="text-2xl max-md:text-lg font-black text-emerald-600 font-mono tabular-nums mt-1 block">
                 ENFORCED
               </span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">
@@ -853,7 +853,7 @@ const AdminDashboardContent: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-md:gap-2.5">
                   {managedAdminHalls.map((hall) => {
                     const hallElections = rbacElections.filter((el) => isElectionForHall(el, hall, halls));
                     const primaryElection =
@@ -873,7 +873,7 @@ const AdminDashboardContent: React.FC = () => {
                     return (
                       <div
                         key={hall.id}
-                        className={`rounded-xl border p-4 flex flex-col justify-between gap-3.5 transition-colors ${
+                        className={`rounded-xl border p-4 max-md:p-3 flex flex-col justify-between gap-3.5 max-md:gap-2.5 transition-colors ${
                           isTableFiltered
                             ? 'border-[#123B70] bg-[#EAF2FA]/30'
                             : 'border-slate-200 bg-white hover:border-slate-300'
@@ -1436,36 +1436,36 @@ const AdminDashboardContent: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 max-md:gap-2">
+                <div className="p-3.5 max-md:p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                     Total Applications
                   </span>
-                  <span className="text-xl font-bold font-mono text-slate-900 mt-0.5 block">
+                  <span className="text-xl max-md:text-base font-bold font-mono text-slate-900 mt-0.5 block">
                     {scopedCandidates.length}
                   </span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200">
+                <div className="p-3.5 max-md:p-2.5 rounded-xl bg-purple-50/70 border border-purple-200">
                   <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
                     Pending Vetting
                   </span>
-                  <span className="text-xl font-bold font-mono text-purple-900 mt-0.5 block">
+                  <span className="text-xl max-md:text-base font-bold font-mono text-purple-900 mt-0.5 block">
                     {pendingCount}
                   </span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                <div className="p-3.5 max-md:p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
                   <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
                     Approved on Ballot
                   </span>
-                  <span className="text-xl font-bold font-mono text-emerald-900 mt-0.5 block">
+                  <span className="text-xl max-md:text-base font-bold font-mono text-emerald-900 mt-0.5 block">
                     {approvedCount}
                   </span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-red-50/70 border border-red-200">
+                <div className="p-3.5 max-md:p-2.5 rounded-xl bg-red-50/70 border border-red-200">
                   <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">
                     Rejected / Withdrawn
                   </span>
-                  <span className="text-xl font-bold font-mono text-red-900 mt-0.5 block">
+                  <span className="text-xl max-md:text-base font-bold font-mono text-red-900 mt-0.5 block">
                     {rejectedCount}
                   </span>
                 </div>
@@ -1530,7 +1530,7 @@ const AdminDashboardContent: React.FC = () => {
                     ))}
                   </select>
 
-                  <div className="relative w-52">
+                  <div className="relative w-52 max-md:w-full max-md:flex-1">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                     <input
                       type="text"
@@ -2433,7 +2433,7 @@ const AdminDashboardContent: React.FC = () => {
                 displayedAuditLogs.map((log) => (
                   <div
                     key={log.id}
-                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
+                    className={`p-4 max-md:p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-3 max-md:gap-2 ${
                       log.status === 'flagged'
                         ? 'bg-red-50/60 border-red-300'
                         : log.status === 'warning'

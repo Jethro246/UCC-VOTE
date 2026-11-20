@@ -383,14 +383,14 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
             </div>
 
             {/* 6-Step Progress Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 max-md:gap-1.5">
               {WORKFLOW_STAGES.map((stage, idx) => {
                 const isCompleted = idx < currentStageIdx || results.workflowStage === 'published';
                 const isCurrent = idx === currentStageIdx && results.workflowStage !== 'published';
                 return (
                   <div
                     key={stage.id}
-                    className={`p-3 rounded-lg border ucc-caption transition-colors ${
+                    className={`p-3 max-md:p-2 rounded-lg border ucc-caption transition-colors ${
                       isCompleted
                         ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
                         : isCurrent
@@ -502,64 +502,64 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
           {/* 2. AUTHORITATIVE BALLOT ACCOUNTING KPIs & DOUGHNUT */}
           {!isHistoricalNoTally && (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 max-md:gap-2">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Eligible Voters
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-slate-900 mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-slate-900 mt-1 block">
                     {formatNumber(results.ballotSummary.totalEligibleVoters)}
                   </span>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Ballots Cast
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-[#123B70] mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-[#123B70] mt-1 block">
                     {formatNumber(results.ballotSummary.totalBallotsCast)}
                   </span>
                   <span className="ucc-caption tabular-nums text-slate-500">
                     {formatPercentage(results.ballotSummary.turnoutPercentage)} turnout
                   </span>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Valid Ballots
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-emerald-700 mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-emerald-700 mt-1 block">
                     {formatNumber(results.ballotSummary.validBallots)}
                   </span>
                   <span className="ucc-caption tabular-nums text-slate-500">
                     {formatPercentage(results.ballotSummary.validBallotRate)} of cast
                   </span>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Invalid Ballots
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-[#C62828] mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-[#C62828] mt-1 block">
                     {formatNumber(results.ballotSummary.invalidBallots)}
                   </span>
                   <span className="ucc-caption tabular-nums text-slate-500">
                     {formatPercentage(results.ballotSummary.invalidBallotRate)} of cast
                   </span>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Blank Ballots
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-amber-700 mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-amber-700 mt-1 block">
                     {formatNumber(results.ballotSummary.blankBallots)}
                   </span>
                   <span className="ucc-caption tabular-nums text-slate-500">
                     {formatPercentage(results.ballotSummary.blankBallotRate)} of cast
                   </span>
                 </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                <div className="p-4 max-md:p-2.5 bg-white rounded-xl border border-slate-200">
                   <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
                     Uncast Ballots
                   </span>
-                  <span className="text-xl font-bold tabular-nums text-slate-600 mt-1 block">
+                  <span className="text-xl max-md:text-base font-bold tabular-nums text-slate-600 mt-1 block">
                     {formatNumber(results.ballotSummary.uncastBallots)}
                   </span>
                 </div>
@@ -595,7 +595,7 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-md:gap-2">
               {[
                 {
                   title: 'Full Election Report',
@@ -633,7 +633,7 @@ export const AdminResultsPanel: React.FC<{ defaultElectionId?: string }> = ({
                   csv: true,
                 },
               ].map((rep) => (
-                <div key={rep.type} className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between gap-3">
+                <div key={rep.type} className="p-4 max-md:p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between gap-3 max-md:gap-2">
                   <div>
                     <div className="ucc-label font-semibold text-slate-900">{rep.title}</div>
                     <div className="ucc-caption text-slate-500 mt-0.5">{rep.desc}</div>

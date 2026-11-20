@@ -194,6 +194,144 @@
   background: #94a3b8;
 }
 
+/* ============================================================================
+ * MOBILE-ONLY CARD SIZE OPTIMISATION (<= 767px and <= 480px)
+ * Tablet (>= 768px) and Desktop (>= 1024px) layouts remain 100% unchanged.
+ * ============================================================================ */
+@media (max-width: 767px) {
+  .ucc-app-main {
+    padding: 0.75rem 0.75rem 5rem;
+  }
+
+  /* Compact fluid typography on mobile inside application shell */
+  .ucc-app-main .ucc-heading-page {
+    font-size: 1.1875rem;
+    line-height: 1.22;
+  }
+
+  .ucc-app-main .ucc-heading-section {
+    font-size: 1.0625rem;
+    line-height: 1.25;
+  }
+
+  .ucc-app-main .ucc-heading-card {
+    font-size: 0.9375rem;
+    line-height: 1.28;
+  }
+
+  .ucc-app-main .ucc-stat {
+    font-size: 1.375rem;
+    line-height: 1.15;
+  }
+
+  .ucc-app-main .ucc-body {
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  .ucc-app-main .ucc-body-secondary {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  .ucc-app-main .ucc-btn {
+    font-size: 0.8125rem;
+    line-height: 1.25;
+  }
+
+  /* Compact vertical rhythm between sections and cards on mobile */
+  .ucc-app-main .space-y-8 > :not(:last-child),
+  .ucc-app-main .space-y-6 > :not(:last-child) {
+    margin-block-end: 0.875rem;
+  }
+
+  .ucc-app-main .space-y-5 > :not(:last-child),
+  .ucc-app-main .space-y-4 > :not(:last-child) {
+    margin-block-end: 0.625rem;
+  }
+
+  .ucc-app-main .gap-6,
+  .ucc-app-main .lg\:gap-8 {
+    gap: 0.75rem;
+  }
+
+  .ucc-app-main .gap-5,
+  .ucc-app-main .gap-4 {
+    gap: 0.625rem;
+  }
+
+  /* Shared mobile card padding & radius reduction */
+  .ucc-app-main :is(.rounded-2xl, .rounded-xl, .rounded-3xl):is(.p-5, .p-6, .p-8, .p-10, .p-12, .sm\:p-6, .sm\:p-8, .sm\:p-12) {
+    padding: 0.875rem;
+  }
+
+  .ucc-app-main :is(.rounded-2xl, .rounded-xl).p-4 {
+    padding: 0.75rem;
+  }
+
+  .ucc-app-main .rounded-2xl {
+    border-radius: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .ucc-app-main {
+    padding: 0.625rem 0.625rem 5rem;
+  }
+
+  .ucc-app-main .ucc-heading-page {
+    font-size: 1.125rem;
+  }
+
+  .ucc-app-main .ucc-heading-section {
+    font-size: 0.9375rem;
+  }
+
+  .ucc-app-main .ucc-heading-card {
+    font-size: 0.875rem;
+  }
+
+  .ucc-app-main .ucc-stat {
+    font-size: 1.25rem;
+  }
+
+  .ucc-app-main .ucc-body-secondary {
+    font-size: 0.75rem;
+  }
+
+  .ucc-app-main .ucc-caption {
+    font-size: 0.6875rem;
+  }
+
+  .ucc-app-main .ucc-btn {
+    font-size: 0.75rem;
+  }
+
+  .ucc-app-main .space-y-8 > :not(:last-child),
+  .ucc-app-main .space-y-6 > :not(:last-child) {
+    margin-block-end: 0.75rem;
+  }
+
+  .ucc-app-main .space-y-5 > :not(:last-child),
+  .ucc-app-main .space-y-4 > :not(:last-child) {
+    margin-block-end: 0.5rem;
+  }
+
+  .ucc-app-main .gap-6,
+  .ucc-app-main .gap-5,
+  .ucc-app-main .gap-4 {
+    gap: 0.5rem;
+  }
+
+  .ucc-app-main :is(.rounded-2xl, .rounded-xl, .rounded-3xl):is(.p-5, .p-6, .p-8, .p-10, .p-12, .sm\:p-6, .sm\:p-8, .sm\:p-12) {
+    padding: 0.75rem;
+  }
+
+  .ucc-app-main :is(.rounded-2xl, .rounded-xl).p-4 {
+    padding: 0.625rem;
+  }
+}
+
 @media print {
   header,
   aside,

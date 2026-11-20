@@ -365,7 +365,7 @@ export const CandidateDirectoryPage: React.FC = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 max-md:grid-cols-2 max-md:gap-2 pt-1">
           <div>
             <label className="block ucc-caption font-semibold text-slate-500 uppercase tracking-wider mb-1">
               Hall of Residence / JCR
@@ -377,7 +377,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedElection('All');
                 setSelectedPosition('All');
               }}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 max-md:px-2 max-md:py-1.5 max-md:text-xs text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All 8 UCC Halls</option>
               {halls.map((h) => (
@@ -398,7 +398,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 setSelectedElection(e.target.value);
                 setSelectedPosition('All');
               }}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 max-md:px-2 max-md:py-1.5 max-md:text-xs text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All Elections ({formatNumber(electionsForDomain.length)})</option>
               {electionsForDomain.map((el) => (
@@ -416,7 +416,7 @@ export const CandidateDirectoryPage: React.FC = () => {
             <select
               value={selectedPosition}
               onChange={(e) => setSelectedPosition(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 max-md:px-2 max-md:py-1.5 max-md:text-xs text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All Portfolios</option>
               {currentElectionPositions.map((pos) => (
@@ -434,7 +434,7 @@ export const CandidateDirectoryPage: React.FC = () => {
             <select
               value={selectedFaculty}
               onChange={(e) => setSelectedFaculty(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
+              className="w-full px-3 py-2 max-md:px-2 max-md:py-1.5 max-md:text-xs text-sm rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#123B70]"
             >
               <option value="All">All Faculties</option>
               {allFaculties.map((f) => (
@@ -517,7 +517,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-md:gap-2.5">
                 {group.candidates.map((cand) => {
                   const isComparing = compareCandidateIds?.includes(cand.id);
 
@@ -527,19 +527,19 @@ export const CandidateDirectoryPage: React.FC = () => {
                       className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-[#123B70]/50 transition-colors flex flex-col justify-between group"
                     >
                       <div>
-                        <div className="p-5 flex items-start gap-4">
+                        <div className="p-5 max-md:p-3 flex items-start gap-4 max-md:gap-2.5">
                           <div className="relative shrink-0">
                             <CandidateAvatar
                               src={resolveCandidatePhotoUrl(cand)}
                               alt={cand.fullName}
-                              className="w-20 h-20 rounded-2xl object-cover object-center border-2 border-slate-200 shrink-0"
+                              className="w-20 h-20 max-md:w-14 max-md:h-14 max-md:rounded-xl rounded-2xl object-cover object-center border-2 border-slate-200 shrink-0"
                             />
-                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#123B70] text-white rounded-full flex items-center justify-center ucc-caption font-semibold border-2 border-white">
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 max-md:w-4 max-md:h-4 max-md:text-[10px] bg-[#123B70] text-white rounded-full flex items-center justify-center ucc-caption font-semibold border-2 border-white">
                               ✓
                             </div>
                           </div>
 
-                          <div className="min-w-0 space-y-1">
+                          <div className="min-w-0 space-y-1 max-md:space-y-0.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="ucc-caption font-semibold text-[#123B70] uppercase tracking-wider truncate">
                                 {group.positionTitle}
@@ -572,8 +572,8 @@ export const CandidateDirectoryPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="px-5 pb-3">
-                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 ucc-caption space-y-1">
+                        <div className="px-5 pb-3 max-md:px-3 max-md:pb-2">
+                          <div className="p-2.5 max-md:p-2 rounded-xl bg-slate-50 border border-slate-200/80 ucc-caption space-y-1 max-md:space-y-0.5">
                             <div className="flex justify-between items-center gap-2">
                               <span className="text-slate-500">Department</span>
                               <span
@@ -599,7 +599,7 @@ export const CandidateDirectoryPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="px-5 pb-4 space-y-1">
+                        <div className="px-5 pb-4 max-md:px-3 max-md:pb-2.5 space-y-1 max-md:space-y-0.5">
                           <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-400">
                             Policy Vision
                           </span>
@@ -613,10 +613,10 @@ export const CandidateDirectoryPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+                      <div className="p-4 max-md:px-3 max-md:py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
                         <button
                           onClick={() => toggleCompareCandidate(cand.id)}
-                          className={`px-3 py-1.5 rounded-lg ucc-btn font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          className={`px-3 py-1.5 max-md:px-2.5 max-md:py-1 rounded-lg ucc-btn font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                             isComparing
                               ? 'bg-blue-100 text-[#123B70] border border-blue-300'
                               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-300'

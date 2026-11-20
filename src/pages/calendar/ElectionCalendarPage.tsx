@@ -114,13 +114,13 @@ export const ElectionCalendarPage: React.FC = () => {
           {filteredEvents.map((ev) => (
             <div
               key={ev.id}
-              className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 hover:border-[#123B70]/40 transition-colors flex flex-col sm:flex-row sm:items-start gap-5"
+              className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 hover:border-[#123B70]/40 transition-colors flex flex-col sm:flex-row sm:items-start gap-5 max-md:gap-2.5"
             >
-              <div className="p-3.5 rounded-xl bg-[#EAF2FA] text-[#123B70] text-center min-w-[90px] shrink-0 border border-blue-100">
+              <div className="p-3.5 rounded-xl bg-[#EAF2FA] text-[#123B70] text-center min-w-[90px] max-md:min-w-0 max-md:flex max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-1.5 max-md:self-start shrink-0 border border-blue-100">
                 <span className="ucc-caption uppercase font-semibold tracking-wider block">
                   {new Date(ev.startDate).toLocaleDateString('en-US', { month: 'short' })}
                 </span>
-                <span className="text-2xl font-bold tabular-nums block">
+                <span className="text-2xl max-md:text-base font-bold tabular-nums block">
                   {new Date(ev.startDate).getDate()}
                 </span>
                 <span className="ucc-caption text-slate-500 tabular-nums block">

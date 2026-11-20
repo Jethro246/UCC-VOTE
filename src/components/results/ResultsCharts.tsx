@@ -117,7 +117,7 @@ export const BallotDoughnutChart: React.FC<{
   const hovered = hoveredIdx !== null ? activeSegments[hoveredIdx] : null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-5">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-5 max-md:space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-2.5">
           <PieChart className="w-4 h-4 text-[#123B70]" />
@@ -151,10 +151,10 @@ export const BallotDoughnutChart: React.FC<{
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 max-md:gap-3 items-center">
         {/* SVG Doughnut */}
         <div className="md:col-span-5 flex justify-center">
-          <div className="relative w-48 h-48 flex items-center justify-center">
+          <div className="relative w-48 h-48 max-md:w-36 max-md:h-36 flex items-center justify-center">
             <svg viewBox="0 0 160 160" className="w-full h-full -rotate-90">
               <circle
                 cx="80"
@@ -215,13 +215,13 @@ export const BallotDoughnutChart: React.FC<{
         </div>
 
         {/* Legend Rows */}
-        <div className="md:col-span-7 space-y-2.5">
+        <div className="md:col-span-7 space-y-2.5 max-md:space-y-1.5">
           {activeSegments.map((seg, idx) => (
             <div
               key={seg.label}
               onMouseEnter={() => setHoveredIdx(idx)}
               onMouseLeave={() => setHoveredIdx(null)}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-default ${
+              className={`flex items-center justify-between p-3 max-md:p-2 rounded-lg border transition-colors cursor-default ${
                 hoveredIdx === idx
                   ? 'border-[#123B70]/40 bg-[#EAF2FA]/40'
                   : 'border-slate-100 bg-slate-50/70'
@@ -279,7 +279,7 @@ export const PositionShareDoughnut: React.FC<{
 
   if (tallyAvailable === false) {
     return (
-      <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px]">
+      <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px] max-md:min-h-[140px] max-md:p-3.5">
         <PieChart className="w-6 h-6 text-slate-400 mb-2" />
         <p className="ucc-label font-semibold text-slate-700">Vote share chart unavailable</p>
         <p className="ucc-caption text-slate-500 mt-0.5 max-w-xs">
@@ -291,7 +291,7 @@ export const PositionShareDoughnut: React.FC<{
 
   if (position.totalValidVotes === 0) {
     return (
-      <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px]">
+      <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-center min-h-[220px] max-md:min-h-[140px] max-md:p-3.5">
         <PieChart className="w-6 h-6 text-slate-400 mb-2" />
         <p className="ucc-label font-semibold text-slate-600">No valid votes tallied yet</p>
         <p className="ucc-caption text-slate-400 mt-0.5">Distribution chart updates once ballots are cast</p>
@@ -300,7 +300,7 @@ export const PositionShareDoughnut: React.FC<{
   }
 
   return (
-    <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4">
+    <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4 max-md:space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="ucc-caption font-semibold uppercase tracking-wider text-slate-500">
           Valid Vote Share
@@ -311,7 +311,7 @@ export const PositionShareDoughnut: React.FC<{
       </div>
 
       <div className="flex justify-center">
-        <div className="relative w-40 h-40 flex items-center justify-center">
+        <div className="relative w-40 h-40 max-md:w-32 max-md:h-32 flex items-center justify-center">
           <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
             <circle cx="70" cy="70" r={radius} fill="none" stroke="#E2E8F0" strokeWidth="18" />
             {arcs.map((arc, idx) => (
@@ -385,7 +385,7 @@ export const CandidateBarChart: React.FC<{
 }> = ({ position, showOfficialOutcome, tallyAvailable = true }) => {
   const isHistoricalNoTally = tallyAvailable === false;
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3.5 max-md:space-y-2">
       {position.contestNote && (
         <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 ucc-body-secondary text-amber-950">
           <strong className="font-semibold">Archive Note: </strong>
@@ -417,7 +417,7 @@ export const CandidateBarChart: React.FC<{
         return (
           <div
             key={cand.candidateId}
-            className={`p-4 rounded-xl border transition-colors ${
+            className={`p-4 max-md:p-2.5 rounded-xl border transition-colors ${
               cand.isTied
                 ? 'border-amber-300 bg-amber-50/40'
                 : highlightRow
@@ -425,15 +425,15 @@ export const CandidateBarChart: React.FC<{
                 : 'border-slate-200 bg-white'
             }`}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-md:gap-1.5 mb-2 max-md:mb-1.5">
+              <div className="flex items-center gap-3 max-md:gap-2 min-w-0">
                 <span className="ucc-caption font-semibold text-slate-400 w-5 shrink-0 tabular-nums">
                   #{cand.rank}
                 </span>
                 <CandidateAvatar
                   src={cand.photoUrl}
                   alt={cand.fullName}
-                  className="w-11 h-11 rounded-lg object-cover object-top border border-slate-200 shrink-0 ucc-caption"
+                  className="w-11 h-11 max-md:w-9 max-md:h-9 rounded-lg object-cover object-top border border-slate-200 shrink-0 ucc-caption"
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -471,14 +471,14 @@ export const CandidateBarChart: React.FC<{
               </div>
 
               {isHistoricalNoTally ? (
-                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
+                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0 max-md:pl-0">
                   <div className="ucc-caption font-medium text-slate-500">
                     Vote tally unavailable
                   </div>
                 </div>
               ) : (
-                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
-                  <div className="text-lg font-bold tabular-nums text-slate-900">
+                <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0 max-md:pl-0">
+                  <div className="text-lg max-md:text-base font-bold tabular-nums text-slate-900">
                     {formatPercentage(cand.percentageOfValidVotes)}
                   </div>
                   <div className="ucc-caption tabular-nums text-slate-500">

@@ -237,11 +237,11 @@ export const StudentProfilePage: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Profile Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6 max-md:gap-3">
         <CandidateAvatar
           src={currentStudent.avatarUrl || currentStudent.photoUrl}
           alt={currentStudent.fullName}
-          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-slate-200 shadow-md shrink-0 text-2xl"
+          className="w-24 h-24 sm:w-28 sm:h-28 max-md:w-16 max-md:h-16 max-md:rounded-xl rounded-2xl object-cover border-2 border-slate-200 shadow-md shrink-0 text-2xl"
         />
 
         <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
@@ -536,28 +536,28 @@ export const StudentProfilePage: React.FC = () => {
               Changes require an authorized petition to the Directorate of Academic Affairs (DAA).
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ucc-body-secondary">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-md:gap-2 ucc-body-secondary">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Faculty:</span>
                 <span className="font-semibold text-slate-800 text-right break-words min-w-0">{currentStudent.faculty || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Department:</span>
                 <span className="font-semibold text-slate-800 text-right break-words min-w-0">{currentStudent.department || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Programme:</span>
                 <span className="font-semibold text-slate-800 text-right break-words min-w-0">{currentStudent.programme || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Level:</span>
                 <span className="font-semibold text-slate-800 text-right tabular-nums">Level {currentStudent.level || '100'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Hall of Residence:</span>
                 <span className="font-semibold text-slate-800 text-right break-words min-w-0">{currentStudent.hall || 'Not yet submitted'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-3 max-md:p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Account Email:</span>
                 <span className="font-semibold text-slate-800 text-right break-all min-w-0">{currentStudent.email}</span>
               </div>

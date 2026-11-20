@@ -119,13 +119,13 @@ export const NotificationsPage: React.FC = () => {
                     );
                   }
                 }}
-                className={`p-5 rounded-2xl border transition-colors cursor-pointer flex items-start gap-4 bg-white ${
+                className={`p-5 max-md:p-3 rounded-2xl border transition-colors cursor-pointer flex items-start gap-4 max-md:gap-2.5 bg-white ${
                   item.read
                     ? 'border-slate-200 opacity-90'
                     : 'border-[#123B70]/40'
                 }`}
               >
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
+                <div className="p-2.5 max-md:p-2 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
                   {getCategoryIcon(item.category)}
                 </div>
 

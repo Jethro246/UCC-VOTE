@@ -197,7 +197,7 @@ export const ElectionResultsPage: React.FC = () => {
             value={activeElectionId}
             onChange={(e) => setActiveElectionId(e.target.value)}
             disabled={filteredElections.length === 0}
-            className="px-3 py-2 text-sm font-medium rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-[#123B70] max-w-xs disabled:opacity-50"
+            className="px-3 py-2 max-md:max-w-full max-md:w-full max-md:text-xs max-md:py-1.5 text-sm font-medium rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-[#123B70] max-w-xs disabled:opacity-50"
           >
             {filteredElections.length === 0 ? (
               <option value="">No elections in filter</option>
@@ -383,12 +383,12 @@ export const ElectionResultsPage: React.FC = () => {
       )}
 
       {/* Participation Overview Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-md:gap-2.5">
         <div className="p-5 bg-white rounded-2xl border border-slate-200">
           <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
             Total Eligible Voters
           </span>
-          <span className="text-2xl font-bold text-slate-900 tabular-nums mt-1 block">
+          <span className="text-2xl max-md:text-lg font-bold text-slate-900 tabular-nums mt-1 block">
             {isHistoricalNoTally ? 'Not recorded' : formatNumber(totalEligible)}
           </span>
           <span className="ucc-caption text-slate-400 mt-0.5 block">
@@ -400,7 +400,7 @@ export const ElectionResultsPage: React.FC = () => {
           <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
             Total Ballots Cast
           </span>
-          <span className="text-2xl font-bold text-[#123B70] tabular-nums mt-1 block">
+          <span className="text-2xl max-md:text-lg font-bold text-[#123B70] tabular-nums mt-1 block">
             {isHistoricalNoTally ? 'Unavailable' : formatNumber(totalVotes)}
           </span>
           <span className="ucc-caption text-slate-400 mt-0.5 block">
@@ -412,7 +412,7 @@ export const ElectionResultsPage: React.FC = () => {
           <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
             Voter Turnout Rate
           </span>
-          <span className="text-2xl font-bold text-emerald-700 tabular-nums mt-1 block">
+          <span className="text-2xl max-md:text-lg font-bold text-emerald-700 tabular-nums mt-1 block">
             {isHistoricalNoTally ? 'Unavailable' : formatPercentage(turnout)}
           </span>
           {!isHistoricalNoTally && (
@@ -429,7 +429,7 @@ export const ElectionResultsPage: React.FC = () => {
           <span className="ucc-caption font-semibold text-slate-500 uppercase tracking-wider block">
             Invalid / Rejected Ballots
           </span>
-          <span className="text-2xl font-bold text-slate-400 tabular-nums mt-1 block">
+          <span className="text-2xl max-md:text-lg font-bold text-slate-400 tabular-nums mt-1 block">
             {isHistoricalNoTally ? 'Unavailable' : formatNumber(resultsPayload?.ballotSummary?.invalidBallots)}
           </span>
           <span className="ucc-caption text-emerald-600 font-semibold mt-0.5 block">
@@ -461,7 +461,7 @@ export const ElectionResultsPage: React.FC = () => {
           {resultsPayload.positions.map((pos) => (
             <div
               key={pos.positionId}
-              className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6"
+              className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6 max-md:space-y-3"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
                 <div>
@@ -497,26 +497,26 @@ export const ElectionResultsPage: React.FC = () => {
                   No candidate tally rows recorded for this portfolio yet.
                 </p>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-md:space-y-2.5">
                   {pos.candidates.map((cand) => (
                     <div
                       key={cand.candidateId}
-                      className={`p-4 sm:p-5 rounded-xl border transition-colors ${
+                      className={`p-4 sm:p-5 max-md:p-2.5 rounded-xl border transition-colors ${
                         cand.isWinner
                           ? 'border-amber-300 bg-amber-50/40'
                           : 'border-slate-200 bg-slate-50/50'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-md:gap-2 mb-2 max-md:mb-1.5">
+                        <div className="flex items-center gap-3 max-md:gap-2">
                           <CandidateAvatar
                             src={cand.photoUrl}
                             alt={cand.fullName}
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 ucc-caption"
+                            className="w-12 h-12 max-md:w-9 max-md:h-9 rounded-xl object-cover border border-slate-200 ucc-caption"
                           />
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-base font-semibold text-slate-900">
+                              <h4 className="text-base max-md:text-sm font-semibold text-slate-900">
                                 {cand.fullName}
                               </h4>
                               {(cand.isWinner || cand.historicalRole) && (
@@ -554,7 +554,7 @@ export const ElectionResultsPage: React.FC = () => {
                           </div>
                         ) : (
                           <div className="text-right">
-                            <div className="text-xl font-bold text-slate-900 tabular-nums">
+                            <div className="text-xl max-md:text-base font-bold text-slate-900 tabular-nums">
                               {formatPercentage(cand.percentageOfValidVotes)}
                             </div>
                             <span className="ucc-caption text-slate-500 tabular-nums">
@@ -586,7 +586,7 @@ export const ElectionResultsPage: React.FC = () => {
       )}
 
       {/* Official Sign-off & Audit Notice */}
-      <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="bg-[#0B1F3A] text-white p-6 sm:p-8 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 max-md:gap-3">
         <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
           <Logo variant="default" theme="dark" showWordmark={false} />
           <div className="space-y-2">
