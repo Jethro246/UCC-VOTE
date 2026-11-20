@@ -342,6 +342,12 @@ service cloud.firestore {
           && request.resource.data.submittedByUid == request.auth.uid
           && request.resource.data.applicationStatus in ['Draft', 'Submitted']
           && !('votesReceived' in request.resource.data)
+          && !('reviewedBy' in request.resource.data)
+          && !('reviewedAt' in request.resource.data)
+          && !('contestantId' in request.resource.data)
+          && (!('eligibilityVerified' in request.resource.data) || request.resource.data.eligibilityVerified == false)
+          && ('electionId' in request.resource.data)
+          && isValidId(request.resource.data.electionId)
         )
       );
       allow update: if isValidId(candidateId) && (
@@ -359,20 +365,32 @@ service cloud.firestore {
         )
         ||
         (
-          isSignedIn() &&
-          resource.data.submittedByUid == request.auth.uid &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'applicationStatus',
+          isSignedIn()
+          && resource != null
+          && resource.data.submittedByUid == request.auth.uid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'eligibilityVerified',
             'reviewedBy',
             'reviewedAt',
             'votesReceived',
             'rejectionReason',
             'contestantId',
-            'electionId',
-            'positionId',
             'submittedByUid'
           ])
+          && (
+            request.resource.data.applicationStatus == resource.data.applicationStatus
+            || (
+              resource.data.applicationStatus in ['Draft', 'Rejected']
+              && request.resource.data.applicationStatus == 'Submitted'
+            )
+          )
+          && (
+            resource.data.applicationStatus == 'Draft'
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'electionId',
+              'positionId'
+            ])
+          )
         )
       );
       allow delete: if isValidId(candidateId)

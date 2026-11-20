@@ -1260,6 +1260,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const registerCandidateAction = async (payload: any) => {
     try {
       const res = await electionClient.registerCandidate(payload);
+      if (res.success && res.candidate) {
+        setRawCandidates((prev) => {
+          const exists = prev.some((c) => c.id === res.candidate!.id);
+          return exists
+            ? prev.map((c) => (c.id === res.candidate!.id ? res.candidate! : c))
+            : [...prev, res.candidate!];
+        });
+      }
       return {
         success: res.success,
         candidate: res.candidate,
@@ -1274,6 +1282,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateCandidateAction = async (id: string, updates: any) => {
     try {
       const res = await electionClient.updateCandidate(id, updates);
+      if (res.success && res.candidate) {
+        setRawCandidates((prev) => {
+          const exists = prev.some((c) => c.id === res.candidate!.id);
+          return exists
+            ? prev.map((c) => (c.id === res.candidate!.id ? res.candidate! : c))
+            : [...prev, res.candidate!];
+        });
+      }
       return {
         success: res.success,
         candidate: res.candidate,
@@ -1503,11 +1519,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const myCandidateApplication =
-    student && student.studentId?.trim()
-      ? candidates.find(
-          (c) => c.studentId?.toUpperCase() === student.studentId.trim().toUpperCase()
-        ) || null
-      : null;
+    candidates.find(
+      (c) =>
+        (firebaseUser?.uid && (c as any).submittedByUid === firebaseUser.uid) ||
+        (student?.studentId?.trim() &&
+          c.studentId?.toUpperCase() === student.studentId.trim().toUpperCase())
+    ) || null;
 
   return (
     <AppContext.Provider

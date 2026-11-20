@@ -10,7 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, formatFirestorePermissionError, OperationType } from '../lib/firebase';
+import { auth, db, functions, OperationType } from '../lib/firebase';
 import {
   DOMAIN_REGISTRY,
   UCC_DEPARTMENTS,
@@ -62,6 +62,10 @@ import {
   DIRECTORY_CONFIG_DOC_ID,
   applyDirectoryVisibilityFilter,
 } from '../utils/electionRemovalUtils';
+import {
+  formatCandidateSubmissionError,
+  generateCandidateDocId,
+} from '../utils/candidateApplicationUtils';
 
 function mapDoc<T>(id: string, data: Record<string, any>): T {
   const out: Record<string, any> = { id };
@@ -650,10 +654,22 @@ class FirebaseElectionClient {
   }> {
     const user = auth.currentUser;
     if (!user) {
-      return { success: false, error: 'You must be signed in to submit a candidate nomination.' };
+      return {
+        success: false,
+        error:
+          'You must be signed in before submitting a candidate nomination. Sign in and retry—your entered details are preserved.',
+      };
     }
 
-    const candId = payload.id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return {
+        success: false,
+        error:
+          'Network error: You appear to be offline. Reconnect to the internet and click Submit Application to retry—your form data has been preserved.',
+      };
+    }
+
+    const candId = payload.id || generateCandidateDocId();
     const status = payload.isDraft ? 'Draft' : payload.applicationStatus || 'Submitted';
 
     let inferredDomainId = payload.domainId;
@@ -676,6 +692,7 @@ class FirebaseElectionClient {
       inferredHallId = findMatchingHallUnit(payload.hall, UCC_HALLS)?.id;
     }
 
+    const nowIso = new Date().toISOString();
     const rawDoc: Record<string, any> = {
       ...payload,
       id: candId,
@@ -686,11 +703,15 @@ class FirebaseElectionClient {
       submittedByUid: user.uid,
       applicationStatus: status,
       photoUrl: payload.photoUrl || payload.electionPhotoUrl || '',
-      submittedAt: new Date().toISOString(),
+      submittedAt: nowIso,
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     };
     delete rawDoc.phone;
+    delete rawDoc.isDraft;
+    if (rawDoc.votesReceived === undefined) {
+      delete rawDoc.votesReceived;
+    }
 
     const docPayload: Record<string, any> = {};
     for (const [k, v] of Object.entries(rawDoc)) {
@@ -701,32 +722,54 @@ class FirebaseElectionClient {
       await setDoc(doc(db, 'candidates', candId), docPayload);
       return {
         success: true,
-        candidate: { ...docPayload, id: candId } as unknown as Candidate,
+        candidate: {
+          ...docPayload,
+          id: candId,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        } as unknown as Candidate,
         message: 'Candidate record saved to Cloud Firestore.',
       };
     } catch (err: any) {
       return {
         success: false,
-        error: formatFirestorePermissionError(err, OperationType.CREATE, `candidates/${candId}`),
+        error: formatCandidateSubmissionError(err, OperationType.CREATE, `candidates/${candId}`),
       };
     }
   }
 
   async updateCandidate(
     id: string,
-    updates: Partial<Candidate> & { resubmit?: boolean }
+    updates: Partial<Candidate> & { resubmit?: boolean; isDraft?: boolean }
   ): Promise<{
     success: boolean;
     candidate?: Candidate;
     message?: string;
     error?: string;
   }> {
+    const user = auth.currentUser;
+    if (!user) {
+      return {
+        success: false,
+        error:
+          'You must be signed in before updating or submitting a candidate application. Sign in and retry—your entered details are preserved.',
+      };
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return {
+        success: false,
+        error:
+          'Network error: You appear to be offline. Reconnect to the internet and click Submit Application to retry—your form data has been preserved.',
+      };
+    }
+
     try {
       const payload: Record<string, any> = {
         updatedAt: serverTimestamp(),
       };
       for (const [k, v] of Object.entries(updates)) {
-        if (k === 'phone' || k === 'resubmit') continue;
+        if (k === 'phone' || k === 'resubmit' || k === 'isDraft' || k === 'submittedByUid') continue;
         if (v !== undefined) payload[k] = v;
       }
       if (!payload.hallId && typeof payload.hall === 'string' && isOfficialHallAffiliation(payload.hall, UCC_HALLS)) {
@@ -735,6 +778,9 @@ class FirebaseElectionClient {
       }
       if (updates.resubmit) {
         payload.applicationStatus = 'Submitted';
+        payload.submittedAt = new Date().toISOString();
+      } else if (updates.isDraft) {
+        payload.applicationStatus = 'Draft';
       }
       const existingSnap = await getDoc(doc(db, 'candidates', id)).catch(() => null);
       if (existingSnap && !existingSnap.exists()) {
@@ -742,7 +788,7 @@ class FirebaseElectionClient {
         if (builtIn) {
           const cleanSeed: Record<string, any> = {};
           for (const [k, v] of Object.entries({ ...builtIn, ...payload })) {
-            if (k === 'phone') continue;
+            if (k === 'phone' || k === 'isDraft') continue;
             if (v !== undefined) cleanSeed[k] = v;
           }
           await setDoc(doc(db, 'candidates', id), cleanSeed);
@@ -766,7 +812,7 @@ class FirebaseElectionClient {
     } catch (err: any) {
       return {
         success: false,
-        error: formatFirestorePermissionError(err, OperationType.UPDATE, `candidates/${id}`),
+        error: formatCandidateSubmissionError(err, OperationType.UPDATE, `candidates/${id}`),
       };
     }
   }
