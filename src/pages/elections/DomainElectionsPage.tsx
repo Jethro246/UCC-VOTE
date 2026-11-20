@@ -673,7 +673,7 @@ export const DomainElectionsPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 min-[376px]:gap-3.5 min-[481px]:gap-4 lg:gap-5">
           {visibleElections.map((election) => {
             const positions = positionsByElection[election.id] || [];
             const approvedCandsCount = candidates.filter(
@@ -689,20 +689,20 @@ export const DomainElectionsPage: React.FC = () => {
             return (
               <div
                 key={election.id}
-                className="bg-white rounded-2xl border border-slate-200 flex flex-col justify-between overflow-hidden"
+                className="bg-white rounded-xl min-[481px]:rounded-2xl border border-slate-200 flex flex-col justify-between overflow-hidden min-w-0"
               >
-                <div className="p-5 space-y-3.5">
+                <div className="p-3 min-[376px]:p-3.5 min-[481px]:p-4 lg:p-5 space-y-2 min-[376px]:space-y-2.5 lg:space-y-3.5 min-w-0">
                   {/* Unboxed quiet metadata header */}
-                  <div className="flex items-center justify-between gap-2 ucc-caption">
-                    <div className="flex items-center gap-2 text-slate-500 truncate">
-                      <span className="font-semibold text-[#123B70] uppercase tracking-wider">
+                  <div className="flex items-center justify-between gap-2 text-[11px] min-[376px]:text-xs leading-tight">
+                    <div className="flex items-center gap-1.5 text-slate-500 min-w-0 truncate">
+                      <span className="font-semibold text-[#123B70] uppercase tracking-wider truncate">
                         {election.subdomainLabel || election.category}
                       </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-normal">{election.code}</span>
+                      <span aria-hidden="true" className="shrink-0">·</span>
+                      <span className="font-normal shrink-0">{election.code}</span>
                     </div>
                     <span
-                      className={`ucc-caption font-semibold whitespace-nowrap ${
+                      className={`text-[11px] min-[376px]:text-xs font-semibold whitespace-nowrap shrink-0 ${
                         isLive
                           ? 'text-emerald-700'
                           : isResults
@@ -713,13 +713,13 @@ export const DomainElectionsPage: React.FC = () => {
                       }`}
                     >
                       {isLive
-                        ? 'Live Election · Voting Open'
+                        ? 'Live · Voting Open'
                         : isResults
                         ? 'Certified Results'
                         : isArchived
                         ? 'Historical Archive'
                         : isDraft
-                        ? 'Draft · Pending Activation'
+                        ? 'Draft · Pending'
                         : election.status === 'scheduled' || election.status === 'upcoming'
                         ? 'Scheduled'
                         : election.status.replace(/_/g, ' ')}
@@ -727,37 +727,37 @@ export const DomainElectionsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <h3 className="ucc-heading-card text-slate-900">
+                    <h3 className="text-[15px] min-[376px]:text-base min-[481px]:text-[17px] md:text-lg lg:text-xl font-bold lg:font-semibold leading-snug tracking-[-0.01em] text-slate-900 line-clamp-2 lg:line-clamp-none">
                       {election.title}
                     </h3>
-                    <p className="ucc-body-secondary text-slate-600 mt-1">
+                    <p className="text-xs min-[481px]:text-[13px] lg:text-sm leading-snug lg:leading-normal text-slate-600 mt-1 line-clamp-2 lg:line-clamp-none">
                       {election.description}
                     </p>
                   </div>
 
                   {election.historicalNote && (
-                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 ucc-caption font-normal text-amber-950">
+                    <div className="p-2 lg:p-2.5 rounded-lg lg:rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] min-[376px]:text-xs font-normal text-amber-950">
                       <strong className="font-semibold">Historical Record Note: </strong>
                       {election.historicalNote}
                     </div>
                   )}
 
                   {/* Contested Portfolios List (Constitution/Domain Specific) */}
-                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                    <div className="flex items-center justify-between ucc-caption">
-                      <span className="font-semibold text-slate-700 uppercase tracking-wider">
+                  <div className="pt-1.5 lg:pt-2 border-t border-slate-100 space-y-1 lg:space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[11px] min-[376px]:text-xs leading-tight">
+                      <span className="font-semibold text-slate-700 uppercase tracking-wider truncate">
                         Configured Portfolios ({formatNumber(positions.length || election.positionsCount)})
                       </span>
-                      <span className="text-slate-500 font-normal">
+                      <span className="text-slate-500 font-normal whitespace-nowrap shrink-0">
                         {formatNumber(approvedCandsCount)} Approved Candidate{approvedCandsCount === 1 ? '' : 's'}
                       </span>
                     </div>
                     {positions.length > 0 ? (
-                      <div className="ucc-body-secondary text-slate-600">
+                      <div className="text-xs min-[481px]:text-[13px] lg:text-sm text-slate-600 line-clamp-2 lg:line-clamp-none">
                         {positions.map((p) => p.title).join(' · ')}
                       </div>
                     ) : (
-                      <div className="ucc-body-secondary text-slate-400 italic">
+                      <div className="text-xs min-[481px]:text-[13px] lg:text-sm text-slate-400 italic">
                         {isArchived
                           ? 'No portfolios recorded in source archive — awaiting administrator input.'
                           : 'Portfolios awaiting configuration by domain administrator.'}
@@ -766,16 +766,16 @@ export const DomainElectionsPage: React.FC = () => {
                   </div>
 
                   {/* Turnout & Eligibility */}
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 ucc-caption">
-                    <div>
+                  <div className="grid grid-cols-2 gap-2 lg:gap-3 pt-1.5 lg:pt-2 border-t border-slate-100 text-[11px] min-[376px]:text-xs leading-tight">
+                    <div className="min-w-0">
                       <span className="text-slate-500 font-normal block">Polling Window</span>
-                      <span className="font-semibold text-slate-800 tabular-nums">
+                      <span className="font-semibold text-slate-800 tabular-nums block truncate">
                         {formatElectionWindow(election)}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-slate-500 font-normal block">Turnout Progress</span>
-                      <span className="font-semibold text-[#123B70] tabular-nums">
+                      <span className="font-semibold text-[#123B70] tabular-nums block truncate">
                         {isArchived && election.tallyAvailable === false
                           ? 'Tally unavailable'
                           : `${formatPercentage(election.turnoutPercentage)} (${formatNumber(election.totalVotesCast)} / ${formatNumber(election.totalEligibleVoters)})`}
@@ -785,13 +785,13 @@ export const DomainElectionsPage: React.FC = () => {
 
                   {student && (
                     isArchived ? (
-                      <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 ucc-caption font-normal flex items-center gap-2">
+                      <div className="p-2 lg:p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-[11px] min-[376px]:text-xs font-normal flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span>Historical Archive · Voting Disabled (Read-only historical record)</span>
                       </div>
                     ) : (
                       <div
-                        className={`p-2.5 rounded-lg border ucc-caption font-normal flex items-center gap-2 ${
+                        className={`p-2 lg:p-2.5 rounded-lg border text-[11px] min-[376px]:text-xs font-normal flex items-center gap-2 ${
                           elig.eligible
                             ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800'
                             : 'bg-amber-50/70 border-amber-200 text-amber-900'
@@ -813,30 +813,30 @@ export const DomainElectionsPage: React.FC = () => {
                 </div>
 
                 {/* Action Footer */}
-                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
+                <div className="px-3 py-2 min-[376px]:px-3.5 min-[376px]:py-2.5 min-[481px]:px-4 lg:px-5 lg:py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-[481px]:gap-3">
                     <button
                       onClick={() => navigateTo('election_details', { electionId: election.id })}
-                      className="text-sm font-semibold text-slate-700 hover:text-[#123B70] cursor-pointer whitespace-nowrap"
+                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-slate-700 hover:text-[#123B70] cursor-pointer whitespace-nowrap min-h-[32px] lg:min-h-0 inline-flex items-center"
                     >
                       View Election Information
                     </button>
                     <button
                       onClick={() => navigateTo('candidate_directory', { electionId: election.id })}
-                      className="text-sm font-semibold text-[#123B70] hover:underline cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      className="text-xs min-[481px]:text-[13px] lg:text-sm font-semibold text-[#123B70] hover:underline cursor-pointer inline-flex items-center gap-1 whitespace-nowrap min-h-[32px] lg:min-h-0"
                     >
-                      <Users className="w-3.5 h-3.5" />
+                      <Users className="w-3.5 h-3.5 shrink-0" />
                       <span>Candidates</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 min-[481px]:gap-2">
                     {isLive && !hasVoted && elig.eligible && (
                       <button
                         onClick={() => navigateTo('digital_ballot', { electionId: election.id })}
-                        className="px-3.5 py-1.5 rounded-lg bg-[#C62828] hover:bg-red-700 text-white text-sm font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        className="px-2.5 py-1.5 min-[376px]:px-3 min-[481px]:px-3.5 min-h-[32px] lg:min-h-0 rounded-lg bg-[#C62828] hover:bg-red-700 text-white text-xs min-[481px]:text-[13px] lg:text-sm font-semibold inline-flex items-center gap-1 min-[481px]:gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <Vote className="w-3.5 h-3.5" />
+                        <Vote className="w-3.5 h-3.5 shrink-0" />
                         <span>Cast Your Vote</span>
                       </button>
                     )}
@@ -844,9 +844,9 @@ export const DomainElectionsPage: React.FC = () => {
                     {hasVoted && (
                       <button
                         onClick={() => navigateTo('digital_ballot', { electionId: election.id })}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        className="px-2.5 py-1.5 min-[376px]:px-3 min-[481px]:px-3.5 min-h-[32px] lg:min-h-0 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs min-[481px]:text-[13px] lg:text-sm font-semibold inline-flex items-center gap-1 min-[481px]:gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         <span>Receipt</span>
                       </button>
                     )}
@@ -858,11 +858,11 @@ export const DomainElectionsPage: React.FC = () => {
                         (!isArchived || election.provisionalResultsReady || election.resultsCertified))) && (
                       <button
                         onClick={() => navigateTo('election_results', { electionId: election.id })}
-                        className="px-3.5 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#123B70] text-white text-sm font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        className="px-2.5 py-1.5 min-[376px]:px-3 min-[481px]:px-3.5 min-h-[32px] lg:min-h-0 rounded-lg bg-[#0B1F3A] hover:bg-[#123B70] text-white text-xs min-[481px]:text-[13px] lg:text-sm font-semibold inline-flex items-center gap-1 min-[481px]:gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <Award className="w-3.5 h-3.5 text-amber-400" />
+                        <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         <span>{isResults ? 'View Results' : isArchived ? 'View Outcomes' : 'Results Portal'}</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                       </button>
                     )}
                   </div>
